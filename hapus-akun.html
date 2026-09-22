@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0B0D12" />
+  <meta name="robots" content="index,follow" />
+
+  <title>Hapus Akun VORA POS</title>
+  <meta name="description" content="Halaman resmi untuk meminta penghapusan akun VORA POS dan data terkait." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#0B0D12;
+      --bg2:#11151D;
+      --card:#141A23;
+      --card2:#0F141C;
+      --text:#F8FAFC;
+      --muted:#9AA4B2;
+      --line:rgba(255,255,255,.08);
+      --blue:#3B82F6;
+      --blue2:#2563EB;
+      --green:#10B981;
+      --green2:#059669;
+      --red:#EF4444;
+      --shadow:0 24px 70px rgba(0,0,0,.35);
+      --radius:24px;
+      --container:1040px;
+    }
+
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+
+    body{
+      margin:0;
+      font-family:"Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 85% 10%, rgba(59,130,246,.14), transparent 30%),
+        radial-gradient(circle at 10% 15%, rgba(16,185,129,.08), transparent 28%),
+        var(--bg);
+      line-height:1.65;
+      min-height:100vh;
+    }
+
+    a{color:inherit;text-decoration:none}
+    button,input,textarea{font:inherit}
+
+    .container{
+      width:min(calc(100% - 32px),var(--container));
+      margin-inline:auto;
+    }
+
+    header{
+      border-bottom:1px solid var(--line);
+      background:rgba(11,13,18,.78);
+      backdrop-filter:blur(16px);
+      -webkit-backdrop-filter:blur(16px);
+      position:sticky;
+      top:0;
+      z-index:50;
+    }
+
+    .nav{
+      min-height:74px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      font-weight:800;
+      letter-spacing:-.03em;
+    }
+
+    .brand-mark{
+      width:40px;
+      height:40px;
+      border-radius:12px;
+      display:grid;
+      place-items:center;
+      background:
+        linear-gradient(145deg, rgba(59,130,246,.22), rgba(16,185,129,.13));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.02);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .brand-mark::before{
+      content:"V";
+      color:white;
+      font-weight:900;
+      font-size:24px;
+      line-height:1;
+      transform:translateY(-1px);
+    }
+
+    .brand-mark::after{
+      content:"";
+      position:absolute;
+      width:9px;
+      height:9px;
+      border-radius:50%;
+      background:var(--green);
+      right:6px;
+      bottom:6px;
+      box-shadow:0 0 18px rgba(16,185,129,.55);
+    }
+
+    .brand-text{
+      display:flex;
+      flex-direction:column;
+      line-height:1.05;
+    }
+
+    .brand-text strong{font-size:16px}
+    .brand-text span{
+      color:var(--green);
+      font-size:11px;
+      letter-spacing:.08em;
+      margin-top:4px;
+    }
+
+    .nav-link{
+      color:#B8C2CF;
+      font-size:13px;
+      font-weight:700;
+      transition:.2s ease;
+    }
+
+    .nav-link:hover{color:white}
+
+    .hero{
+      padding:82px 0 50px;
+      text-align:center;
+    }
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border:1px solid rgba(59,130,246,.22);
+      border-radius:999px;
+      background:rgba(59,130,246,.08);
+      color:#BFD5FF;
+      font-size:12px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      margin-bottom:20px;
+    }
+
+    .dot{
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:var(--green);
+      box-shadow:0 0 18px rgba(16,185,129,.6);
+    }
+
+    h1{
+      font-size:clamp(38px,6vw,68px);
+      line-height:1.02;
+      letter-spacing:-.055em;
+      margin:0 auto 18px;
+      max-width:830px;
+    }
+
+    .hero p{
+      color:var(--muted);
+      max-width:760px;
+      margin:0 auto;
+      font-size:16px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:1.05fr .95fr;
+      gap:26px;
+      padding:30px 0 80px;
+      align-items:start;
+    }
+
+    .card{
+      background:
+        linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01)),
+        var(--card2);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+
+    .card-pad{padding:28px}
+
+    .card h2{
+      font-size:22px;
+      letter-spacing:-.03em;
+      margin:0 0 8px;
+    }
+
+    .card .lead{
+      color:var(--muted);
+      font-size:14px;
+      margin:0 0 24px;
+    }
+
+    .notice{
+      padding:15px 16px;
+      border-radius:16px;
+      background:rgba(59,130,246,.08);
+      border:1px solid rgba(59,130,246,.18);
+      color:#C8DBFF;
+      font-size:13px;
+      margin-bottom:22px;
+    }
+
+    .field{margin-bottom:15px}
+
+    label{
+      display:block;
+      margin-bottom:7px;
+      font-size:12px;
+      color:#D8DFE9;
+      font-weight:700;
+    }
+
+    input,textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.035);
+      color:white;
+      outline:none;
+      padding:13px 14px;
+      transition:.2s ease;
+    }
+
+    input{
+      min-height:48px;
+    }
+
+    textarea{
+      min-height:110px;
+      resize:vertical;
+    }
+
+    input:focus,textarea:focus{
+      border-color:rgba(59,130,246,.6);
+      box-shadow:0 0 0 4px rgba(59,130,246,.10);
+    }
+
+    input::placeholder,textarea::placeholder{
+      color:#6F7A89;
+    }
+
+    .check-row{
+      display:flex;
+      align-items:flex-start;
+      gap:10px;
+      margin:18px 0;
+      color:#B5BFCC;
+      font-size:12px;
+    }
+
+    .check-row input{
+      width:16px;
+      height:16px;
+      min-height:0;
+      margin-top:2px;
+      accent-color:var(--blue);
+      flex:0 0 auto;
+    }
+
+    .btn{
+      width:100%;
+      border:0;
+      border-radius:13px;
+      min-height:50px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:9px;
+      cursor:pointer;
+      font-weight:800;
+      transition:.2s ease;
+    }
+
+    .btn-primary{
+      color:white;
+      background:linear-gradient(180deg,var(--blue),var(--blue2));
+      box-shadow:0 14px 32px rgba(37,99,235,.26);
+    }
+
+    .btn-primary:hover{
+      transform:translateY(-1px);
+      box-shadow:0 18px 38px rgba(37,99,235,.34);
+    }
+
+    .btn-secondary{
+      margin-top:10px;
+      color:white;
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--line);
+    }
+
+    .form-note{
+      margin-top:12px;
+      font-size:11px;
+      color:#788392;
+      text-align:center;
+    }
+
+    .steps{
+      display:grid;
+      gap:14px;
+      margin-top:22px;
+    }
+
+    .step{
+      display:grid;
+      grid-template-columns:38px 1fr;
+      gap:13px;
+      align-items:flex-start;
+      padding:16px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.02);
+    }
+
+    .step-num{
+      width:38px;
+      height:38px;
+      border-radius:12px;
+      display:grid;
+      place-items:center;
+      background:rgba(59,130,246,.12);
+      color:#BFD4FF;
+      font-size:12px;
+      font-weight:900;
+    }
+
+    .step strong{
+      display:block;
+      font-size:13px;
+      margin-bottom:2px;
+    }
+
+    .step span{
+      color:var(--muted);
+      font-size:12px;
+    }
+
+    .info-box{
+      margin-top:20px;
+      padding:18px;
+      border-radius:17px;
+      border:1px solid rgba(16,185,129,.18);
+      background:rgba(16,185,129,.06);
+    }
+
+    .info-box strong{
+      color:#BAF3DC;
+      display:block;
+      margin-bottom:6px;
+      font-size:13px;
+    }
+
+    .info-box p{
+      margin:0;
+      color:#A9B7C5;
+      font-size:12px;
+    }
+
+    .policy{
+      margin-top:26px;
+      border-top:1px solid var(--line);
+      padding-top:22px;
+    }
+
+    .policy h3{
+      margin:0 0 10px;
+      font-size:15px;
+    }
+
+    .policy ul{
+      margin:0;
+      padding-left:20px;
+      color:var(--muted);
+      font-size:12px;
+    }
+
+    .policy li{margin:7px 0}
+
+    .support{
+      margin-top:22px;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+
+    .support a{
+      display:block;
+      padding:14px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:rgba(255,255,255,.025);
+      transition:.2s ease;
+    }
+
+    .support a:hover{
+      transform:translateY(-1px);
+      border-color:rgba(59,130,246,.28);
+    }
+
+    .support small{
+      display:block;
+      color:#75808F;
+      margin-bottom:3px;
+    }
+
+    .support strong{
+      font-size:12px;
+      word-break:break-word;
+    }
+
+    footer{
+      border-top:1px solid var(--line);
+      padding:28px 0 38px;
+      color:#707A88;
+      font-size:12px;
+    }
+
+    .footer-inner{
+      display:flex;
+      justify-content:space-between;
+      gap:20px;
+      flex-wrap:wrap;
+    }
+
+    .footer-links{
+      display:flex;
+      flex-wrap:wrap;
+      gap:16px;
+    }
+
+    .footer-links a:hover{color:white}
+
+    .toast{
+      position:fixed;
+      left:50%;
+      bottom:26px;
+      transform:translate(-50%,20px);
+      background:#111827;
+      color:white;
+      border:1px solid var(--line);
+      box-shadow:var(--shadow);
+      border-radius:12px;
+      padding:12px 16px;
+      font-size:12px;
+      opacity:0;
+      pointer-events:none;
+      transition:.25s ease;
+      z-index:100;
+    }
+
+    .toast.show{
+      opacity:1;
+      transform:translate(-50%,0);
+    }
+
+    @media(max-width:860px){
+      .grid{grid-template-columns:1fr}
+      .hero{padding-top:58px}
+    }
+
+    @media(max-width:560px){
+      .nav{min-height:66px}
+      .nav-link{display:none}
+      .hero{padding:50px 0 28px}
+      .card-pad{padding:20px}
+      .support{grid-template-columns:1fr}
+      h1{font-size:40px}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="container nav">
+    <a class="brand" href="https://vorakasir.com/" aria-label="VORA POS">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div class="brand-text">
+        <strong>VORA POS</strong>
+        <span>KASIR PINTAR</span>
+      </div>
+    </a>
+
+    <a class="nav-link" href="https://vorakasir.com/">Kembali ke vorakasir.com</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="container">
+      <div class="badge"><span class="dot"></span> Penghapusan akun resmi</div>
+      <h1>Hapus Akun VORA POS</h1>
+      <p>
+        Gunakan halaman ini untuk meminta penghapusan akun VORA POS dan data yang terkait dengan akun Anda.
+        Permintaan akan diverifikasi terlebih dahulu untuk melindungi keamanan akun.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="container grid">
+
+      <div class="card card-pad">
+        <h2>Kirim permintaan penghapusan</h2>
+        <p class="lead">
+          Isi data berikut menggunakan informasi yang terdaftar pada akun VORA POS Anda.
+        </p>
+
+        <div class="notice">
+          Setelah tombol diklik, data formulir akan dibuat menjadi pesan WhatsApp ke Admin VORA.
+          Halaman ini tidak menyimpan isi formulir ke server.
+        </div>
+
+        <form id="deleteForm">
+          <div class="field">
+            <label for="name">Nama pemilik akun *</label>
+            <input id="name" name="name" type="text" placeholder="Contoh: Budi Santoso" required />
+          </div>
+
+          <div class="field">
+            <label for="email">Email akun VORA POS *</label>
+            <input id="email" name="email" type="email" placeholder="nama@email.com" required />
+          </div>
+
+          <div class="field">
+            <label for="phone">Nomor WhatsApp terdaftar *</label>
+            <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="08xxxxxxxxxx" required />
+          </div>
+
+          <div class="field">
+            <label for="business">Nama bisnis / outlet *</label>
+            <input id="business" name="business" type="text" placeholder="Nama usaha Anda" required />
+          </div>
+
+          <div class="field">
+            <label for="reason">Alasan penghapusan akun <span style="color:#768191;font-weight:500">(opsional)</span></label>
+            <textarea id="reason" name="reason" placeholder="Tuliskan alasan jika diperlukan"></textarea>
+          </div>
+
+          <label class="check-row">
+            <input id="confirm" type="checkbox" required />
+            <span>
+              Saya memahami bahwa penghapusan akun dapat menyebabkan saya kehilangan akses ke data bisnis
+              yang terkait dengan akun VORA POS ini.
+            </span>
+          </label>
+
+          <button class="btn btn-primary" type="submit">
+            Kirim Permintaan via WhatsApp
+          </button>
+
+          <button class="btn btn-secondary" type="button" id="copyBtn">
+            Salin Detail Permintaan
+          </button>
+
+          <div class="form-note">
+            Admin VORA dapat meminta verifikasi tambahan sebelum memproses penghapusan.
+          </div>
+        </form>
+      </div>
+
+      <aside class="card card-pad">
+        <h2>Bagaimana prosesnya?</h2>
+        <p class="lead">
+          Permintaan penghapusan tidak langsung menghapus akun sebelum identitas pemilik berhasil diverifikasi.
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">01</div>
+            <div>
+              <strong>Kirim permintaan</strong>
+              <span>Isi formulir dengan email dan nomor WhatsApp yang terkait dengan akun Anda.</span>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">02</div>
+            <div>
+              <strong>Verifikasi kepemilikan</strong>
+              <span>Tim VORA dapat meminta informasi tambahan untuk memastikan permintaan berasal dari pemilik akun.</span>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">03</div>
+            <div>
+              <strong>Penghapusan diproses</strong>
+              <span>Setelah verifikasi selesai, akun dan data terkait akan dijadwalkan untuk dihapus sesuai kebijakan VORA.</span>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">04</div>
+            <div>
+              <strong>Konfirmasi</strong>
+              <span>Anda akan menerima konfirmasi melalui kontak yang Anda gunakan dalam permintaan.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-box">
+          <strong>Estimasi penyelesaian</strong>
+          <p>
+            Permintaan akan ditinjau dan diproses secepat mungkin, umumnya paling lambat 7 hari kerja setelah verifikasi berhasil.
+          </p>
+        </div>
+
+        <div class="policy">
+          <h3>Data yang dapat dihapus</h3>
+          <ul>
+            <li>Profil akun merchant.</li>
+            <li>Informasi usaha dan outlet yang terkait dengan akun.</li>
+            <li>Data staf, pelanggan, produk, dan pengaturan yang terkait dengan akun.</li>
+            <li>Data operasional lain yang tidak lagi diperlukan untuk menyediakan layanan.</li>
+          </ul>
+
+          <h3 style="margin-top:18px">Data yang mungkin perlu dipertahankan</h3>
+          <ul>
+            <li>
+              Data tertentu dapat dipertahankan apabila diwajibkan oleh hukum, kewajiban pajak/akuntansi,
+              penyelesaian sengketa, pencegahan penipuan, atau kewajiban keamanan.
+            </li>
+            <li>
+              Apabila data harus dipertahankan, pengguna dapat meminta penjelasan mengenai kategori data dan alasannya.
+            </li>
+          </ul>
+        </div>
+
+        <div class="support">
+          <a href="https://wa.me/6289636974140" target="_blank" rel="noopener">
+            <small>WhatsApp Admin</small>
+            <strong>0896-3697-4140</strong>
+          </a>
+
+          <a href="https://instagram.com/vorakasir" target="_blank" rel="noopener">
+            <small>Instagram</small>
+            <strong>@vorakasir</strong>
+          </a>
+        </div>
+      </aside>
+
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>© <span id="year"></span> VORA POS. Semua hak dilindungi.</div>
+
+    <div class="footer-links">
+      <a href="https://vorakasir.com/">Beranda</a>
+      <a href="https://vorakasir.com/kebijakan-privasi">Kebijakan Privasi</a>
+      <a href="https://instagram.com/vorakasir" target="_blank" rel="noopener">Instagram</a>
+    </div>
+  </div>
+</footer>
+
+<div class="toast" id="toast">Detail permintaan berhasil disalin.</div>
+
+<script>
+  const ADMIN_WA = "6289636974140";
+
+  const form = document.getElementById("deleteForm");
+  const copyBtn = document.getElementById("copyBtn");
+  const toast = document.getElementById("toast");
+
+  document.getElementById("year").textContent = new Date().getFullYear();
+
+  function buildMessage() {
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const phone = document.getElementById("phone").value.trim();
+    const business = document.getElementById("business").value.trim();
+    const reason = document.getElementById("reason").value.trim();
+
+    return [
+      "PERMINTAAN PENGHAPUSAN AKUN VORA POS",
+      "",
+      "Nama: " + name,
+      "Email akun: " + email,
+      "No. WhatsApp: " + phone,
+      "Bisnis / Outlet: " + business,
+      "Alasan: " + (reason || "-"),
+      "",
+      "Saya meminta penghapusan akun VORA POS dan data yang terkait dengan akun saya.",
+      "Saya bersedia melakukan verifikasi kepemilikan akun apabila diperlukan."
+    ].join("\n");
+  }
+
+  function validateForm() {
+    if (!form.reportValidity()) return false;
+
+    if (!document.getElementById("confirm").checked) {
+      alert("Silakan centang persetujuan penghapusan akun.");
+      return false;
+    }
+
+    return true;
+  }
+
+  form.addEventListener("submit", function(e) {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    const message = encodeURIComponent(buildMessage());
+    const url = "https://wa.me/" + ADMIN_WA + "?text=" + message;
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  });
+
+  copyBtn.addEventListener("click", async function() {
+    if (!validateForm()) return;
+
+    try {
+      await navigator.clipboard.writeText(buildMessage());
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 2200);
+    } catch (err) {
+      alert("Browser tidak mengizinkan penyalinan otomatis. Silakan gunakan tombol WhatsApp.");
+    }
+  });
+</script>
+
+</body>
+</html>

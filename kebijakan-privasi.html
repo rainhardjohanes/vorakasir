@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0B0D12" />
+  <meta name="robots" content="index,follow" />
+
+  <title>Kebijakan Privasi VORA POS</title>
+  <meta name="description" content="Kebijakan Privasi resmi VORA POS mengenai pengumpulan, penggunaan, penyimpanan, keamanan, dan penghapusan data pengguna." />
+  <link rel="canonical" href="https://vorakasir.com/kebijakan-privasi" />
+
+  <style>
+    :root{
+      --bg:#0B0D12;
+      --bg2:#11151D;
+      --card:#141A23;
+      --text:#F8FAFC;
+      --muted:#9AA4B2;
+      --line:rgba(255,255,255,.08);
+      --blue:#3B82F6;
+      --green:#10B981;
+      --container:980px;
+    }
+
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at 80% 0%, rgba(59,130,246,.12), transparent 30%),
+        radial-gradient(circle at 10% 18%, rgba(16,185,129,.08), transparent 25%),
+        var(--bg);
+      color:var(--text);
+      line-height:1.72;
+    }
+
+    a{color:#8EBBFF;text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    .container{
+      width:min(calc(100% - 32px),var(--container));
+      margin:auto;
+    }
+
+    header{
+      position:sticky;
+      top:0;
+      z-index:20;
+      background:rgba(11,13,18,.82);
+      backdrop-filter:blur(14px);
+      -webkit-backdrop-filter:blur(14px);
+      border-bottom:1px solid var(--line);
+    }
+
+    .nav{
+      min-height:72px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:20px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      font-weight:800;
+      letter-spacing:-.03em;
+    }
+
+    .mark{
+      width:40px;
+      height:40px;
+      border-radius:12px;
+      display:grid;
+      place-items:center;
+      font-weight:900;
+      font-size:22px;
+      background:linear-gradient(145deg,rgba(59,130,246,.28),rgba(16,185,129,.16));
+      border:1px solid var(--line);
+      position:relative;
+    }
+
+    .mark::after{
+      content:"";
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:var(--green);
+      position:absolute;
+      right:6px;
+      bottom:6px;
+    }
+
+    .back{
+      font-size:13px;
+      font-weight:700;
+      color:#B8C2CF;
+    }
+
+    .hero{
+      padding:74px 0 34px;
+    }
+
+    .eyebrow{
+      display:inline-block;
+      color:#AFCBFF;
+      border:1px solid rgba(59,130,246,.22);
+      background:rgba(59,130,246,.08);
+      border-radius:999px;
+      padding:7px 11px;
+      font-size:11px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      margin-bottom:18px;
+    }
+
+    h1{
+      margin:0 0 16px;
+      font-size:clamp(38px,6vw,64px);
+      line-height:1.03;
+      letter-spacing:-.055em;
+    }
+
+    .intro{
+      max-width:780px;
+      color:var(--muted);
+      font-size:16px;
+      margin:0;
+    }
+
+    .meta{
+      margin-top:18px;
+      color:#7F8997;
+      font-size:12px;
+    }
+
+    main{
+      padding:20px 0 80px;
+    }
+
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01)),var(--bg2);
+      border:1px solid var(--line);
+      border-radius:24px;
+      padding:30px;
+      margin-bottom:18px;
+    }
+
+    h2{
+      margin:0 0 12px;
+      font-size:22px;
+      letter-spacing:-.03em;
+    }
+
+    h3{
+      margin:24px 0 8px;
+      font-size:15px;
+    }
+
+    p{
+      color:#B6C0CD;
+      margin:0 0 14px;
+    }
+
+    ul{
+      margin:10px 0 0;
+      padding-left:20px;
+      color:#B6C0CD;
+    }
+
+    li{margin:8px 0}
+
+    .table-wrap{
+      overflow-x:auto;
+      margin-top:16px;
+      border:1px solid var(--line);
+      border-radius:16px;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      min-width:720px;
+    }
+
+    th,td{
+      padding:14px 16px;
+      text-align:left;
+      vertical-align:top;
+      border-bottom:1px solid var(--line);
+      font-size:13px;
+    }
+
+    th{
+      color:#E7ECF4;
+      background:rgba(255,255,255,.03);
+    }
+
+    td{
+      color:#AEB8C6;
+    }
+
+    tr:last-child td{border-bottom:0}
+
+    .notice{
+      padding:16px 18px;
+      border-radius:16px;
+      background:rgba(16,185,129,.07);
+      border:1px solid rgba(16,185,129,.17);
+      color:#B9EFD9;
+      margin-top:16px;
+      font-size:13px;
+    }
+
+    .contact{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:12px;
+      margin-top:16px;
+    }
+
+    .contact a,
+    .contact .item{
+      display:block;
+      padding:15px;
+      border-radius:14px;
+      background:rgba(255,255,255,.025);
+      border:1px solid var(--line);
+      min-width:0;
+    }
+
+    .contact small{
+      display:block;
+      color:#768191;
+      margin-bottom:4px;
+    }
+
+    .contact strong{
+      display:block;
+      color:white;
+      font-size:12px;
+      word-break:break-word;
+    }
+
+    footer{
+      border-top:1px solid var(--line);
+      padding:28px 0 38px;
+      color:#727C89;
+      font-size:12px;
+    }
+
+    .footer-inner{
+      display:flex;
+      justify-content:space-between;
+      gap:20px;
+      flex-wrap:wrap;
+    }
+
+    @media(max-width:700px){
+      .hero{padding-top:50px}
+      .card{padding:21px}
+      .contact{grid-template-columns:1fr}
+      .back{display:none}
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <div class="container nav">
+    <a class="brand" href="https://vorakasir.com/" aria-label="VORA POS">
+      <div class="mark">V</div>
+      <div>VORA <span style="color:var(--green)">POS</span></div>
+    </a>
+    <a class="back" href="https://vorakasir.com/">Kembali ke vorakasir.com</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <span class="eyebrow">Dokumen Resmi VORA POS</span>
+    <h1>Kebijakan Privasi</h1>
+    <p class="intro">
+      Kebijakan Privasi ini menjelaskan bagaimana VORA POS mengumpulkan, menggunakan,
+      menyimpan, melindungi, dan menghapus data saat Anda menggunakan aplikasi dan layanan VORA POS.
+    </p>
+    <div class="meta">Terakhir diperbarui: 22 September 2026</div>
+  </div>
+</section>
+
+<main>
+  <div class="container">
+
+    <section class="card">
+      <h2>1. Tentang VORA POS</h2>
+      <p>
+        VORA POS adalah layanan aplikasi kasir dan pengelolaan bisnis untuk membantu merchant
+        mengelola operasional seperti outlet, produk, staf, pelanggan, transaksi, inventori,
+        shift, absensi, dan laporan.
+      </p>
+      <p>
+        Dengan menggunakan VORA POS, Anda menyetujui praktik pengelolaan data yang dijelaskan
+        dalam Kebijakan Privasi ini.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>2. Data yang dapat kami kumpulkan</h2>
+      <p>
+        Jenis data yang dikumpulkan bergantung pada fitur yang digunakan. VORA POS dapat mengumpulkan
+        kategori data berikut:
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Kategori</th>
+              <th>Contoh data</th>
+              <th>Tujuan utama</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Informasi akun</td>
+              <td>Nama, alamat email, ID pengguna, nomor telepon</td>
+              <td>Membuat akun, autentikasi, pengelolaan akun, dan akses ke layanan.</td>
+            </tr>
+            <tr>
+              <td>Informasi bisnis</td>
+              <td>Nama bisnis, nama outlet, alamat outlet, konfigurasi bisnis</td>
+              <td>Menjalankan fungsi kasir, outlet, laporan, dan pengelolaan operasional.</td>
+            </tr>
+            <tr>
+              <td>Data staf dan pelanggan</td>
+              <td>Nama staf, peran, identitas internal, nama pelanggan, nomor telepon pelanggan</td>
+              <td>Pengelolaan staf, pelanggan, transaksi, dan operasional bisnis.</td>
+            </tr>
+            <tr>
+              <td>Data transaksi</td>
+              <td>Riwayat transaksi, produk, jumlah, total, pajak, metode pembayaran, struk</td>
+              <td>Memproses transaksi, membuat laporan, rekonsiliasi, dan riwayat penjualan.</td>
+            </tr>
+            <tr>
+              <td>Foto</td>
+              <td>Foto yang diambil melalui fitur yang memerlukan kamera, misalnya absensi</td>
+              <td>Menjalankan fungsi aplikasi yang menggunakan foto.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="notice">
+        VORA POS tidak menjual data pribadi pengguna kepada pihak ketiga.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3. Data lokasi</h2>
+      <p>
+        VORA POS tidak dirancang untuk mengumpulkan atau menyimpan lokasi presisi maupun perkiraan
+        sebagai data pengguna untuk pelacakan lokasi.
+      </p>
+      <p>
+        Pada sebagian perangkat Android, izin lokasi dapat muncul berkaitan dengan kompatibilitas
+        fitur Bluetooth tertentu. Izin tersebut tidak digunakan VORA POS untuk membuat profil lokasi,
+        menampilkan iklan berbasis lokasi, atau melacak pergerakan pengguna.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>4. Penggunaan kamera dan foto</h2>
+      <p>
+        VORA POS dapat meminta akses kamera untuk fitur yang membutuhkan pengambilan gambar,
+        termasuk fitur absensi apabila diaktifkan oleh merchant.
+      </p>
+      <p>
+        Foto hanya digunakan untuk menjalankan fungsi terkait di aplikasi dan tidak digunakan
+        untuk periklanan pihak ketiga.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>5. Cara kami menggunakan data</h2>
+      <p>Data dapat digunakan untuk:</p>
+      <ul>
+        <li>membuat, mengautentikasi, dan mengelola akun;</li>
+        <li>menyediakan fungsi aplikasi kasir dan operasional bisnis;</li>
+        <li>menyimpan dan menampilkan transaksi serta laporan;</li>
+        <li>mengelola outlet, staf, pelanggan, inventori, dan produk;</li>
+        <li>menjaga keamanan akun dan mencegah penyalahgunaan;</li>
+        <li>menjalankan dukungan pelanggan dan memenuhi permintaan pengguna;</li>
+        <li>memenuhi kewajiban hukum yang berlaku.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>6. Penyedia layanan</h2>
+      <p>
+        Untuk menjalankan layanan, VORA POS dapat menggunakan penyedia infrastruktur teknologi
+        seperti layanan cloud, database, autentikasi, penyimpanan file, jaringan, dan layanan teknis lainnya.
+      </p>
+      <p>
+        Penyedia tersebut dapat memproses data hanya sejauh diperlukan untuk menyediakan layanan
+        kepada VORA POS dan sesuai dengan kontrak atau ketentuan layanan masing-masing.
+      </p>
+      <p>
+        Kami tidak menggunakan data pengguna untuk dijual kepada broker data atau untuk iklan pihak ketiga.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>7. Keamanan data</h2>
+      <p>
+        Kami menggunakan langkah teknis dan organisasi yang wajar untuk melindungi data dari akses,
+        perubahan, pengungkapan, atau penghapusan yang tidak sah.
+      </p>
+      <p>
+        Data yang dikirim antara aplikasi dan layanan backend menggunakan koneksi terenkripsi saat transit,
+        seperti HTTPS/TLS, selama layanan dijalankan pada konfigurasi produksi resmi VORA POS.
+      </p>
+      <p>
+        Tidak ada sistem yang dapat menjamin keamanan mutlak. Pengguna juga bertanggung jawab menjaga
+        kerahasiaan kredensial akun, password, dan PIN yang digunakan.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>8. Penyimpanan dan retensi data</h2>
+      <p>
+        Data disimpan selama akun aktif atau selama masih diperlukan untuk menyediakan layanan.
+        Sebagian data dapat dipertahankan lebih lama apabila diperlukan untuk kepentingan keamanan,
+        pencegahan penipuan, penyelesaian sengketa, kewajiban hukum, pajak, atau akuntansi.
+      </p>
+      <p>
+        Ketika data tidak lagi diperlukan dan tidak terdapat kewajiban untuk mempertahankannya,
+        data akan dihapus atau dibuat tidak dapat diidentifikasi sesuai proses yang berlaku.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>9. Penghapusan akun dan data</h2>
+      <p>
+        Pengguna dapat meminta penghapusan akun VORA POS beserta data terkait melalui halaman resmi:
+      </p>
+      <p>
+        <a href="https://vorakasir.com/hapus-akun">https://vorakasir.com/hapus-akun</a>
+      </p>
+      <p>
+        Permintaan penghapusan dapat memerlukan verifikasi kepemilikan akun sebelum diproses.
+        Setelah verifikasi selesai, VORA POS akan memproses permintaan secepat mungkin, umumnya
+        paling lambat 7 hari kerja.
+      </p>
+      <p>
+        Data tertentu dapat tetap disimpan apabila diwajibkan oleh hukum atau diperlukan untuk
+        keamanan, pencegahan penipuan, perpajakan, akuntansi, atau penyelesaian sengketa.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>10. Data anak-anak</h2>
+      <p>
+        VORA POS ditujukan untuk penggunaan bisnis dan bukan layanan yang ditujukan kepada anak-anak.
+        Kami tidak secara sengaja merancang layanan untuk mengumpulkan data pribadi anak-anak sebagai pengguna utama.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>11. Perubahan Kebijakan Privasi</h2>
+      <p>
+        Kebijakan Privasi ini dapat diperbarui apabila terdapat perubahan fitur, teknologi,
+        praktik operasional, atau ketentuan hukum. Tanggal pembaruan terbaru akan ditampilkan pada halaman ini.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>12. Hubungi VORA POS</h2>
+      <p>
+        Jika Anda memiliki pertanyaan mengenai privasi, penggunaan data, atau penghapusan akun,
+        Anda dapat menghubungi VORA POS melalui kontak berikut:
+      </p>
+
+      <div class="contact">
+        <a href="https://wa.me/6289636974140" target="_blank" rel="noopener">
+          <small>WhatsApp Admin</small>
+          <strong>0896-3697-4140</strong>
+        </a>
+
+        <a href="https://instagram.com/vorakasir" target="_blank" rel="noopener">
+          <small>Instagram</small>
+          <strong>@vorakasir</strong>
+        </a>
+
+        <div class="item">
+          <small>Website</small>
+          <strong>vorakasir.com</strong>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>© 2026 VORA POS. Semua hak dilindungi.</div>
+    <div>
+      <a href="https://vorakasir.com/">Beranda</a>
+      &nbsp;•&nbsp;
+      <a href="https://vorakasir.com/hapus-akun">Hapus Akun</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -38,9 +38,9 @@
 .auth-production [data-auth-resend]:disabled{cursor:default}
 .auth-production .auth-code{font-size:26px!important;letter-spacing:.24em;min-height:64px}
 .auth-production .auth-welcome-card{padding:24px}
-.auth-production .auth-welcome-card h3{margin:18px 0 10px;color:#fff;font-size:19px;line-height:1.35;font-weight:700}
-.auth-production .auth-welcome-card>p{color:#eef7f1;font-size:12px;line-height:1.8}
-.auth-production .auth-welcome-card .auth-story-points{margin-top:22px;color:#fff;gap:14px}
+.auth-production .auth-welcome-card h3{margin:18px 0 10px;color:#111827;font-size:19px;line-height:1.35;font-weight:700}
+.auth-production .auth-welcome-card>p{color:#111827;font-size:12px;line-height:1.8}
+.auth-production .auth-welcome-card .auth-story-points{margin-top:22px;color:#111827;gap:14px}
 .auth-production .auth-status{padding:12px 14px;border:1px solid #bcdccc;border-radius:9px;background:#edf7f0;color:#164a36;font-size:12px;line-height:1.6}
 .auth-production .auth-error{color:#962f31;font-weight:600}
 .auth-production .auth-view-signup .auth-field-hint{display:block}

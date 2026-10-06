@@ -105,8 +105,9 @@ export async function saveStaff(client,user,outlet,draft,existing,signal){
   const response=await (signal?query.select(STAFF_FIELDS).maybeSingle().abortSignal(signal):query.select(STAFF_FIELDS).maybeSingle());abort(signal);
   if(response.error){
     if(!existing&&response.error.code==='23505'){
-      const found=await result(client.from('staff').select(STAFF_FIELDS).eq('id',draft.id).eq('outlet_id',outlet.id).is('deleted_at',null).maybeSingle(),signal);
-      if(found&&found.name===name&&found.role===draft.role)return ownRow(found,outlet);
+      // A lost insert response may leave an earlier PIN saved. Do not infer
+      // credential success from matching public staff fields on a retry.
+      throw new Error('Pembuatan staf belum dapat dipastikan. Tutup formulir dan muat ulang daftar staf. Jika staf sudah ada, gunakan Edit staf untuk mengubah PIN.');
     }
     throw response.error;
   }

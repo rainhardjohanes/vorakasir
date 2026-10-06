@@ -1,0 +1,468 @@
+/* Typography refinement only. Load after the prototype's other stylesheets. */
+:root {
+  --ink: #111827;
+  --muted: #111827;
+  --readability-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--readability-font);
+  font-weight: 500;
+}
+
+body,
+.auth-app {
+  font-family: var(--readability-font);
+  font-weight: 500;
+}
+
+.auth-app {
+  --auth-ink: #111827;
+  --auth-muted: #111827;
+}
+
+/* Headings and figures keep their existing sizes and spacing. */
+:is(.sidebar, .dashboard-main, .modal-panel, .auth-app) :is(h1, h2, h3, h4),
+.card-head h2,
+.ops-settings-title h2,
+.ops-setting-row h3,
+.auth-heading h1,
+.auth-story h2 {
+  font-weight: 700;
+}
+
+.metric-value,
+.chart-summary strong,
+.donut-label strong,
+.payment-legend strong,
+.product-cell strong,
+.insight-strip strong,
+.report-table-summary strong,
+.profit-line strong,
+.profit-subtotal,
+.profit-result,
+.receipt-total,
+.ops-product strong,
+.ops-activity-row strong,
+.ops-user-row strong,
+.ops-import-choice strong,
+.auth-insight-header strong,
+.auth-insight-value strong,
+.auth-business-card strong,
+.auth-code-example strong {
+  font-weight: 700;
+}
+
+/* Navigation, descriptions and metadata on light dashboard surfaces. */
+.brand-name small,
+.nav-label,
+.nav-item,
+.nav-item:hover,
+.nav-item.active,
+.profile-button small,
+.help-card p,
+.breadcrumb > span,
+.topbar .preview-tag,
+.outlet-button small,
+.page-heading p,
+.page-footer,
+.page-footer a,
+.preview-mobile,
+.overview-intro,
+.metric-card:not(.hero-metric) .metric-top,
+.metric-card:not(.hero-metric) .metric-value small,
+.metric-card:not(.hero-metric) .metric-bottom,
+.card-head p,
+.chart-controls button,
+.chart-controls button.active,
+.chart-summary small,
+.chart-key,
+.chart-caption,
+.donut-label small,
+.payment-legend span:not(.legend-dot),
+.insight-strip p,
+.insight-strip strong,
+.product-cell small,
+.rank,
+.channel-title span,
+.channel-labels,
+.hour-labels,
+.peak-caption,
+.section-tab,
+.section-tab.active,
+.report-card p,
+.profit-report-title p,
+.profit-section h3,
+.profit-line span,
+.profit-result,
+.profit-notes p,
+.profit-note,
+.report-table-summary small,
+.dashboard-main .muted,
+.modal-panel .muted,
+.table-footer,
+.empty-state,
+.download-choice small,
+.modal-head p,
+.modal-disclaimer,
+.outlet-option small,
+.notification-item p,
+.notification-item small,
+.txn-detail-list span {
+  color: #111827;
+  font-weight: 500;
+}
+
+.nav-item,
+.nav-label,
+.section-tab,
+.chart-controls button,
+.brand-name small,
+.preview-tag,
+.preview-mobile,
+.breadcrumb,
+.outlet-button,
+.transaction-id,
+.btn,
+.badge,
+.field,
+.field > span,
+th {
+  font-weight: 600;
+}
+
+.nav-item.active,
+.section-tab.active,
+.chart-controls button.active {
+  font-weight: 700;
+}
+
+/* Form values, hints and placeholders remain distinct through weight. */
+.input,
+select,
+textarea,
+.field small,
+.ops-search input,
+.ops-field .input,
+.ops-mapping .input,
+.auth-input {
+  color: #111827;
+  font-weight: 500;
+}
+
+:is(.dashboard-main, .modal-panel, .auth-main) :is(input, textarea)::placeholder,
+.ops-search input::placeholder,
+.auth-input::placeholder {
+  color: #111827;
+  font-weight: 500;
+  opacity: 1;
+}
+
+th,
+.ops-table th {
+  color: #111827;
+  font-weight: 600;
+}
+
+td,
+.ops-table td {
+  color: #111827;
+  font-weight: 500;
+}
+
+/* SVG text uses CSS fill, including labels with presentation attributes. */
+.revenue-chart text,
+.chart-label,
+.chart-tooltip text {
+  fill: #111827;
+  font-family: var(--readability-font);
+  font-weight: 600;
+}
+
+.chart-tooltip text:last-child {
+  font-weight: 700;
+}
+
+/* Product, import/export, settings and receipt-preview typography. */
+.ops-page,
+.ops-eyebrow,
+.ops-subtitle,
+.ops-metric > div > span,
+.ops-metric strong small,
+.ops-metric p,
+.ops-tabs button,
+.ops-tabs button.active,
+.ops-product strong,
+.ops-product small,
+.ops-category,
+.ops-unit,
+.ops-table-bottom,
+.ops-footnote,
+.ops-empty,
+.ops-empty small,
+.ops-data-banner .ops-eyebrow,
+.ops-data-banner h2,
+.ops-data-banner p:not(.ops-eyebrow),
+.ops-section-label > span:not(.ops-pill),
+.ops-file-type,
+.ops-data-card h3,
+.ops-data-card p,
+.ops-activity-row small,
+.ops-user-row small,
+.ops-activity-date,
+.ops-settings-nav button,
+.ops-settings-nav button.active,
+.ops-settings-nav-note,
+.ops-settings-nav-note strong,
+.ops-settings-title p,
+.ops-brand-upload p,
+.ops-field > span,
+.ops-save-bar > span,
+.ops-setting-row p,
+.ops-note,
+.ops-payment-row p,
+.ops-access-info,
+.ops-permission-summary p,
+.ops-paper,
+.ops-paper > small,
+.ops-paper p,
+.ops-upload-zone h3,
+.ops-upload-zone p,
+.ops-upload-zone > small,
+.ops-upload-help,
+.ops-file-selected strong,
+.ops-file-selected small,
+.ops-mapping > div,
+.ops-review-summary h3,
+.ops-review-summary p,
+.ops-import-success h3,
+.ops-import-success p,
+.ops-guide,
+.ops-guide strong,
+.ops-guide p,
+.ops-access-modal > div,
+.ops-import-choice,
+.ops-import-choice small,
+.ops-import-template > div,
+.ops-import-template small {
+  color: #111827;
+}
+
+.ops-page,
+.ops-footnote,
+.ops-file-type,
+.ops-metric strong small,
+.ops-activity-row small,
+.ops-user-row small,
+.ops-upload-help,
+.ops-mapping > div,
+.ops-guide p,
+.ops-import-choice small,
+.ops-import-template small {
+  font-weight: 500;
+}
+
+.ops-eyebrow,
+.ops-tabs button,
+.ops-settings-nav button,
+.ops-settings-nav-note strong,
+.ops-field > span,
+.ops-text-button,
+.ops-card-action,
+.ops-pill,
+.ops-stepper > div,
+.ops-stepper > div > span {
+  font-weight: 600;
+}
+
+/* These two existing helper rules use !important, so override only them. */
+.ops-page .ops-muted,
+.modal-panel .ops-muted,
+.modal-panel .ops-mapping-head {
+  color: #111827 !important;
+}
+
+.ops-stepper > div,
+.ops-stepper > div:not(.current) > span {
+  color: #111827;
+}
+
+/* Auth forms and the small white example card inside the green story panel. */
+.auth-preview-bar,
+.auth-preview-bar > p,
+.auth-mobile-brand > span,
+.auth-kicker,
+.auth-heading p,
+.auth-heading p .auth-email-address,
+.auth-field > label,
+.auth-field-hint,
+.auth-form-meta > span,
+.auth-button-secondary,
+.auth-divider,
+.auth-switch,
+.auth-bottom-note,
+.auth-bottom-note > span,
+.auth-steps > li,
+.auth-steps .is-current,
+.auth-steps .is-complete > span,
+.auth-demo-helper,
+.auth-code-example small,
+.auth-code-example strong,
+.auth-gentle-note > p,
+.auth-business-card > div > span,
+.auth-insight-header > div > span,
+.auth-insight-header > small,
+.auth-insight-value > div > span,
+.auth-chart-labels,
+.auth-insight-bottom,
+.auth-insight-bottom > span:first-child {
+  color: #111827;
+}
+
+.auth-heading p,
+.auth-field-hint,
+.auth-divider,
+.auth-switch,
+.auth-demo-helper,
+.auth-gentle-note > p,
+.auth-business-card > div > span,
+.auth-bottom-note,
+.auth-insight-header > div > span,
+.auth-insight-header > small,
+.auth-insight-value > div > span,
+.auth-chart-labels,
+.auth-insight-bottom {
+  font-weight: 500;
+}
+
+.auth-field > label,
+.auth-kicker,
+.auth-preview-bar,
+.auth-preview-bar > p,
+.auth-mobile-brand > span,
+.auth-form-meta > span,
+.auth-button,
+.auth-link,
+.auth-text-button,
+.auth-steps b,
+.auth-steps > li > span,
+.auth-code-example small {
+  font-weight: 600;
+}
+
+/* Neutral badges become legible; semantic success/warning/error colors stay. */
+.badge.gray,
+.ops-pill.neutral {
+  color: #111827;
+}
+
+/* Dark surfaces explicitly retain high-contrast text and their existing fills. */
+.metric-card.hero-metric,
+.hero-metric .metric-top,
+.hero-metric .metric-value,
+.hero-metric .metric-value small,
+.hero-metric .metric-bottom,
+.report-banner,
+.report-banner h2,
+.report-banner .eyebrow,
+.report-banner p,
+.auth-story h2,
+.auth-story h2 em,
+.auth-story .auth-eyebrow,
+.auth-product-tag,
+.auth-story-description,
+.auth-story-points,
+.auth-story-footer,
+.toast,
+.btn-primary,
+.auth-button-primary,
+.auth-steps .is-current > span,
+.ops-stepper > .current > span {
+  color: #fff;
+}
+
+.hero-metric .metric-top,
+.hero-metric .metric-bottom,
+.report-banner p,
+.auth-product-tag,
+.auth-story-description,
+.auth-story-points,
+.auth-story-footer,
+.toast {
+  font-weight: 500;
+}
+
+.auth-story h2,
+.report-banner h2,
+.hero-metric .metric-value {
+  font-weight: 700;
+}
+
+.auth-insight-card {
+  color: #111827;
+}
+
+/* Replace the lone inline weight-400 caption without broad important rules. */
+.profit-result small {
+  font-weight: 500 !important;
+}
+
+.insight-strip strong,
+.profit-result {
+  font-weight: 700;
+}
+
+.dashboard-main .text-link,
+.sidebar .text-link,
+.dashboard-main .transaction-id,
+.modal-panel .transaction-id,
+.ops-text-button,
+.ops-card-action,
+.auth-main .auth-text-button {
+  color: #111827;
+  font-weight: 600;
+}
+
+/* Auth links previously force green, including the light back-link. */
+.auth-main .auth-link {
+  color: #111827 !important;
+}
+
+.outlet-picker-label,
+.outlet-picker-button,
+.outlet-picker-button small,
+.export-outlet {
+  color: #111827;
+  font-weight: 600;
+}
+
+.outlet-picker-button strong {
+  color: #111827;
+  font-weight: 700;
+}
+
+/* New settings controls follow the same black-text preference. */
+.ops-settings-toolbar > span,
+.ops-cash-row h3,
+.ops-cash-row p,
+.ops-payment-group h3,
+.ops-payment-group header small,
+.ops-payment-group .ops-text-button,
+.ops-payment-child strong,
+.ops-payment-child small,
+.ops-payment-empty,
+.ops-field > small,
+.ops-optional,
+.ops-receipt-group > summary strong,
+.ops-receipt-group > summary small,
+.ops-receipt-option,
+.ops-receipt-required,
+.ops-receipt-live-heading .ops-eyebrow,
+.ops-receipt-live > p,
+.ops-receipt-live .ops-paper,
+.ops-receipt-live .ops-paper > .ops-receipt-brand,
+.ops-receipt-live .ops-paper > small,
+.ops-receipt-live .ops-paper p,
+.ops-paper-note,
+.ops-modal-form .ops-footnote { color: #111827; }
+.ops-payment-child strong,
+.ops-receipt-group > summary strong { font-weight: 700; }
+.ops-payment-group .ops-text-button,
+.ops-receipt-option { font-weight: 600; }

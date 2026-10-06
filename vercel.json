@@ -32,6 +32,12 @@
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action https://wa.me https://api.whatsapp.com https://web.whatsapp.com https://www.whatsapp.com; base-uri 'self'; frame-ancestors 'none'; object-src 'none'"
         }
+      ],
+      "missing": [
+        {
+          "type": "host",
+          "value": "dashboard.vorakasir.com"
+        }
       ]
     },
     {
@@ -40,6 +46,12 @@
         {
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action https://wa.me https://api.whatsapp.com https://web.whatsapp.com https://www.whatsapp.com; base-uri 'self'; frame-ancestors 'none'; object-src 'none'"
+        }
+      ],
+      "missing": [
+        {
+          "type": "host",
+          "value": "dashboard.vorakasir.com"
         }
       ]
     },
@@ -99,7 +111,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
         },
         {
           "key": "Cache-Control",
@@ -116,7 +128,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
         },
         {
           "key": "Cache-Control",
@@ -133,7 +145,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
         },
         {
           "key": "Cache-Control",
@@ -144,9 +156,61 @@
           "value": "no-referrer"
         }
       ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "dashboard.vorakasir.com"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard-:asset*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
     }
   ],
   "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "dashboard.vorakasir.com"
+        }
+      ],
+      "destination": "/dashboard.html"
+    },
+    {
+      "source": "/index.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "dashboard.vorakasir.com"
+        }
+      ],
+      "destination": "/dashboard.html"
+    },
     {
       "source": "/dashboard",
       "destination": "/dashboard.html"

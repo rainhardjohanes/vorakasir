@@ -1,203 +1,248 @@
 import { config } from '/dashboard-config.js';
-import { loadOutlets, loadReport, requestScope, validateRange, makeCsv, escapeHtml as h } from '/dashboard-data.js';
-import { refundAmount, netSaleAmount } from '/dashboard-lib-refundReports.js';
+import { loadOutlets, loadReport, requestScope, validateRange, makeCsv } from '/dashboard-data.js';
+import { identityGuard, validatePublicConfig, boundedFetch } from '/dashboard-session.js';
+import { icon, escape as h } from '/dashboard-icons.js';
+import { renderAuth, bindAuth } from '/dashboard-auth.js';
+import { renderReport, bindReport, reportExportRows } from '/dashboard-reports.js';
+import { loadOperations, renderOperations, bindOperations, downloadCsvFile } from '/dashboard-operations.js';
 
-const app = document.querySelector('#app'), detail = document.querySelector('#detail');
-const paths = {
- home: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
- receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h3"/>',
- product: '<path d="m12 3 9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9M7 5.8l10 5.5"/>',
- wallet: '<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M17 10h4v6h-4a3 3 0 0 1 0-6zM3 7V5a2 2 0 0 1 2-2h12"/>',
- chart: '<path d="M4 3v17h17M8 15v-5M13 15V6M18 15V9"/>',
- people: '<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/>',
- expense: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
- refund: '<path d="m7 3-4 4 4 4M3 7h10a7 7 0 1 1-7 9"/>',
- download: '<path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/>',
- refresh: '<path d="M20 7a9 9 0 0 0-15-2L3 7m0-5v5h5M4 17a9 9 0 0 0 15 2l2-2m0 5v-5h-5"/>',
- logout: '<path d="M9 3H4v18h5M8 12h13m-4-4 4 4-4 4"/>',
- menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
- close: '<path d="m6 6 12 12M6 18 18 6"/>',
- arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
- eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
- print: '<path d="M6 9V3h12v6M6 17H3V9h18v8h-3M6 14h12v7H6z"/>',
- info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
+validatePublicConfig(config);
+let storage;
+try { sessionStorage.setItem('vora-storage-check','1'); sessionStorage.removeItem('vora-storage-check'); storage = sessionStorage; } catch {}
+const client = window.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
+  global: { fetch: boundedFetch },
+  auth: { storage, storageKey: 'vora-backoffice-auth', persistSession: !!storage, autoRefreshToken: true, detectSessionInUrl: false },
+});
+const app = document.querySelector('#app'), modalRoot = document.querySelector('#modal-root');
+const identity = identityGuard(), outletsScope = requestScope(), pageScope = requestScope();
+const authRoutes = new Set(['login','signup','verify','business','forgot','reset']);
+const operationRoutes = new Set(['products','settings']);
+const titles = {
+  overview:['Ringkasan bisnis','Perkembangan bisnis dan transaksi outlet Anda.'],
+  reports:['Pusat laporan','Laporan operasional dari transaksi yang sudah tersinkron.'],
+  sales:['Laporan penjualan','Telusuri transaksi dan penerimaan penjualan.'],
+  profit:['Laba & rugi','Pendapatan, HPP, dan biaya usaha dalam satu laporan.'],
+  'product-report':['Penjualan per produk','Kenali produk yang paling banyak dipilih pelanggan.'],
+  payments:['Metode pembayaran','Penerimaan tunai dan nontunai outlet Anda.'],
+  'staff-report':['Kinerja kasir','Ringkasan transaksi berdasarkan nama kasir pada struk.'],
+  refunds:['Refund & pembatalan','Pengembalian dana pada periode penjualan terpilih.'],
+  expenses:['Biaya usaha','Biaya operasional yang tercatat dari aplikasi kasir.'],
+  products:['Produk & kategori','Kelola katalog dan impor atau ekspor data produk.'],
+  settings:['Pengaturan','Atur profil bisnis, pajak, pembayaran, struk, dan staf.'],
 };
-const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.chart}</svg>`;
-const brand = () => '<div class="brand"><span class="brand-mark"><img src="/dashboard-assets-vora-logo.png" alt="VORA POS" width="1774" height="887"></span><small>BACKOFFICE</small></div>';
-const nav = [ ['overview','Ringkasan','home'], ['transactions','Transaksi','receipt'], ['products','Penjualan produk','product'], ['payments','Pembayaran','wallet'], ['cashiers','Penjualan kasir','people'], ['profit','Laba rugi','chart'], ['expenses','Biaya usaha','expense'], ['refunds','Refund','refund'] ];
-const titles = Object.fromEntries(nav.map(([key,name]) => [key,name]));
-const descriptions = {
- overview:'Pantau performa outlet dan pahami angka di balik setiap transaksi.',
- transactions:'Telusuri seluruh struk penjualan yang telah tersinkron.',
- products:'Kenali produk yang paling banyak dipilih pelanggan.',
- payments:'Rincian penerimaan berdasarkan metode bayar dan jenis pesanan.',
- cashiers:'Ringkasan struk dan penerimaan untuk setiap nama kasir.',
- profit:'Pendapatan, HPP, dan biaya usaha dalam satu laporan operasional.',
- expenses:'Riwayat biaya usaha dan pembatalan catatan dari aplikasi.',
- refunds:'Pengembalian dana untuk struk pada periode penjualan yang dipilih.',
-};
-const rp = value => value === null || !Number.isFinite(Number(value)) ? '—' : new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(value));
-const number = value => new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(value || 0);
-const dateLabel = date => /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? new Intl.DateTimeFormat('id-ID',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(date)) : '—';
-const dayString = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-function presetRange(preset) { const end=new Date(), start=new Date(end); if(preset==='month')start.setDate(1);if(preset==='week')start.setDate(start.getDate()-6);if(preset==='yesterday'){start.setDate(start.getDate()-1);end.setDate(end.getDate()-1);}return {start:dayString(start),end:dayString(end)}; }
-const state={user:null,outlets:[],outletId:'',outletsReady:false,range:presetRange('month'),preset:'month',route:routeFromHash(),report:null,loading:false,error:'',search:'',status:'all',page:0,menu:false,printAll:false};
-const outletScope=requestScope(), reportScope=requestScope();
-let authVersion=0, loginBusy=false, logoutBusy=false, toastTimer;
-function routeFromHash(){const route=location.hash.slice(1);return nav.some(n=>n[0]===route)?route:'overview';}
-function toast(text){const box=document.querySelector('#toast');box.textContent=text;box.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{box.hidden=true;},5000);}
-function closeDetail(){if(detail.open)detail.close();detail.replaceChildren();document.body.classList.remove('print-detail');}
-function currentOutlet(){return state.outlets.find(outlet=>outlet.id===state.outletId);}
-function safeError(error){
- if(!navigator.onLine)return 'Tidak ada koneksi internet. Sambungkan perangkat lalu muat ulang laporan.';
- if(error?.status===401 || error?.code==='PGRST301')return 'Sesi login berakhir. Keluar lalu masuk kembali ke akun Anda.';
- const message=String(error?.message||'');
- if(/^(Pilih |Data tidak sesuai|Data lintas|Data periode|Halaman laporan|Riwayat refund|Outlet tidak tersedia)/.test(message))return message;
- return 'Laporan belum dapat dimuat lengkap. Periksa koneksi dan hak akses akun, lalu coba lagi.';
+const day = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function rangePreset(value) { const end=new Date(),start=new Date(end); if(value==='month')start.setDate(1);if(value==='week')start.setDate(start.getDate()-6); return { start:day(start),end:day(end) }; }
+const state = { user:null,outlets:[],outletId:'',ready:false,loading:true,error:'',report:null,data:null,range:rangePreset('month') };
+let cleanupPage, renderSequence=0, authBusy=false, logoutBusy=false, toastTimer, modalCleanup, focusBeforeModal;
+let restoringSession=true, restoredUserId=null, sessionDuringLogout=false, pendingAuthUserId=null;
+const mobile = window.matchMedia('(max-width:800px)');
+const outlet = () => state.outlets.find(o=>o.id===state.outletId);
+const route = () => { const name=location.hash.slice(1).split('?')[0]; return name==='data'?'products':titles[name]||authRoutes.has(name)?name:'overview'; };
+function syncMenuAccess() { const sidebar=document.querySelector('.sidebar'); if(sidebar)sidebar.inert=mobile.matches&&!document.body.classList.contains('menu-open'); }
+mobile.addEventListener('change',syncMenuAccess);
+function toast(message) { const stack=document.querySelector('#toast-stack');stack.innerHTML=`<div class="toast">${icon('info')}<span>${h(message)}</span></div>`;clearTimeout(toastTimer);toastTimer=setTimeout(()=>stack.replaceChildren(),6000); }
+function closeModal() { modalCleanup?.abort();modalCleanup=null;modalRoot.replaceChildren();document.body.classList.remove('modal-open');document.querySelector('.main-shell')?.removeAttribute('inert');document.querySelector('.sidebar')?.removeAttribute('inert');syncMenuAccess();if(focusBeforeModal?.isConnected)focusBeforeModal.focus(); }
+function modal({title,description='',content,footer=''}) {
+  if(!modalRoot.childElementCount)focusBeforeModal=document.activeElement;
+  modalCleanup?.abort();modalCleanup=new AbortController();
+  modalRoot.innerHTML=`<div class="modal-layer"><section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><header class="modal-head"><div><h2 id="dialog-title">${h(title)}</h2><p>${h(description)}</p></div><button class="icon-btn" data-close-modal aria-label="Tutup dialog">${icon('cross')}</button></header><div class="modal-body">${content}</div>${footer?`<footer class="modal-footer">${footer}</footer>`:''}</section></div>`;
+  document.body.classList.add('modal-open');document.querySelector('.main-shell')?.setAttribute('inert','');document.querySelector('.sidebar')?.setAttribute('inert','');
+  const panel=modalRoot.querySelector('.modal-panel');panel.querySelector('input,select,button,a')?.focus();return panel;
 }
-async function boundedFetch(url,options={}){
- const controller=new AbortController(),abort=()=>controller.abort();
- if(options.signal?.aborted)abort();else options.signal?.addEventListener('abort',abort,{once:true});
- const timer=setTimeout(abort,20000);
- try{return await fetch(url,{...options,signal:controller.signal});}
- finally{clearTimeout(timer);options.signal?.removeEventListener('abort',abort);}
+function safeError(error) {
+  if (!navigator.onLine) return 'Pasang koneksi internet untuk membuka atau menyimpan data dashboard.';
+  if (error?.status===401 || error?.code==='PGRST301') return 'Sesi akun berakhir. Keluar lalu masuk kembali.';
+  const message=String(error?.message||'');
+  if (/^(Pilih |Data tidak sesuai|Data lintas|Data periode|Halaman laporan|Riwayat refund|Outlet tidak tersedia)/.test(message)) return message;
+  return 'Data belum dapat dimuat lengkap. Periksa koneksi lalu coba lagi. Jika berulang, hubungi dukungan VORA.';
 }
-if(!/^https:\/\/[a-z0-9]+\.supabase\.co$/.test(config.supabaseUrl)||config.supabaseKey.startsWith('sb_secret_'))throw new Error('Konfigurasi public Supabase tidak valid.');
-if(!config.supabaseKey.startsWith('sb_publishable_')){let role;try{role=JSON.parse(atob(config.supabaseKey.split('.')[1].replaceAll('-','+').replaceAll('_','/'))).role;}catch{}if(role!=='anon')throw new Error('Hanya anon/public key yang boleh digunakan di browser.');}
-let storage;try{sessionStorage.setItem('vora-storage-check','1');sessionStorage.removeItem('vora-storage-check');storage=sessionStorage;}catch{storage=undefined;}
-const client=window.supabase.createClient(config.supabaseUrl,config.supabaseKey,{global:{fetch:boundedFetch},auth:{storage,storageKey:'vora-backoffice-auth',persistSession:!!storage,autoRefreshToken:true,detectSessionInUrl:false}});
-
-function loginView(){return `<main class="login" id="main"><section class="login-aside">${brand()}<div><div class="eyebrow">BISNIS ANDA, DALAM SATU PANDANGAN</div><h1>Lebih dekat dengan<br>perkembangan usaha.</h1><p>Dari transaksi pertama hingga laporan akhir hari. Semua angka penting outlet Anda, di satu tempat.</p><div class="login-features"><span>Laporan penjualan</span><span>Analisis produk</span><span>Laba rugi</span></div></div><div class="login-note">VORA POS · Ruang kendali untuk usaha Anda.</div></section><section class="login-main"><form class="login-form" id="login-form">${brand()}<div class="eyebrow">SELAMAT DATANG KEMBALI</div><h2>Masuk ke backoffice</h2><p class="muted">Gunakan akun yang sama dengan aplikasi VORA POS.</p><label for="email">Email akun</label><input id="email" name="email" type="email" autocomplete="username" placeholder="nama@usaha.com" required maxlength="254"><label for="password">Kata sandi</label><div class="password-field"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Masukkan kata sandi" required maxlength="512"><button type="button" class="password-toggle" data-action="password" aria-label="Tampilkan kata sandi" aria-pressed="false">${icon('eye')}</button></div><div id="login-error" class="notice error" role="alert" hidden></div><button class="btn full" type="submit">Masuk ke dashboard ${icon('arrow')}</button><p class="login-help">Gunakan email dan kata sandi akun pemilik, bukan PIN staf. <a href="${h(config.authForgotPasswordUrl)}">Lupa password?</a></p><div class="notice">Laporan menampilkan transaksi yang sudah tersinkron dari aplikasi kasir.</div></form></section></main>`;}
-function render(){
- document.title=`${state.user?titles[state.route]:'Masuk'} · VORA Backoffice`;
- if(!state.user){app.innerHTML=loginView();return;}
- const outlet=currentOutlet(),report=state.report,canExport=!!report&&!state.loading&&!state.error;
- app.innerHTML=`<div class="shell ${state.menu?'menu-open':''}"><button class="mobile-scrim" data-action="menu" aria-label="Tutup navigasi"></button><aside class="sidebar" aria-label="Navigasi laporan">${brand()}<div class="nav-label">RUANG KENDALI</div><nav>${nav.map(([key,name,i])=>`<button class="nav-item ${key===state.route?'active':''}" data-route="${key}" ${key===state.route?'aria-current="page"':''}>${icon(i)}${name}</button>`).join('')}</nav><div class="sidebar-foot"><div class="notice">Satu akun, satu akses.<br>Laporan outlet milik Anda.</div><div class="account"><span class="avatar">${h((state.user.email||'V').slice(0,1).toUpperCase())}</span><div><strong>Akun pemilik</strong><small title="${h(state.user.email)}">${h(state.user.email)}</small></div></div><button class="nav-item" data-action="logout" ${logoutBusy?'disabled':''}>${icon('logout')}Keluar akun</button></div></aside><div class="workspace"><header class="topbar"><button class="btn ghost menu-toggle" data-action="menu" aria-label="Buka navigasi" aria-expanded="${state.menu}">${icon('menu')}</button><div class="breadcrumb">Backoffice <strong>/ ${h(titles[state.route])}</strong></div><div class="top-tools"><span class="top-state"><span class="status-dot"></span>${navigator.onLine?'Terhubung':'Offline'}</span><label class="sr-only" for="outlet">Pilih outlet</label><select id="outlet" class="outlet-picker" ${!state.outlets.length?'disabled':''}>${state.outlets.length?state.outlets.map(o=>`<option value="${h(o.id)}" ${o.id===state.outletId?'selected':''}>${h(o.name)}</option>`).join(''):'<option>Memuat outlet…</option>'}</select></div></header><main id="main" class="main"><div class="page-heading"><div><h1>${h(titles[state.route])}</h1><p>${h(descriptions[state.route])}</p></div><div class="heading-actions"><button class="btn secondary" data-action="print" ${!canExport?'disabled':''}>${icon('print')}Cetak / PDF</button><button class="btn" data-action="export" ${!canExport?'disabled':''}>${icon('download')}Ekspor CSV</button></div></div><div class="filters"><div class="filter-left"><label class="sr-only" for="preset">Periode laporan</label><select id="preset">${[['today','Hari ini'],['yesterday','Kemarin'],['week','7 hari terakhir'],['month','Bulan ini'],['custom','Tanggal khusus']].map(([v,t])=>`<option value="${v}" ${state.preset===v?'selected':''}>${t}</option>`).join('')}</select><div class="date-fields"><label class="sr-only" for="start">Tanggal awal</label><input id="start" type="date" value="${h(state.range.start)}" required><span class="muted">—</span><label class="sr-only" for="end">Tanggal akhir</label><input id="end" type="date" value="${h(state.range.end)}" required><button class="btn secondary" data-action="apply">Terapkan</button></div></div><button class="btn secondary" data-action="refresh" ${state.loading?'disabled':''}>${state.loading?'<span class="spinner"></span>':icon('refresh')}Perbarui</button></div><div class="print-only"><strong>${h(outlet?.name||'VORA POS')}</strong> · ${dateLabel(state.range.start)} – ${dateLabel(state.range.end)}</div><div id="report-body">${reportBody()}</div><footer class="footer"><span>VORA POS · ${h(outlet?.name||'Backoffice')}<br>Data hanya mencakup transaksi yang telah tersinkron. Tanggal mengikuti tanggal usaha pada struk.</span><span>${report?`Diperbarui ${new Date(report.loadedAt).toLocaleString('id-ID')}`:'Belum ada laporan dimuat'}</span></footer></main></div></div>`;
- updateInert();
+function navigate(target) {
+  if(authBusy){toast('Proses akun sedang berlangsung. Mohon tunggu sebentar.');return;}
+  if(!titles[target.split('?')[0]]&&!authRoutes.has(target.split('?')[0]))target='overview';
+  if(location.hash===`#${target}`)void render();else location.hash=target;
 }
-function updateInert(){const mobile=window.innerWidth<=720;const aside=document.querySelector('.sidebar'),workspace=document.querySelector('.workspace');if(aside)aside.inert=mobile&&!state.menu;if(workspace)workspace.inert=mobile&&state.menu;}
-window.addEventListener('resize',updateInert);
-function empty(title,description,action=''){return `<div class="empty">${icon('chart')}<h2>${h(title)}</h2><p>${h(description)}</p>${action}</div>`;}
-function reportBody(){
- if(state.loading)return '<div class="panel"><div class="loading" role="status"><span class="spinner"></span>Memuat data laporan lengkap…</div></div>';
- if(state.error)return `<div class="notice error" role="alert">${h(state.error)} <button class="btn secondary" data-action="refresh">Coba lagi</button></div>`;
- if(!state.outlets.length)return `<div class="panel">${empty('Belum ada outlet yang dapat diakses','Pastikan Anda masuk dengan email pemilik outlet yang sama dengan aplikasi VORA POS.')}</div>`;
- if(!state.report)return `<div class="panel">${empty('Laporan belum dimuat','Pilih periode lalu tekan Perbarui.')}</div>`;
- const r=state.report;
- const warnings=(!navigator.onLine?'<div class="notice warning info-strip">Koneksi terputus. Data di bawah adalah hasil pemuatan terakhir; perubahan baru belum tersedia.</div>':'')+(!r.finance.complete?`<div class="notice warning info-strip">${icon('info')}<div><strong>Laporan sementara — ada data historis yang perlu diperiksa.</strong><br>${h(r.finance.issues.join(' '))} Angka laba dan refund belum dapat dianggap final.</div></div>`:'');
- const content={overview:overview,transactions:transactions,products:products,payments:payments,cashiers:cashiers,profit:profit,expenses:expenses,refunds:refunds}[state.route]();
- return warnings+content;
+function picker(isMobile=false) {
+  const selected=outlet();return `<div class="outlet-picker ${isMobile?'outlet-picker-mobile':'outlet-picker-sidebar'}"><span class="outlet-picker-label">PILIH OUTLET</span><button class="outlet-picker-button" data-action="outlet" aria-haspopup="dialog">${icon('store')}<span><strong>${h(selected?.name||'Memuat outlet…')}</strong><small>${h(selected?.address||'Outlet bisnis Anda')}</small></span>${icon('down')}</button></div>`;
 }
-function kpi(label,value,note,i){return `<section class="kpi"><div class="kpi-top"><span>${h(label)}</span><span class="kpi-icon">${icon(i)}</span></div><div class="kpi-value mono">${h(value)}</div><small>${h(note)}</small></section>`;}
-function cards(){const r=state.report,f=r.finance;return `<div class="kpis">${kpi('Penjualan bersih',rp(f.revenue),'Tanpa pajak, layanan & surcharge','chart')}${kpi('Jumlah struk',number(f.transactions),'Termasuk struk yang direfund','receipt')}${kpi('Rata-rata penerimaan',rp(f.transactions?f.netReceipts/f.transactions:0),'Penerimaan bersih per struk','wallet')}${kpi('Laba operasional',rp(r.operatingProfit),f.complete?'Setelah HPP, MDR & biaya tercatat':'Sementara · perlu rekonsiliasi','expense')}</div>`;}
-function panel(title,subtitle,body,action=''){return `<section class="panel"><div class="panel-head"><div><h2>${h(title)}</h2><p>${h(subtitle)}</p></div>${action}</div>${body}</section>`;}
-function chart(){
- const days=state.report.days;if(!state.report.sales.length)return '<div class="chart-empty">Belum ada penjualan pada periode ini.</div>';
- const W=720,H=228,left=57,right=18,top=15,bottom=36,max=Math.max(...days.map(d=>d.net),1)*1.15;
- const x=i=>left+i*(W-left-right)/Math.max(days.length-1,1),y=v=>H-bottom-v/max*(H-top-bottom);
- const pts=days.map((d,i)=>`${x(i).toFixed(2)},${y(d.net).toFixed(2)}`),base=H-bottom;
- const grid=Array.from({length:5},(_,i)=>{const v=max*i/4,yy=y(v);return `<line x1="${left}" y1="${yy}" x2="${W-right}" y2="${yy}" stroke="#edf0f6" stroke-dasharray="4 4"/><text x="${left-10}" y="${yy+4}" text-anchor="end">${h(v>=1e6?`${number(v/1e6)}jt`:v>=1000?`${number(v/1000)}rb`:number(v))}</text>`}).join('');
- const labels=days.map((d,i)=>i===0||i===days.length-1||i%Math.max(1,Math.ceil(days.length/6))===0?`<text x="${x(i)}" y="${H-10}" text-anchor="middle">${h(d.date.slice(8)+'/'+d.date.slice(5,7))}</text>`:'').join('');
- return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Penerimaan bersih per hari; rincian tersedia pada transaksi dan ekspor CSV"><defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#215cec" stop-opacity=".16"/><stop offset="1" stop-color="#215cec" stop-opacity=".01"/></linearGradient></defs>${grid}<path d="M${left},${base} L${pts.join(' L')} L${x(days.length-1)},${base}Z" fill="url(#area)"/><polyline points="${pts.join(' ')}" fill="none" stroke="#215cec" stroke-width="2.8" stroke-linejoin="round"/>${days.length===1?`<circle cx="${x(0)}" cy="${y(days[0].net)}" r="4" fill="#215cec"/>`:''}${labels}</svg><div class="chart-legend"><span class="legend-dot"></span>Penerimaan setelah refund, termasuk pajak & layanan</div>`;
+function brand() { return '<a href="#overview" data-route="overview" class="brand" aria-label="VORA POS — beranda"><img class="brand-logo" src="/dashboard-assets-vora-logo-transparent.png" alt="VORA POS"><span class="brand-subtitle">BACKOFFICE</span></a>'; }
+function initials() { return h((state.user?.email||'V').slice(0,2).toUpperCase()); }
+function sidebar(current) {
+  const link=(key,label,glyph)=>`<a class="nav-item ${current===key||(key==='reports'&&!['overview','products','settings'].includes(current))?'active':''}" href="#${key}" data-route="${key}">${icon(glyph)}<span>${label}</span></a>`;
+  return `<button class="mobile-scrim" data-action="close-menu" aria-label="Tutup menu"></button><aside class="sidebar" aria-label="Navigasi dashboard">${brand()}${picker()}<p class="nav-label">WORKSPACE</p><nav class="side-nav">${link('overview','Ringkasan','grid')}${link('reports','Laporan bisnis','chart')}${link('products','Produk & kategori','box')}</nav><p class="nav-label">KELOLA BISNIS</p><nav class="side-nav">${link('settings','Pengaturan','settings')}</nav><div class="side-bottom"><div class="help-card">${icon('help')}<h3>Butuh bantuan?</h3><p>Tim VORA siap membantu operasional bisnis Anda.</p><a class="text-link" href="https://wa.me/6289636974140" target="_blank" rel="noopener noreferrer">Hubungi VORA ${icon('arrow')}</a></div><button class="profile-button" data-action="profile"><span class="avatar">${initials()}</span><span><strong>Akun pemilik</strong><small>${h(state.user?.email||'')}</small></span>${icon('down')}</button></div></aside>`;
 }
-function bars(rows,field='net',currency=true){if(!rows.length)return '<p class="muted">Belum ada data.</p>';const max=Math.max(...rows.map(r=>r[field]),1);return rows.slice(0,6).map(r=>`<div class="bar-row"><div class="bar-label"><span>${h(r.name)}</span><strong>${currency?rp(r[field]):number(r[field])}</strong></div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(0,Math.min(100,r[field]/max*100))}%"></div></div></div>`).join('');}
-function table(headers,rows){return `<div class="table-wrap"><table><thead><tr>${headers.map((v,i)=>`<th ${i===headers.length-1?'class="num"':''}>${h(v)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.join(''):`<tr><td colspan="${headers.length}"><div class="empty">Tidak ada data untuk pilihan ini.</div></td></tr>`}</tbody></table></div>`;}
-function saleStatus(s){if(s.status==='REFUNDED')return '<span class="pill refund">Refund penuh</span>';if(s.status==='PARTIAL_REFUND'||Number(s.refunded_amount)>0)return '<span class="pill refund">Refund sebagian</span>';return '<span class="pill success">Selesai</span>';}
-function saleRow(s){return `<tr><td><button class="row-link" data-sale="${h(s.id)}">${h(s.id)}</button><small>${dateLabel(s.date)} · ${h(s.time)}</small></td><td>${h(s.cashier)}</td><td>${h(s.method)}</td><td>${saleStatus(s)}</td><td class="num"><strong>${rp(netSaleAmount(s,state.report.logs))}</strong></td></tr>`;}
-function overview(){const r=state.report;return cards()+`<div class="grid-main">${panel('Tren penerimaan',`${dateLabel(r.range.start)} – ${dateLabel(r.range.end)}`,`<div class="panel-body">${chart()}</div>`,'<span class="pill">Harian</span>')}${panel('Metode pembayaran','Penerimaan bersih pada periode ini',`<div class="panel-body">${bars(r.methods)}</div>`)}</div><div class="grid-half">${panel('Produk terlaris','Kuantitas setelah refund item',table(['Produk','Terjual','Nilai item'],r.products.slice(0,5).map((p,i)=>`<tr><td><strong>${i+1}. ${h(p.name)}</strong><small>${h(p.category)}</small></td><td>${number(p.qty)}</td><td class="num">${rp(p.amount)}</td></tr>`)),`<button class="btn ghost" data-route="products">Lihat semua ${icon('arrow')}</button>`)}${panel('Jenis pesanan','Penerimaan bersih menurut jenis pesanan',`<div class="panel-body">${bars(r.orderTypes)}</div>`)}</div>${panel('Transaksi terbaru','Tekan nomor struk untuk melihat rinciannya',table(['Nomor struk','Kasir','Pembayaran','Status','Penerimaan bersih'],r.sales.slice(0,5).map(saleRow)),`<button class="btn ghost" data-route="transactions">Lihat semua ${icon('arrow')}</button>`)}`;}
-function filtered(rows,match){const q=state.search.trim().toLocaleLowerCase('id-ID');return rows.filter(row=>!q||match(row).toLocaleLowerCase('id-ID').includes(q));}
-function paginated(rows,rowRender,headers){const pages=Math.max(1,Math.ceil(rows.length/25));state.page=Math.min(state.page,pages-1);const shown=state.printAll?rows:rows.slice(state.page*25,(state.page+1)*25);return table(headers,shown.map(rowRender))+`<div class="pagination"><span>${rows.length?`${number(state.page*25+1)}–${number(Math.min((state.page+1)*25,rows.length))}`:'0'} dari ${number(rows.length)} baris</span><div><button class="btn secondary" data-page="${state.page-1}" ${state.page===0?'disabled':''}>Sebelumnya</button> <button class="btn secondary" data-page="${state.page+1}" ${state.page>=pages-1?'disabled':''}>Berikutnya</button></div></div>`;}
-function searchBar(placeholder,extra=''){return `<div class="table-toolbar"><label class="sr-only" for="search">${h(placeholder)}</label><input id="search" type="search" placeholder="${h(placeholder)}" value="${h(state.search)}" maxlength="150">${extra}</div>`;}
-function transactionRows(){return filtered(state.report.sales,s=>`${s.id} ${s.cashier} ${s.method} ${s.customer?.name||''}`).filter(s=>state.status==='all'||(state.status==='refund'?['REFUNDED','PARTIAL_REFUND'].includes(s.status)||Number(s.refunded_amount)>0:!['REFUNDED','PARTIAL_REFUND'].includes(s.status)&&!Number(s.refunded_amount)));}
-function transactions(){return panel('Riwayat transaksi','Jumlah dihitung per struk; pembayaran bertahap dapat menghasilkan beberapa struk.',searchBar('Cari nomor struk, kasir, metode, atau pelanggan…',`<select id="status" aria-label="Filter status">${[['all','Semua status'],['success','Selesai'],['refund','Dengan refund']].map(([v,t])=>`<option value="${v}" ${state.status===v?'selected':''}>${t}</option>`).join('')}</select>`)+paginated(transactionRows(),saleRow,['Nomor struk','Kasir','Pembayaran','Status','Penerimaan bersih']));}
-function products(){const rows=filtered(state.report.products,p=>`${p.name} ${p.category}`);return panel('Penjualan produk','Snapshot nama & harga pada struk, termasuk ekstra. Tidak memakai katalog saat ini.',searchBar('Cari produk atau kategori…')+paginated(rows,p=>`<tr><td><strong>${h(p.name)}</strong></td><td>${h(p.category)}</td><td>${number(p.qty)}</td><td class="num">${rp(p.amount)}</td></tr>`,['Produk','Kategori','Kuantitas neto','Nilai item'])+'<div class="notes">Nilai item sebelum diskon, pajak, layanan, dan pembulatan. Marker pembayaran nominal tidak dihitung sebagai produk. Produk dengan perubahan nama dapat muncul pada baris terpisah. Rekonsiliasi refund lama juga dapat memengaruhi kuantitas.</div>');}
-function groupRows(rows){return table(['Nama','Struk','Sebelum refund','Refund','Penerimaan bersih'],rows.map(r=>`<tr><td><strong>${h(r.name)}</strong></td><td>${number(r.count)}</td><td>${rp(r.gross)}</td><td>${rp(r.refund)}</td><td class="num"><strong>${rp(r.net)}</strong></td></tr>`));}
-function payments(){const r=state.report;return `<div class="grid-half">${panel('Komposisi pembayaran','Penerimaan bersih per metode',`<div class="panel-body">${bars(r.methods)}</div>`)}${panel('Jenis pesanan','Dine-in, takeaway, dan jenis lain pada struk',`<div class="panel-body">${bars(r.orderTypes)}</div>`)}</div>${panel('Rincian metode pembayaran','Penerimaan termasuk pajak/layanan. MDR ditampilkan terpisah.',table(['Metode','Struk','Penerimaan bersih','MDR','Setelah MDR'],r.methods.map(r=>`<tr><td><strong>${h(r.name)}</strong></td><td>${number(r.count)}</td><td>${rp(r.net)}</td><td>${rp(r.mdr)}</td><td class="num"><strong>${rp(r.net-r.mdr)}</strong></td></tr>`)))}<br>${panel('Rincian jenis pesanan','Mengikuti jenis pesanan yang tersimpan pada struk.',groupRows(r.orderTypes))}`;}
-function cashiers(){return panel('Ringkasan kasir','Dikelompokkan berdasarkan nama pada struk; nama yang sama digabung.',searchBar('Cari nama kasir…')+groupRows(filtered(state.report.cashiers,r=>r.name)));}
-function profitLines(){const r=state.report,f=r.finance;return [['Penerimaan sebelum refund',f.receipts,''],['Pengembalian dana',-f.refunds,'sub'],['Penerimaan bersih',f.netReceipts,'total'],['Pajak',-f.tax,'sub'],['Biaya layanan',-f.service,'sub'],['Surcharge pembayaran',-f.surcharge,'sub'],['Pendapatan usaha',f.revenue,'total'],['Harga pokok penjualan (HPP)',-f.cogs,'sub'],['Laba kotor',f.grossProfit,'total'],['Biaya pembayaran (MDR)',-f.mdr,'sub'],['Biaya usaha tercatat',-r.expense.total,'sub'],['Laba operasional',r.operatingProfit,'profit']];}
-function profit(){const r=state.report;return `<div class="grid-main">${panel('Laporan laba rugi operasional',`${dateLabel(r.range.start)} – ${dateLabel(r.range.end)}`,`<div class="pl-lines">${profitLines().map(([label,value,type])=>`<div class="pl-line ${type}"><span>${h(label)}</span><span class="value ${value<0?'negative':''}">${rp(value)}</span></div>`).join('')}</div>`, `<span class="pill ${r.finance.complete?'success':'warning'}">${r.finance.complete?'Komponen tersedia':'Sementara'}</span>`)}${panel('Dasar laporan','Baca sebelum menggunakan angka laba',`<div class="notes"><ul><li>Refund mengurangi periode tanggal penjualan asal, termasuk refund yang dilakukan setelah periode tersebut.</li><li>HPP memakai snapshot struk dan alokasi pembayaran bertahap. HPP historis yang hilang tidak diganti harga beli katalog saat ini.</li><li>Pajak, layanan, dan surcharge dipisahkan dari pendapatan usaha, sesuai perhitungan aplikasi.</li><li>Biaya hanya mencakup catatan yang telah disinkron. Penarikan owner dan pembelian persediaan bukan otomatis biaya usaha.</li><li>Belum mencakup akrual, penyusutan, pajak penghasilan, atau biaya yang belum dicatat. Bukan laporan keuangan audit.</li></ul></div>`)}</div>${panel('Biaya per kategori','Termasuk pembatalan pada periode biaya asal.',table(['Kategori','Jumlah'],r.expense.categories.map(c=>`<tr><td>${h(c.label)}</td><td class="num">${rp(c.amount)}</td></tr>`)))}`;}
-function expenseRows(){return filtered(state.report.expense.expenses,r=>`${r.description} ${r.label} ${r.staff||''} ${r.source}`);}
-function expenses(){return `<div class="kpis">${kpi('Total biaya tercatat',rp(state.report.expense.total),'Setelah pembatalan catatan','expense')}${kpi('Jumlah catatan',number(state.report.expense.expenses.length),'Termasuk catatan pembatalan','receipt')}</div>`+panel('Riwayat biaya usaha','Pencatatan dan koreksi biaya dilakukan melalui aplikasi VORA POS.',searchBar('Cari keterangan, kategori, atau nama staf…')+paginated(expenseRows(),r=>`<tr><td>${dateLabel(r.date)}</td><td><strong>${h(r.label)}</strong><small>${h(r.description)}</small></td><td>${h(r.source)}<small>${h(r.staff||'')}</small></td><td><span class="pill ${r.reversal?'refund':''}">${r.reversal?'Pembatalan':r.reversed?'Dibatalkan':r.legacy?'Catatan lama':'Tercatat'}</span></td><td class="num ${r.amount<0?'positive':''}"><strong>${rp(r.amount)}</strong></td></tr>`,['Tanggal usaha','Biaya & keterangan','Sumber dana','Status','Nominal']));}
-function refundRows(){return filtered(state.report.refunds,r=>`${r.id} ${r.cashier} ${r.method}`);}
-function refunds(){return panel('Riwayat refund','Berdasarkan tanggal struk asal. Refund mengubah penerimaan bersih periode penjualan tersebut.',searchBar('Cari nomor struk atau kasir…')+paginated(refundRows(),s=>`<tr><td><button class="row-link" data-sale="${h(s.id)}">${h(s.id)}</button><small>${dateLabel(s.date)}</small></td><td>${h(s.cashier)}</td><td>${saleStatus(s)}</td><td>${rp(s.total)}</td><td class="num"><strong>${rp(refundAmount(s,state.report.logs))}</strong></td></tr>`,['Struk asal','Kasir','Status','Total struk','Refund']));}
-
-async function adoptUser(user){
- if(state.user?.id===user?.id && (user || !state.user)){if(!user && !document.querySelector('#login-form'))render();return;}
- outletScope.cancel();reportScope.cancel();closeDetail();
- state.user=user;state.outlets=[];state.outletId='';state.outletsReady=false;state.report=null;state.error='';state.search='';state.page=0;state.loading=!!user;render();
- if(user)await loadOwnedOutlets();
+function shell(current,content) {
+  const [title,description]=titles[current];
+  return `${sidebar(current)}<div class="main-shell"><header class="topbar"><button class="icon-btn menu-toggle" data-action="menu" aria-label="Buka menu navigasi" aria-expanded="false">${icon('menu')}</button>${picker(true)}<div class="breadcrumb"><span>${h(outlet()?.name||'Bisnis Anda')}</span>${icon('chevron')}<strong>${title}</strong></div><div class="top-actions"><button class="icon-btn" data-action="refresh" aria-label="Muat ulang data" ${state.loading?'disabled':''}>${icon('clock')}</button><button class="icon-btn search-button" data-action="search" aria-label="Cari menu">${icon('search')}</button><button class="avatar" data-action="profile" aria-label="Akun dan keluar">${initials()}</button></div></header><main class="dashboard-main" id="main" tabindex="-1"><section class="page-heading"><div><h1>${title}</h1><p>${description}</p></div>${!operationRoutes.has(current)?`<div class="page-heading-actions"><button class="btn btn-secondary period-select" data-action="period">${icon('calendar')}<span>${h(state.range.start)} – ${h(state.range.end)}</span>${icon('down')}</button><button class="btn btn-primary" data-action="export" ${!state.report||state.loading?'disabled':''}>${icon('download')} Ekspor laporan</button></div>`:''}</section><div id="page-content">${content}</div><footer class="page-footer"><span>© VORA POS · ${h(outlet()?.name||'')}</span><span>Data tersinkron dari aplikasi kasir</span></footer></main></div>`;
 }
-async function loadOwnedOutlets(){
- if(!state.user)return;
- const task=outletScope.begin(),uid=state.user.id;state.loading=true;state.error='';state.report=null;render();
- try{const outlets=await loadOutlets(client,uid,task.signal);if(!task.current()||state.user?.id!==uid)return;state.outlets=outlets;state.outletsReady=true;state.outletId=outlets[0]?.id||'';state.loading=false;render();if(state.outletId)await refreshReport();}
- catch(error){if(!task.current()||state.user?.id!==uid)return;state.loading=false;state.error=safeError(error);render();}
+function loading(message='Memuat data outlet…') { return `<div class="loading-state" role="status"><span class="vora-spinner" aria-hidden="true"></span><strong>${h(message)}</strong><p>Mohon tunggu sebentar.</p></div>`; }
+function errorView(message) { return `<div class="card error-state" role="alert"><h2>Data belum tersedia</h2><p>${h(message)}</p><button class="btn btn-primary" data-action="refresh">Coba lagi</button><button class="btn btn-secondary" data-action="logout">Keluar akun</button></div>`; }
+function resetData() { outletsScope.cancel();pageScope.cancel();state.outlets=[];state.outletId='';state.report=null;state.data=null;state.ready=false;state.error='';cleanupPage?.();cleanupPage=null;closeModal(); }
+async function adoptSession(session, preferredOutlet) {
+  const user=session?.user||null;
+  if(identity.id!==user?.id){identity.set(user?.id||null);resetData();}
+  state.user=user;
+  if(!user){state.loading=false;state.ready=true;await render();return;}
+  const scope=outletsScope.begin(), validIdentity=identity.capture();state.loading=true;state.ready=false;state.error='';await render();
+  try{
+    const list=await loadOutlets(client,user.id,scope.signal);
+    if(!scope.current()||!validIdentity())return;
+    state.outlets=list;state.outletId=list.some(o=>o.id===preferredOutlet)?preferredOutlet:list.some(o=>o.id===state.outletId)?state.outletId:list[0]?.id||'';
+    state.ready=true;state.loading=false;
+    if(list.length&&authRoutes.has(route()))location.hash='overview';
+    else if(!list.length&&route()!=='business')location.hash='business';
+    await render();
+  }catch(error){if(!scope.current()||!validIdentity())return;state.error=safeError(error);state.ready=true;state.loading=false;await render();}
 }
-async function refreshReport(){
- const outlet=currentOutlet();if(!outlet||!state.user)return;
- try{validateRange(state.range);}catch(error){toast(error.message);return;}
- const task=reportScope.begin(),uid=state.user.id;state.report=null;state.loading=true;state.error='';closeDetail();render();
- try{const report=await loadReport(client,uid,outlet,{...state.range},task.signal);if(!task.current()||state.user?.id!==uid||state.outletId!==outlet.id)return;state.report=report;state.loading=false;render();}
- catch(error){if(!task.current()||state.user?.id!==uid)return;reportScope.cancel();state.report=null;state.loading=false;state.error=safeError(error);render();}
+async function refreshSession(options={}) {
+  const validIdentity=identity.capture();
+  const {data,error}=await client.auth.getUser();
+  if(error||!data.user){if(validIdentity())await logout();return;}
+  if(!validIdentity()||(options.userId&&options.userId!==data.user.id))return;
+  if(data.user.id!==state.user?.id){await logout();return;}
+  await adoptSession({user:data.user},options.outletId||state.outletId);
 }
-async function signIn(form){
- if(loginBusy||logoutBusy)return;loginBusy=true;const button=form.querySelector('[type=submit]'),feedback=document.querySelector('#login-error');button.disabled=true;button.innerHTML='<span class="spinner"></span>Memverifikasi akun…';feedback.hidden=true;
- try{const {data,error}=await client.auth.signInWithPassword({email:form.email.value.trim(),password:form.password.value});if(error)throw error;form.password.value='';await adoptUser(data.user);}
- catch{if(document.contains(feedback)){feedback.hidden=false;feedback.textContent=navigator.onLine?'Email atau kata sandi belum sesuai, atau login belum tersedia. Periksa akun dan coba kembali.':'Tidak ada koneksi internet. Sambungkan perangkat lalu coba lagi.';}}
- finally{loginBusy=false;if(document.contains(button)){button.disabled=false;button.innerHTML=`Masuk ke dashboard ${icon('arrow')}`;}}
+function setAuthBusy(value) {
+  authBusy=!!value;
+  if(authBusy)return;
+  const pendingId=pendingAuthUserId;pendingAuthUserId=null;
+  if(!pendingId||pendingId===state.user?.id||logoutBusy)return;
+  const version=authEvent;
+  // The form may reject a stale/malformed result after the SDK already saved it.
+  // Only the guarded onAuthenticated callback is allowed to adopt that identity.
+  queueMicrotask(()=>{if(version===authEvent&&!authBusy&&!logoutBusy&&pendingId!==state.user?.id)void logout();});
 }
-async function signOut(){
- if(logoutBusy)return;logoutBusy=true;authVersion++;outletScope.cancel();reportScope.cancel();await adoptUser(null);
- try{await client.auth.signOut({scope:'local'});}catch{try{storage?.removeItem('vora-backoffice-auth');}catch{}}
- finally{try{storage?.removeItem('vora-backoffice-auth');}catch{}logoutBusy=false;render();location.reload();}
+function commonApi(sequence,signal) {
+  const validIdentity=identity.capture();
+  return {client,user:state.user,outlet:outlet(),data:state.data,report:state.report,range:{...state.range},signal,
+    isCurrent:()=>sequence===renderSequence&&validIdentity()&&!signal?.aborted,
+    navigate,toast,modal,closeModal,refresh:()=>render(),refreshSession,
+    setAuthBusy,
+    onAuthenticated:session=>sequence===renderSequence&&validIdentity()?adoptSession(session):Promise.resolve(),print:()=>window.print()};
 }
-function go(route){if(!nav.some(n=>n[0]===route))return;state.route=route;state.menu=false;state.search='';state.status='all';state.page=0;closeDetail();if(location.hash!==`#${route}`)history.replaceState(null,'',`#${route}`);render();}
-function showDetail(id){const r=state.report,s=r?.sales.find(s=>s.id===id&&s.outlet_id===state.outletId);if(!s)return;
- detail.innerHTML=`<header class="dialog-head"><div><div class="eyebrow">RINCIAN TRANSAKSI</div><h2 id="detail-title">${h(s.id)}</h2></div><button class="btn ghost" data-action="close-detail" aria-label="Tutup rincian">${icon('close')}</button></header><div class="dialog-body"><div class="detail-grid"><div><small>Outlet</small><strong>${h(currentOutlet()?.name)}</strong></div><div><small>Tanggal & waktu pada struk</small>${dateLabel(s.date)} · ${h(s.time)}</div><div><small>Kasir</small>${h(s.cashier)}</div><div><small>Pembayaran</small>${h(s.method)}</div><div><small>Jenis pesanan</small>${h(s.table_type||'—')}</div><div><small>Pelanggan</small>${h(s.customer?.name||'Umum')}</div></div><div class="table-wrap"><table class="detail-items"><thead><tr><th>Item</th><th>Qty</th><th class="num">Nilai</th></tr></thead><tbody>${(s.cart_data||[]).map(item=>`<tr><td><strong>${h(item.name)}</strong>${item.isPayment?'<small>Penyesuaian pembayaran nominal</small>':''}${(item.selectedExtrasList||[]).map(e=>`<small>+ ${h(e.name)}</small>`).join('')}</td><td>${number(item.qty)}</td><td class="num">${rp(Number(item.price)*Number(item.qty))}</td></tr>`).join('')}</tbody></table></div><div class="pl-lines">${[['Subtotal',s.subtotal],['Diskon',-Number(s.discount||0)],['Pajak',s.tax],['Layanan',s.service],['Surcharge',s.payment_surcharge],['Total struk',s.total],['Refund',refundAmount(s,r.logs)],['Penerimaan bersih',netSaleAmount(s,r.logs)]].map(([label,value])=>`<div class="pl-line"><span>${h(label)}</span><span class="value">${rp(value)}</span></div>`).join('')}</div>${saleStatus(s)}${r.logs.some(l=>l.sale_id===s.id)?`<div class="notes"><strong>Catatan refund</strong>${r.logs.filter(l=>l.sale_id===s.id).map(l=>`<p>${h(l.date||'')} · ${h(l.reason||'Tanpa keterangan')}<br><small>${h(l.item_name||'')} · ${h(l.cashier_name||'')}</small></p>`).join('')}</div>`:''}</div><footer class="dialog-foot"><button class="btn secondary" data-action="close-detail">Tutup</button><button class="btn" data-action="print-detail">${icon('print')}Cetak rincian</button></footer>`;
- detail.showModal();
+async function render() {
+  const sequence=++renderSequence;cleanupPage?.();cleanupPage=null;pageScope.cancel();closeModal();
+  let current=route();document.body.classList.remove('menu-open');
+  if(!state.user){
+    current=authRoutes.has(current)&&current!=='business'?current:'login';document.body.classList.add('auth-mode');
+    app.innerHTML=state.loading?loading('VORA menyiapkan sesi Anda…'):renderAuth(current,{user:null});
+    if(!state.loading)cleanupPage=bindAuth(app,commonApi(sequence));
+    document.title='VORA — Akun bisnis';window.scrollTo(0,0);return;
+  }
+  if(!state.ready){document.body.classList.remove('auth-mode');app.innerHTML=loading('Memuat daftar outlet Anda…');return;}
+  if(state.error&&!state.outlets.length){app.innerHTML=errorView(state.error);return;}
+  if(!state.outlets.length){document.body.classList.add('auth-mode');app.innerHTML=renderAuth('business',{user:state.user});cleanupPage=bindAuth(app,commonApi(sequence));return;}
+  if(authRoutes.has(current))current='overview';
+  document.body.classList.remove('auth-mode');document.title=`${titles[current][0]} · VORA Backoffice`;
+  const scope=pageScope.begin(),validIdentity=identity.capture(),selected=outlet();state.loading=true;state.report=null;state.data=null;state.error='';
+  app.innerHTML=shell(current,loading());syncMenuAccess();window.scrollTo(0,0);
+  try{
+    const value=operationRoutes.has(current)?await loadOperations(client,state.user,selected,scope.signal):await loadReport(client,state.user.id,selected,state.range,scope.signal);
+    if(sequence!==renderSequence||!scope.current()||!validIdentity())return;
+    if(operationRoutes.has(current))state.data=value;else state.report=value;
+    state.loading=false;
+    const tab=new URLSearchParams(location.hash.split('?')[1]||'').get('tab');
+    const content=operationRoutes.has(current)?renderOperations(current,{tab,data:state.data,outlet:selected}):renderReport(current,{report:state.report,outlet:selected,range:state.range});
+    app.innerHTML=shell(current,content);syncMenuAccess();
+    const api=commonApi(sequence,scope.signal);
+    cleanupPage=operationRoutes.has(current)?bindOperations(document.querySelector('#page-content'),api):bindReport(document.querySelector('#page-content'),api);
+  }catch(error){if(sequence!==renderSequence||!scope.current()||!validIdentity())return;state.loading=false;state.error=safeError(error);app.innerHTML=shell(current,errorView(state.error));syncMenuAccess();}
 }
-function exportRows(){const r=state.report;
- if(state.route==='products')return [['Produk','Kategori','Kuantitas neto','Nilai item sebelum diskon/pajak'],...filtered(r.products,p=>`${p.name} ${p.category}`).map(p=>[p.name,p.category,p.qty,p.amount])];
- if(state.route==='cashiers'||state.route==='payments')return [['Nama','Struk','Sebelum refund','Refund','Penerimaan bersih','MDR'],...filtered(state.route==='cashiers'?r.cashiers:r.methods,g=>g.name).map(g=>[g.name,g.count,g.gross,g.refund,g.net,g.mdr])];
- if(state.route==='profit')return [['Komponen','Nominal'],...profitLines().map(([name,amount])=>[name,amount])];
- if(state.route==='expenses')return [['Tanggal usaha','Kategori','Keterangan','Sumber dana','Staf','Status','Nominal'],...expenseRows().map(e=>[e.date,e.label,e.description,e.source,e.staff,e.reversal?'Pembatalan':e.reversed?'Dibatalkan':'Tercatat',e.amount])];
- if(state.route==='refunds')return [['Struk asal','Tanggal penjualan','Kasir','Status','Total','Refund'],...refundRows().map(s=>[s.id,s.date,s.cashier,s.status,Number(s.total),refundAmount(s,r.logs)])];
- return [['Nomor struk','Tanggal usaha','Waktu','Kasir','Jenis pesanan','Metode','Status','Subtotal','Diskon','Pajak','Layanan','Surcharge','MDR','Total struk','Refund','Penerimaan bersih'],...(state.route==='transactions'?transactionRows():r.sales).map(s=>[s.id,s.date,s.time,s.cashier,s.table_type,s.method,s.status,Number(s.subtotal),Number(s.discount||0),Number(s.tax||0),Number(s.service||0),Number(s.payment_surcharge||0),Number(s.mdr_fee||0),Number(s.total),refundAmount(s,r.logs),netSaleAmount(s,r.logs)])];
+async function logout() {
+  restoringSession=false;pendingAuthUserId=null;
+  if(logoutBusy)return;logoutBusy=true;sessionDuringLogout=false;identity.set(null,true);state.user=null;resetData();state.loading=true;authBusy=false;location.hash='login';await render();
+  try{await client.auth.signOut({scope:'local'});}catch{try{storage?.removeItem('vora-backoffice-auth');}catch{}}
+  finally{
+    logoutBusy=false;state.loading=false;await render();
+    // A login request can resolve while the SDK is finishing local logout.
+    if(sessionDuringLogout){sessionDuringLogout=false;queueMicrotask(()=>void logout());}
+  }
 }
-function download(){if(!state.report||state.loading||state.error)return;const r=state.report,rows=[['VORA POS',titles[state.route]],['Outlet',currentOutlet().name],['Periode',`${r.range.start} s/d ${r.range.end}`],['Diperbarui',r.loadedAt],['Status',r.finance.complete?'Komponen tersedia; hanya data tersinkron':'Sementara: '+r.finance.issues.join(' ')],[],...exportRows()];const url=URL.createObjectURL(new Blob([makeCsv(rows)],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`VORA-${state.route}-${r.range.start}-${r.range.end}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Laporan CSV berhasil disiapkan.');}
-function print(detailOnly=false){if(!state.report||state.loading)return;if(detailOnly)document.body.classList.add('print-detail');else{state.printAll=true;render();}requestAnimationFrame(()=>window.print());}
-window.addEventListener('afterprint',()=>{state.printAll=false;document.body.classList.remove('print-detail');if(!detail.open)render();});
-app.addEventListener('submit',event=>{if(event.target.id==='login-form'){event.preventDefault();void signIn(event.target);}});
+function exportReport() {
+  if(!state.report||state.loading||state.error)return;
+  const current=route(), report=state.report,selected=outlet();
+  const el=modal({title:'Ekspor laporan',description:`${selected.name} · ${state.range.start} – ${state.range.end}`,content:'<p>Unduh seluruh data laporan pada periode ini, atau gunakan Cetak / Simpan PDF pada browser.</p>',footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><button class="btn btn-primary" id="export-csv">Unduh CSV</button>'});
+  el.querySelector('#export-csv').addEventListener('click',()=>{
+    const rows=[['VORA POS',selected.name],['Periode',state.range.start,state.range.end],[],...reportExportRows(current,report)];
+    downloadCsvFile(makeCsv(rows),`VORA-${current}-${state.range.start}-${state.range.end}.csv`);
+    closeModal();toast('Unduhan CSV dimulai. Periksa folder unduhan browser Anda.');
+  });
+  el.querySelector('#export-print').addEventListener('click',()=>{closeModal();window.print();});
+}
+function periodDialog() {
+  const el=modal({title:'Periode laporan',description:'Maksimal 93 hari per laporan. Tanggal mengikuti tanggal bisnis yang tercatat pada transaksi.',content:`<div class="preset-row"><button class="btn btn-secondary" data-preset="today">Hari ini</button><button class="btn btn-secondary" data-preset="week">7 hari</button><button class="btn btn-secondary" data-preset="month">Bulan ini</button></div><form id="period-form"><div class="form-two"><label class="field">Dari tanggal<input class="input" type="date" name="start" value="${state.range.start}" required></label><label class="field">Sampai tanggal<input class="input" type="date" name="end" value="${state.range.end}" required></label></div><p id="period-error" role="alert"></p></form>`,footer:'<button class="btn btn-secondary" data-close-modal>Batal</button><button class="btn btn-primary" type="submit" form="period-form">Terapkan</button>'});
+  const form=el.querySelector('form');el.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{const r=rangePreset(b.dataset.preset);form.elements.start.value=r.start;form.elements.end.value=r.end;}));
+  form.addEventListener('submit',event=>{event.preventDefault();try{state.range=validateRange({start:form.elements.start.value,end:form.elements.end.value});void render();}catch(error){el.querySelector('#period-error').textContent=error.message;}});
+}
+function action(name) {
+  if(name==='logout')return void logout();
+  if(name==='refresh')return void (state.outlets.length?render():refreshSession());
+  if(name==='menu'||name==='close-menu'){const open=name==='menu'&&!document.body.classList.contains('menu-open');document.body.classList.toggle('menu-open',open);syncMenuAccess();document.querySelector('.menu-toggle')?.setAttribute('aria-expanded',String(open));return;}
+  if(name==='export')return exportReport();if(name==='period')return periodDialog();
+  if(name==='outlet'){
+    const el=modal({title:'Pilih outlet',description:'Laporan, produk, dan pengaturan hanya untuk outlet yang dipilih.',content:state.outlets.map(o=>`<button class="outlet-option ${o.id===state.outletId?'selected':''}" data-outlet-id="${h(o.id)}">${icon('store')}<span><strong>${h(o.name)}</strong><small>${h(o.address||'')}</small></span>${o.id===state.outletId?'<span class="badge">Dipilih</span>':''}</button>`).join('')});
+    el.querySelectorAll('[data-outlet-id]').forEach(b=>b.addEventListener('click',()=>{if(!state.outlets.some(o=>o.id===b.dataset.outletId))return;state.outletId=b.dataset.outletId;state.data=null;state.report=null;void render();}));return;
+  }
+  if(name==='profile')return modal({title:'Akun pemilik bisnis',description:state.user?.email||'',content:`<p>Outlet aktif: <strong>${h(outlet()?.name||'')}</strong></p><p>Keluar hanya mengakhiri sesi browser ini. Sesi aplikasi kasir tetap berjalan.</p>`,footer:'<button class="btn btn-secondary" data-close-modal>Tutup</button><button class="btn btn-primary" data-action="logout">Keluar akun</button>'});
+  if(name==='search'){
+    const el=modal({title:'Cari menu dashboard',content:`<label class="field">Nama menu<input class="input" id="menu-search" placeholder="Cari laporan, produk, pengaturan…"></label><div class="search-results">${Object.entries(titles).map(([key,[title]])=>`<a class="search-result" data-route="${key}" href="#${key}">${h(title)}</a>`).join('')}</div>`});
+    el.querySelector('input').addEventListener('input',e=>el.querySelectorAll('.search-result').forEach(a=>a.hidden=!a.textContent.toLowerCase().includes(e.target.value.toLowerCase())));
+  }
+}
 document.addEventListener('click',event=>{
- const button=event.target.closest('button');if(!button||button.disabled)return;
- if(button.dataset.route){go(button.dataset.route);return;}if(button.dataset.sale){showDetail(button.dataset.sale);return;}
- if(button.dataset.page!==undefined){state.page=Math.max(0,Number(button.dataset.page)||0);render();return;}
- const action=button.dataset.action;
- if(action==='password'){const input=document.querySelector('#password'),show=input.type==='password';input.type=show?'text':'password';button.setAttribute('aria-pressed',String(show));button.setAttribute('aria-label',show?'Sembunyikan kata sandi':'Tampilkan kata sandi');}
- if(action==='logout')void signOut();
- if(action==='menu'){state.menu=!state.menu;render();document.querySelector(state.menu?'.sidebar .nav-item.active':'.menu-toggle')?.focus();}
- if(action==='refresh')void(state.outletsReady?refreshReport():loadOwnedOutlets());
- if(action==='apply'){const range={start:document.querySelector('#start').value,end:document.querySelector('#end').value};try{validateRange(range);state.range=range;state.preset='custom';state.page=0;void refreshReport();}catch(error){toast(error.message);}}
- if(action==='close-detail')closeDetail();
- if(action==='print-detail')print(true);
- if(action==='print')print();
- if(action==='export')download();
+  if(event.target.closest?.('.skip-link')){event.preventDefault();document.querySelector('#main')?.focus();return;}
+  const target=event.target.closest?.('[data-route],[data-action],[data-close-modal]');
+  if(target?.dataset.route){event.preventDefault();navigate(target.dataset.route);return;}
+  if(target?.hasAttribute('data-close-modal')){closeModal();return;}
+  if(target?.dataset.action)action(target.dataset.action);
+  if(event.target.classList?.contains('modal-layer'))closeModal();
 });
-app.addEventListener('change',event=>{
- if(event.target.id==='outlet'){if(!state.outlets.some(o=>o.id===event.target.value))return;state.outletId=event.target.value;state.page=0;state.search='';state.status='all';void refreshReport();}
- if(event.target.id==='preset'){state.preset=event.target.value;if(state.preset==='custom'){document.querySelector('#start').focus();return;}state.range=presetRange(state.preset);state.page=0;void refreshReport();}
- if(event.target.id==='status'){state.status=event.target.value;state.page=0;render();}
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'){closeModal();document.body.classList.remove('menu-open');syncMenuAccess();}
+  const dialog=modalRoot.querySelector('.modal-panel');
+  if(event.key==='Tab'&&dialog){const items=[...dialog.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]')].filter(e=>e.getClientRects().length);const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}
 });
-app.addEventListener('input',event=>{if(event.target.id==='search'){const pos=event.target.selectionStart;state.search=event.target.value;state.page=0;document.querySelector('#report-body').innerHTML=reportBody();const input=document.querySelector('#search');input.focus();if(pos!==null)input.setSelectionRange(pos,pos);}});
-window.addEventListener('hashchange',()=>go(routeFromHash()));
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&state.menu){state.menu=false;render();document.querySelector('.menu-toggle')?.focus();}});
-window.addEventListener('online',()=>{if(state.user){toast('Koneksi kembali tersedia. Memperbarui laporan…');void(state.outletsReady?refreshReport():loadOwnedOutlets());}});
-window.addEventListener('offline',()=>{if(state.user)render();});
-window.addEventListener('pageshow',event=>{if(event.persisted){const version=authVersion;state.report=null;closeDetail();render();void client.auth.getUser().then(({data,error})=>{if(version!==authVersion)return;if(error)void adoptUser(null);else if(data.user?.id===state.user?.id)void refreshReport();else void adoptUser(data.user);});}});
-client.auth.onAuthStateChange((event,session)=>{if(event==='INITIAL_SESSION')return;const version=++authVersion;queueMicrotask(()=>{if(version===authVersion)void adoptUser(session?.user||null);});});
-const initialAuthVersion=authVersion;
-try{const {data,error}=await client.auth.getUser();if(authVersion===initialAuthVersion)await adoptUser(error?null:data.user);}catch{if(authVersion===initialAuthVersion)await adoptUser(null);}
-// Expose only the same authenticated, read-only filter workflow to supporting browsers.
-if(document.modelContext?.registerTool){
- void Promise.resolve(document.modelContext.registerTool({name:'filter_vora_report',title:'Pilih laporan VORA',description:'Pilih halaman dan rentang tanggal pada laporan outlet yang sedang dibuka. Memerlukan login VORA; tidak mengganti outlet atau mengubah transaksi.',inputSchema:{type:'object',properties:{page:{type:'string',enum:nav.map(n=>n[0])},start:{type:'string'},end:{type:'string'}},required:['page','start','end'],additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:async input=>{if(!state.user||!currentOutlet())throw new Error('Masuk dan pilih outlet terlebih dahulu.');if(!nav.some(n=>n[0]===input?.page))throw new Error('Halaman tidak valid.');const range=validateRange({start:input.start,end:input.end});state.range=range;state.preset='custom';go(input.page);await refreshReport();if(state.error)throw new Error(state.error);return {page:state.route,period:state.range,loadedAt:state.report?.loadedAt};}})).catch(()=>{});
-}
+window.addEventListener('hashchange',()=>{if(!authBusy)void render();});
+window.addEventListener('offline',()=>toast('Koneksi terputus. Perubahan dashboard membutuhkan internet.'));
+let authEvent=0;
+client.auth.onAuthStateChange((event,session)=>{
+  const nextId=session?.user?.id||null;
+  if(event==='INITIAL_SESSION'&&!restoringSession)return;
+  const version=++authEvent;
+  if(event==='SIGNED_OUT'){
+    restoringSession=false;pendingAuthUserId=null;identity.set(null,true);state.user=null;resetData();state.loading=logoutBusy;
+    app.innerHTML=loading('Menutup sesi akun…');queueMicrotask(()=>void render());return;
+  }
+  // getSession may refresh an expired stored JWT before it resolves. Accept
+  // that same restoration identity; an A→B→A sequence must still invalidate it.
+  if(restoringSession){
+    if(nextId&&restoredUserId&&nextId!==restoredUserId){
+      restoringSession=false;identity.set(null,true);state.user=null;resetData();state.loading=true;
+      app.innerHTML=loading('Memeriksa sesi akun…');queueMicrotask(()=>void logout());
+    }else if(nextId)restoredUserId=nextId;
+    return;
+  }
+  // An authenticated identity change must invalidate even a pending onboarding write.
+  if(state.user&&nextId!==state.user.id){
+    identity.set(null,true);state.user=null;resetData();state.loading=true;app.innerHTML=loading('Memeriksa sesi akun…');
+    queueMicrotask(()=>void logout());return;
+  }
+  if(logoutBusy){if(nextId)sessionDuringLogout=true;return;}
+  // Auth forms explicitly adopt successful results; don't render over their in-flight request.
+  if(authBusy){if(nextId!==state.user?.id)pendingAuthUserId=nextId;return;}
+  if(nextId===(state.user?.id||null))return;
+  // A late SDK response after logout must never re-open private data.
+  queueMicrotask(()=>{if(version===authEvent&&!authBusy&&!logoutBusy)void logout();});
+});
+void render();
+const initialIdentity=identity.capture();
+client.auth.getSession().then(async({data,error})=>{
+  if(!restoringSession||!initialIdentity())return;
+  const session=data?.session||null;
+  if(restoredUserId&&session?.user?.id!==restoredUserId){await logout();return;}
+  restoringSession=false;
+  if(error){state.loading=false;await render();return;}
+  await adoptSession(session);
+}).catch(()=>{
+  if(!restoringSession||!initialIdentity())return;
+  restoringSession=false;state.loading=false;void render();
+});

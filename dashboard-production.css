@@ -1,0 +1,22 @@
+:root{--vora-brand-background:#47704c}
+.sidebar{background:var(--vora-brand-background);border-right:0;color:white}
+.sidebar .brand{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:22px;padding:0 12px}
+.brand-logo{display:block;width:146px;height:76px;object-fit:contain}
+.brand-subtitle{font-size:10px;font-weight:700;letter-spacing:.22em;color:#fff;align-self:center}
+.sidebar .nav-label{color:#e1efe2;font-size:10px}.sidebar .nav-item{color:#fff;font-weight:650;min-height:46px}
+.sidebar .nav-item:hover{background:#ffffff18;color:white}.sidebar .nav-item.active{background:#fff;color:#214e32}.sidebar .nav-item.active:after{background:#278d56}
+.sidebar .outlet-picker-sidebar{background:#ffffff10;border-color:#ffffff38}.sidebar .outlet-picker-label,.sidebar .outlet-picker-button,.sidebar .outlet-picker-button small{color:#fff}
+.sidebar .help-card{background:#243e3033;border-color:#ffffff2b}.sidebar .help-card h3,.sidebar .help-card p,.sidebar .help-card .text-link,.sidebar .help-card>.icon{color:#fff}
+.sidebar .profile-button{background:transparent;border-color:#ffffff38;color:#fff}.sidebar .profile-button small{color:#e4f0e5;overflow-wrap:anywhere}.sidebar .profile-button>span:nth-child(2){min-width:0}
+.sidebar .side-bottom{padding-top:32px}.top-actions .avatar{cursor:pointer;min-width:38px;min-height:38px}
+.loading-state{display:flex;min-height:280px;align-items:center;justify-content:center;flex-direction:column;gap:15px;text-align:center;padding:30px;color:#111827}
+.loading-state p{font-size:13px}.vora-spinner{width:42px;height:42px;border:4px solid #d8e5dd;border-top-color:#24714e;border-radius:50%;animation:vora-spin .8s linear infinite}
+@keyframes vora-spin{to{transform:rotate(360deg)}}
+.error-state{padding:28px}.error-state h2{font-size:20px}.error-state p{line-height:1.8;margin:14px 0 24px;max-width:650px}.error-state button{margin:4px}
+button:disabled{opacity:.6;cursor:wait}.page-heading-actions{flex-wrap:wrap}.topbar .breadcrumb{min-width:0}.breadcrumb>span{overflow:hidden;text-overflow:ellipsis}.page-footer{gap:14px;flex-wrap:wrap}
+.modal-body p{line-height:1.8}.modal-panel{max-height:calc(100dvh - 32px)}.modal-body{min-height:0;overflow-y:auto}.modal-footer{flex-shrink:0;flex-wrap:wrap}.profile-button strong{overflow-wrap:anywhere}
+#period-error{color:#9f2424;font-weight:650}.outlet-option{width:100%}.outlet-option .badge{flex-shrink:0}
+@media(max-width:800px){.topbar .search-button{display:none}.sidebar .brand-logo{width:144px;height:76px}.top-actions{gap:8px}.page-heading-actions .period-select{flex:1;white-space:normal}.page-heading-actions{width:100%}.sidebar{padding-top:22px}.topbar .icon-btn{min-width:40px;min-height:44px}.topbar{padding-inline:12px}}
+@media(prefers-reduced-motion:reduce){.vora-spinner{animation:none}.modal-panel,.sidebar{transition:none!important}}
+@media print{.loading-state,.error-state{display:none!important}.page-heading{display:block}.main-shell{margin-left:0!important}.dashboard-main{max-width:none;padding:0}.page-heading h1{font-size:23px}.page-heading p{font-size:11px}}
+.sidebar .outlet-picker-button strong{color:#fff}

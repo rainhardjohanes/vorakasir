@@ -20,3 +20,47 @@ button:disabled{opacity:.6;cursor:wait}.page-heading-actions{flex-wrap:wrap}.top
 @media(prefers-reduced-motion:reduce){.vora-spinner{animation:none}.modal-panel,.sidebar{transition:none!important}}
 @media print{.loading-state,.error-state{display:none!important}.page-heading{display:block}.main-shell{margin-left:0!important}.dashboard-main{max-width:none;padding:0}.page-heading h1{font-size:23px}.page-heading p{font-size:11px}}
 .sidebar .outlet-picker-button strong{color:#fff}
+
+/* A single draft range selector, shared by every report page. */
+.date-range-panel{width:min(960px,100%);color:#17231d}
+.date-range-panel .modal-head{padding:22px 26px 18px;align-items:flex-start}
+.date-range-panel .modal-head h2{font-size:21px;font-weight:750}
+.date-range-panel .modal-head p{font-size:12px;line-height:1.6;margin-top:5px;max-width:660px;color:#44524a}
+.date-range-panel .modal-body{padding:0}
+.range-layout{display:grid;grid-template-columns:178px minmax(0,1fr)}
+.range-presets{display:flex;flex-direction:column;gap:5px;padding:22px 14px;background:#f7f9f6;border-right:1px solid #e4ebe4}
+.range-eyebrow{font-size:10px;font-weight:750;letter-spacing:.1em;color:#45554a;padding:0 12px;margin-bottom:9px}
+.range-preset{background:none;border:0;border-radius:8px;padding:11px 12px;text-align:left;font:inherit;font-size:13px;font-weight:650;color:#233529;cursor:pointer;min-height:40px}
+.range-preset:hover{background:#e7eee6}.range-preset.selected{color:#195237;background:#dcebdd}
+.range-main{padding:20px 24px 14px;min-width:0}
+.range-endpoints{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.range-endpoint{background:#f8faf8;border:1px solid #dce5dd;border-radius:10px;padding:10px 14px;flex:1;min-width:0}
+.range-endpoint span{display:block;font-size:11px;font-weight:650;color:#45574a;margin-bottom:4px}
+.range-endpoint strong{display:block;font-size:14px;font-weight:750;color:#192b20}
+.range-endpoint.awaiting{background:#f1f8f1;border-color:#4b8557;border-style:dashed}
+.range-between{display:flex;color:#496a50}.range-between .icon{width:17px}
+.range-calendar-wrap{position:relative}.range-month-nav{position:absolute;inset:0 0 auto;display:flex;justify-content:space-between;pointer-events:none}
+.range-month-nav .icon-btn{pointer-events:auto;width:36px;height:36px;min-width:36px;min-height:36px;border:1px solid #e2e9e2;border-radius:9px;color:#244f34;background:#fff}
+.range-month-nav .icon-btn:hover{background:#edf5ec}.range-prev .icon{transform:rotate(180deg)}
+.range-months{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+.range-month{min-width:0}.range-month h3{font-size:16px;font-weight:750;line-height:36px;text-align:center;margin:0 33px 12px;white-space:nowrap}
+.range-calendar{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0 5px}
+.range-calendar th{text-align:center;color:#546258;font-size:11px;font-weight:700;height:26px;padding:0;border:0;background:transparent}
+.range-calendar td{height:36px;padding:0;text-align:center;border:0;background:transparent}
+.range-day{position:relative;width:100%;height:36px;min-width:0;padding:0;border:0;border-radius:50%;background:transparent;color:#223128;font-family:inherit;font-size:13px;font-weight:650;cursor:pointer}
+.range-day:hover{background:#dae9d9}.range-day.is-today:after{content:'';position:absolute;width:4px;height:4px;bottom:3px;left:calc(50% - 2px);border-radius:50%;background:currentColor}
+.range-calendar .in-range,.range-calendar .range-preview{background:#e8f3e6}
+.range-calendar .range-start,.range-calendar .preview-start{border-radius:22px 0 0 22px}
+.range-calendar .range-end,.range-calendar .preview-end{border-radius:0 22px 22px 0}
+.range-calendar .range-start.range-end,.range-calendar .preview-start.preview-end{border-radius:22px}
+.range-start .range-day,.range-end .range-day{background:#286f48;color:#fff;font-weight:750}
+.range-day:focus-visible,.range-preset:focus-visible{outline:2px solid #215f40;outline-offset:2px;z-index:1}
+.date-range-panel .range-hint{font-size:12px;margin:9px 0 0;color:#44564a;line-height:1.6;min-height:20px}
+.date-range-panel #period-error{font-size:12px;line-height:1.6;margin:6px 0 0}.date-range-panel #period-error:empty{display:none}
+.date-range-panel .modal-footer{justify-content:space-between;gap:16px;padding:17px 24px;background:#fff}
+.range-summary{display:flex;flex-direction:column;gap:5px;min-width:0}.range-summary strong{font-size:14px;font-weight:750}.range-summary span{font-size:11px;font-weight:600;color:#44564a}
+.range-footer-actions{display:flex;gap:10px;flex-shrink:0}.range-footer-actions .btn{min-width:96px;min-height:42px}
+.date-range-panel button:disabled{cursor:not-allowed;opacity:.45}
+@media(max-width:800px){.page-heading{flex-direction:column;align-items:stretch}.page-heading-actions{min-width:0}.period-select span{min-width:0}}
+@media(max-width:859px){.date-range-panel{width:min(600px,100%)}.range-layout{grid-template-columns:1fr}.range-presets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding:12px 18px;border-right:0;border-bottom:1px solid #e4ebe4}.range-eyebrow{display:none}.range-preset{padding:8px 4px;text-align:center;font-size:11px;min-height:36px}.range-main{padding:16px 22px 12px}.range-months{grid-template-columns:1fr}.range-day{height:40px;font-size:14px}.range-calendar td{height:40px}.range-endpoints{margin-bottom:12px}.range-month h3{margin-bottom:8px}}
+@media(max-width:480px){.date-range-panel .modal-head{padding:16px}.date-range-panel .modal-head h2{font-size:18px}.date-range-panel .modal-head p{font-size:11px}.range-main{padding:14px 14px 10px}.range-presets{padding:10px;gap:4px}.range-preset{font-size:10px;line-height:1.4;min-height:36px}.range-endpoints{gap:7px}.range-endpoint{padding:9px 10px}.range-endpoint strong{font-size:12px}.range-endpoint span{font-size:10px}.range-between{display:none}.range-month h3{font-size:15px}.range-calendar{border-spacing:0 3px}.range-calendar td,.range-day{height:36px}.date-range-panel .modal-footer{padding:13px 16px;gap:12px}.range-summary{width:100%;text-align:center;gap:3px}.range-summary strong{font-size:12px}.range-footer-actions{width:100%}.range-footer-actions .btn{flex:1;min-height:42px}.date-range-panel .range-hint{font-size:11px}}

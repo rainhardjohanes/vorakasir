@@ -1,10 +1,11 @@
 import { config } from '/dashboard-config.js';
-import { loadOutlets, loadReport, requestScope, validateRange, makeCsv } from '/dashboard-data.js';
+import { loadOutlets, loadReport, requestScope, makeCsv } from '/dashboard-data.js';
 import { identityGuard, validatePublicConfig, boundedFetch } from '/dashboard-session.js';
 import { icon, escape as h } from '/dashboard-icons.js';
 import { renderAuth, bindAuth } from '/dashboard-auth.js';
 import { renderReport, bindReport, reportExportRows } from '/dashboard-reports.js';
 import { loadOperations, renderOperations, bindOperations, downloadCsvFile } from '/dashboard-operations.js';
+import { formatRange, mountDateRange } from '/dashboard-date-range.js';
 
 validatePublicConfig(config);
 let storage;
@@ -72,7 +73,7 @@ function sidebar(current) {
 }
 function shell(current,content) {
   const [title,description]=titles[current];
-  return `${sidebar(current)}<div class="main-shell"><header class="topbar"><button class="icon-btn menu-toggle" data-action="menu" aria-label="Buka menu navigasi" aria-expanded="false">${icon('menu')}</button>${picker(true)}<div class="breadcrumb"><span>${h(outlet()?.name||'Bisnis Anda')}</span>${icon('chevron')}<strong>${title}</strong></div><div class="top-actions"><button class="icon-btn" data-action="refresh" aria-label="Muat ulang data" ${state.loading?'disabled':''}>${icon('clock')}</button><button class="icon-btn search-button" data-action="search" aria-label="Cari menu">${icon('search')}</button><button class="avatar" data-action="profile" aria-label="Akun dan keluar">${initials()}</button></div></header><main class="dashboard-main" id="main" tabindex="-1"><section class="page-heading"><div><h1>${title}</h1><p>${description}</p></div>${!operationRoutes.has(current)?`<div class="page-heading-actions"><button class="btn btn-secondary period-select" data-action="period">${icon('calendar')}<span>${h(state.range.start)} – ${h(state.range.end)}</span>${icon('down')}</button><button class="btn btn-primary" data-action="export" ${!state.report||state.loading?'disabled':''}>${icon('download')} Ekspor laporan</button></div>`:''}</section><div id="page-content">${content}</div><footer class="page-footer"><span>© VORA POS · ${h(outlet()?.name||'')}</span><span>Data tersinkron dari aplikasi kasir</span></footer></main></div>`;
+  return `${sidebar(current)}<div class="main-shell"><header class="topbar"><button class="icon-btn menu-toggle" data-action="menu" aria-label="Buka menu navigasi" aria-expanded="false">${icon('menu')}</button>${picker(true)}<div class="breadcrumb"><span>${h(outlet()?.name||'Bisnis Anda')}</span>${icon('chevron')}<strong>${title}</strong></div><div class="top-actions"><button class="icon-btn" data-action="refresh" aria-label="Muat ulang data" ${state.loading?'disabled':''}>${icon('clock')}</button><button class="icon-btn search-button" data-action="search" aria-label="Cari menu">${icon('search')}</button><button class="avatar" data-action="profile" aria-label="Akun dan keluar">${initials()}</button></div></header><main class="dashboard-main" id="main" tabindex="-1"><section class="page-heading"><div><h1>${title}</h1><p>${description}</p></div>${!operationRoutes.has(current)?`<div class="page-heading-actions"><button class="btn btn-secondary period-select" data-action="period" aria-haspopup="dialog">${icon('calendar')}<span>${h(formatRange(state.range))}</span>${icon('down')}</button><button class="btn btn-primary" data-action="export" ${!state.report||state.loading?'disabled':''}>${icon('download')} Ekspor laporan</button></div>`:''}</section><div id="page-content">${content}</div><footer class="page-footer"><span>© VORA POS · ${h(outlet()?.name||'')}</span><span>Data tersinkron dari aplikasi kasir</span></footer></main></div>`;
 }
 function loading(message='Memuat data outlet…') { return `<div class="loading-state" role="status"><span class="vora-spinner" aria-hidden="true"></span><strong>${h(message)}</strong><p>Mohon tunggu sebentar.</p></div>`; }
 function errorView(message) { return `<div class="card error-state" role="alert"><h2>Data belum tersedia</h2><p>${h(message)}</p><button class="btn btn-primary" data-action="refresh">Coba lagi</button><button class="btn btn-secondary" data-action="logout">Keluar akun</button></div>`; }
@@ -169,9 +170,9 @@ function exportReport() {
   el.querySelector('#export-print').addEventListener('click',()=>{closeModal();window.print();});
 }
 function periodDialog() {
-  const el=modal({title:'Periode laporan',description:'Maksimal 93 hari per laporan. Tanggal mengikuti tanggal bisnis yang tercatat pada transaksi.',content:`<div class="preset-row"><button class="btn btn-secondary" data-preset="today">Hari ini</button><button class="btn btn-secondary" data-preset="week">7 hari</button><button class="btn btn-secondary" data-preset="month">Bulan ini</button></div><form id="period-form"><div class="form-two"><label class="field">Dari tanggal<input class="input" type="date" name="start" value="${state.range.start}" required></label><label class="field">Sampai tanggal<input class="input" type="date" name="end" value="${state.range.end}" required></label></div><p id="period-error" role="alert"></p></form>`,footer:'<button class="btn btn-secondary" data-close-modal>Batal</button><button class="btn btn-primary" type="submit" form="period-form">Terapkan</button>'});
-  const form=el.querySelector('form');el.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{const r=rangePreset(b.dataset.preset);form.elements.start.value=r.start;form.elements.end.value=r.end;}));
-  form.addEventListener('submit',event=>{event.preventDefault();try{state.range=validateRange({start:form.elements.start.value,end:form.elements.end.value});void render();}catch(error){el.querySelector('#period-error').textContent=error.message;}});
+  const el=modal({title:'Periode laporan',description:'Pilih tanggal awal dan akhir. Maksimal 93 hari, mengikuti tanggal bisnis pada transaksi.',content:'<div data-range-picker></div>',footer:'<div class="range-summary" data-range-summary aria-live="polite"></div><div class="range-footer-actions"><button class="btn btn-secondary" data-close-modal>Batal</button><button class="btn btn-primary" type="button" data-range-apply>Terapkan</button></div>'});
+  el.classList.add('date-range-panel');
+  mountDateRange(el,{range:state.range,signal:modalCleanup.signal,onApply:range=>{state.range=range;void render();}});
 }
 function action(name) {
   if(name==='logout')return void logout();

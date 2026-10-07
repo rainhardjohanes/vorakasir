@@ -159,26 +159,58 @@ export function parseCsv(source){
   if(rows.length<2)throw new Error('CSV belum berisi produk.');if(rows.length>501)throw new Error('Impor maksimal 500 produk per file.');return rows;
 }
 export function prepareImport(source,mode,data,outletId){
+  return prepareImportRows(parseCsv(source),mode,data,outletId);
+}
+// Both upload formats use the same validation and scoped, versioned write path.
+export function prepareImportRows(table,mode,data,outletId,{xlsx=false}={}){
   if(!['add','update'].includes(mode)||data.outletId!==outletId)throw new Error('Lingkup impor tidak valid.');
-  const [header,...rows]=parseCsv(source);const names=header.map(v=>v.trim().toLowerCase());
-  if(new Set(names).size!==names.length)throw new Error('Judul kolom CSV tidak boleh duplikat.');
-  const indexes=new Map(CSV_COLUMNS.map(name=>[name,names.indexOf(name.toLowerCase())]));
-  if(names.some(name=>!CSV_COLUMNS.some(column=>column.toLowerCase()===name)))throw new Error('Ada kolom CSV yang tidak dikenal. Gunakan template atau hasil ekspor produk.');
+  if(!Array.isArray(table)||table.length<2)throw new Error('File belum berisi produk.');
+  if(table.length>501)throw new Error('Impor maksimal 500 produk per file.');
+  const [header,...rows]=table;
+  if(!Array.isArray(header)||!header.length||header.some(v=>typeof v!=='string'))throw new Error('Judul kolom tidak valid.');
+  const names=header.map(v=>v.trim().toLowerCase());
+  if(new Set(names).size!==names.length)throw new Error('Judul kolom tidak boleh duplikat.');
+  const idMode=xlsx&&mode==='update';
+  const allowed=idMode?[...CSV_COLUMNS.filter(c=>c!=='Stok awal'),'ID produk','Versi produk']:CSV_COLUMNS;
+  const indexes=new Map(allowed.map(name=>[name,names.indexOf(name.toLowerCase())]));
+  if(names.some(name=>!allowed.some(column=>column.toLowerCase()===name)))throw new Error('Ada kolom yang tidak dikenal. Gunakan template yang sesuai dengan jenis impor.');
   if(indexes.get('SKU')<0)throw new Error('Kolom SKU wajib ada.');
+  if(idMode&&['ID produk','Versi produk'].some(key=>indexes.get(key)<0))throw new Error('Gunakan template Ubah Produk yang memuat ID dan versi produk.');
   if(mode==='add'&&['Nama produk','Kategori','Harga jual'].some(key=>indexes.get(key)<0))throw new Error('Tambah massal memerlukan Nama produk, SKU, Kategori, dan Harga jual.');
-  const seen=new Set();const catalog=new Map();for(const p of data.products){if(p.outlet_id!==outletId)throw new Error('Katalog lintas outlet ditolak.');const sku=String(p.sku||'').trim().toLowerCase();if(catalog.has(sku))catalog.set(sku,null);else catalog.set(sku,p);}
+  const seen=new Set(),seenIds=new Set(),catalog=new Map(),byId=new Map();
+  for(const p of data.products){
+    if(p.outlet_id!==outletId)throw new Error('Katalog lintas outlet ditolak.');
+    if(byId.has(String(p.id)))throw new Error('ID katalog tidak unik. Muat ulang produk.');
+    byId.set(String(p.id),p);
+    const sku=String(p.sku||'').trim().toLowerCase();
+    if(catalog.has(sku))catalog.set(sku,null);else catalog.set(sku,p);
+  }
   return rows.map((cells,index)=>{
-    if(cells.length!==header.length)throw new Error(`Baris ${index+2}: jumlah kolom berbeda dari judul.`);
-    const get=key=>indexes.get(key)<0?'':String(cells[indexes.get(key)]||'').trim();const sku=text(get('SKU'),`SKU baris ${index+2}`,100);const key=sku.toLowerCase();
-    if(seen.has(key))throw new Error(`Baris ${index+2}: SKU duplikat dalam file.`);seen.add(key);
-    const existing=catalog.get(key);if(mode==='add'&&catalog.has(key))throw new Error(`Baris ${index+2}: SKU sudah ada. Gunakan ubah massal.`);if(mode==='update'&&!existing)throw new Error(`Baris ${index+2}: SKU tidak ditemukan atau tidak unik.`);
-    if(mode==='update'&&get('Stok awal'))throw new Error(`Baris ${index+2}: kosongkan Stok awal saat mengubah produk. Saldo stok tidak ditimpa.`);
+    const line=index+2;
+    if(!Array.isArray(cells)||cells.length!==header.length)throw new Error(`Baris ${line}: jumlah kolom berbeda dari judul.`);
+    if(cells.some(v=>v!=null&&!['string','number','boolean'].includes(typeof v)))throw new Error(`Baris ${line}: isi sel tidak valid.`);
+    const get=key=>!indexes.has(key)||indexes.get(key)<0?'':String(cells[indexes.get(key)]??'').trim();
+    let existing;
+    if(idMode){
+      const id=text(get('ID produk'),`ID produk baris ${line}`);
+      if(seenIds.has(id))throw new Error(`Baris ${line}: ID produk duplikat dalam file.`);seenIds.add(id);
+      existing=byId.get(id);
+      if(!existing)throw new Error(`Baris ${line}: ID produk tidak ditemukan di outlet ini. Unduh ulang template ubah.`);
+      if(get('Versi produk')!==String(existing.updated_at??''))throw new Error(`Baris ${line}: produk berubah setelah template diunduh. Unduh ulang template ubah sebelum menyimpan.`);
+    }
+    const sku=text(get('SKU')||(idMode?existing.sku:''),`SKU baris ${line}`,100),key=sku.toLowerCase();
+    if(seen.has(key))throw new Error(`Baris ${line}: SKU duplikat dalam file.`);seen.add(key);
+    if(!idMode)existing=catalog.get(key);
+    if(mode==='add'&&catalog.has(key))throw new Error(`Baris ${line}: SKU sudah ada. Gunakan ubah massal.`);
+    if(mode==='update'&&!existing)throw new Error(`Baris ${line}: SKU tidak ditemukan atau tidak unik.`);
+    if(idMode&&catalog.has(key)&&catalog.get(key)?.id!==existing.id)throw new Error(`Baris ${line}: SKU sudah dipakai produk lain di outlet ini.`);
+    if(mode==='update'&&get('Stok awal'))throw new Error(`Baris ${line}: kosongkan Stok awal saat mengubah produk. Saldo stok tidak ditimpa.`);
     const draft={...(existing||{}),id:existing?.id||newId('P'),sku};
     const map={'Nama produk':'name','Kategori':'category','Satuan':'unit','Harga jual':'price','Harga pokok':'buy_price','Stok awal':'stock'};
     for(const [col,field]of Object.entries(map)){const v=get(col);if(v!==''||mode==='add')draft[field]=v===''?(['buy_price','stock'].includes(field)?0:field==='unit'?'Pcs':''):v;}
-    const track=get('Monitor stok').toLowerCase();if(track&&!['ya','tidak','true','false','1','0'].includes(track))throw new Error(`Baris ${index+2}: Monitor stok harus Ya atau Tidak.`);if(track||mode==='add')draft.track_stock=['ya','true','1'].includes(track);
-    if(!data.categories.some(c=>c.outlet_id===outletId&&c.name===draft.category))throw new Error(`Baris ${index+2}: kategori belum ada di outlet. Tambahkan kategori dahulu.`);
-    productPayload(draft,outletId,existing);return {line:index+2,draft,existing,completed:false};
+    const track=get('Monitor stok').toLowerCase();if(track&&!['ya','tidak','true','false','1','0'].includes(track))throw new Error(`Baris ${line}: Monitor stok harus Ya atau Tidak.`);if(track||mode==='add')draft.track_stock=['ya','true','1'].includes(track);
+    if(!data.categories.some(c=>c.outlet_id===outletId&&c.name===draft.category))throw new Error(`Baris ${line}: kategori belum ada di outlet. Tambahkan kategori dahulu.`);
+    productPayload(draft,outletId,existing);return {line,draft,existing,completed:false};
   });
 }
 export async function runImport(client,user,outlet,entries,signal,onProgress=()=>{}){

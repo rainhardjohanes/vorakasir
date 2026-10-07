@@ -1,6 +1,7 @@
 import { config } from '/dashboard-config.js';
 import { loadOutlets, loadReport, requestScope, makeCsv } from '/dashboard-data.js';
 import { identityGuard, validatePublicConfig, boundedFetch } from '/dashboard-session.js';
+import { createAuthStorage, finishAuthLogout } from '/dashboard-auth-session.js';
 import { icon, escape as h } from '/dashboard-icons.js';
 import { renderAuth, bindAuth } from '/dashboard-auth.js';
 import { renderReport, bindReport, reportExportRows } from '/dashboard-reports.js';
@@ -10,10 +11,13 @@ import { formatRange, mountDateRange } from '/dashboard-date-range.js';
 validatePublicConfig(config);
 let storage;
 try { sessionStorage.setItem('vora-storage-check','1'); sessionStorage.removeItem('vora-storage-check'); storage = sessionStorage; } catch {}
-const client = window.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
-  global: { fetch: boundedFetch },
-  auth: { storage, storageKey: 'vora-backoffice-auth', persistSession: !!storage, autoRefreshToken: true, detectSessionInUrl: false },
-});
+function createClient(authStorage) {
+  return window.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
+    global: { fetch: boundedFetch },
+    auth: { storage: authStorage, storageKey: 'vora-backoffice-auth', persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  });
+}
+let authStorage = createAuthStorage(storage), client = createClient(authStorage);
 const app = document.querySelector('#app'), modalRoot = document.querySelector('#modal-root');
 const identity = identityGuard(), outletsScope = requestScope(), pageScope = requestScope();
 const authRoutes = new Set(['login','signup','verify','business','forgot','reset']);
@@ -35,7 +39,7 @@ const day = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-$
 function rangePreset(value) { const end=new Date(),start=new Date(end); if(value==='month')start.setDate(1);if(value==='week')start.setDate(start.getDate()-6); return { start:day(start),end:day(end) }; }
 const state = { user:null,outlets:[],outletId:'',ready:false,loading:true,error:'',report:null,data:null,range:rangePreset('month') };
 let cleanupPage, renderSequence=0, authBusy=false, logoutBusy=false, toastTimer, modalCleanup, focusBeforeModal;
-let restoringSession=true, restoredUserId=null, sessionDuringLogout=false, pendingAuthUserId=null;
+let restoringSession=true, restoredUserId=null, logoutEventSeen=false, pendingAuthUserId=null, logoutStorageError=null;
 const mobile = window.matchMedia('(max-width:800px)');
 const outlet = () => state.outlets.find(o=>o.id===state.outletId);
 const route = () => { const name=location.hash.slice(1).split('?')[0]; return name==='data'?'products':titles[name]||authRoutes.has(name)?name:'overview'; };
@@ -126,7 +130,8 @@ async function render() {
   if(!state.user){
     current=authRoutes.has(current)&&current!=='business'?current:'login';document.body.classList.add('auth-mode');
     app.innerHTML=state.loading?loading('VORA menyiapkan sesi Anda…'):renderAuth(current,{user:null});
-    if(!state.loading)cleanupPage=bindAuth(app,commonApi(sequence));
+    if(logoutStorageError)app.innerHTML='<div class="loading-state" role="alert"><strong>Sesi lokal belum dapat dibersihkan.</strong><p>Izinkan penyimpanan browser lalu coba keluar lagi sebelum memakai akun lain.</p><button class="btn btn-primary" data-action="logout">Coba keluar lagi</button></div>';
+    else if(!state.loading)cleanupPage=bindAuth(app,commonApi(sequence));
     document.title='VORA — Akun bisnis';window.scrollTo(0,0);return;
   }
   if(!state.ready){document.body.classList.remove('auth-mode');app.innerHTML=loading('Memuat daftar outlet Anda…');return;}
@@ -148,16 +153,22 @@ async function render() {
     cleanupPage=operationRoutes.has(current)?bindOperations(document.querySelector('#page-content'),api):bindReport(document.querySelector('#page-content'),api);
   }catch(error){if(sequence!==renderSequence||!scope.current()||!validIdentity())return;state.loading=false;state.error=safeError(error);app.innerHTML=shell(current,errorView(state.error));syncMenuAccess();}
 }
-async function logout() {
+async function logout({broadcast=true}={}) {
   restoringSession=false;pendingAuthUserId=null;
-  if(logoutBusy)return;logoutBusy=true;sessionDuringLogout=false;identity.set(null,true);state.user=null;resetData();state.loading=true;authBusy=false;location.hash='login';await render();
-  try{await client.auth.signOut({scope:'local'});}catch{try{storage?.removeItem('vora-backoffice-auth');}catch{}}
+  if(logoutBusy)return;
+  logoutBusy=true;logoutEventSeen=false;
+  const closingClient=client, closingStorage=authStorage;
+  // Fence persistence synchronously, before yielding to UI, network or refresh.
+  logoutStorageError=closingStorage.retire();
+  if(!broadcast)closingStorage.clear();
+  identity.set(null,true);state.user=null;resetData();state.loading=true;authBusy=false;location.hash='login';await render();
+  try{const result=await finishAuthLogout(closingClient.auth,closingStorage,{broadcast,signedOut:()=>logoutEventSeen});logoutStorageError=result.storageError;}
   finally{
+    if(!logoutStorageError){authStorage=createAuthStorage(storage);client=createClient(authStorage);listenAuth(client);}
     logoutBusy=false;state.loading=false;await render();
-    // A login request can resolve while the SDK is finishing local logout.
-    if(sessionDuringLogout){sessionDuringLogout=false;queueMicrotask(()=>void logout());}
   }
 }
+
 function exportReport() {
   if(!state.report||state.loading||state.error)return;
   const current=route(), report=state.report,selected=outlet();
@@ -205,13 +216,15 @@ document.addEventListener('keydown',event=>{
 window.addEventListener('hashchange',()=>{if(!authBusy)void render();});
 window.addEventListener('offline',()=>toast('Koneksi terputus. Perubahan dashboard membutuhkan internet.'));
 let authEvent=0;
-client.auth.onAuthStateChange((event,session)=>{
+function listenAuth(observedClient) {
+observedClient.auth.onAuthStateChange((event,session)=>{
+  if(observedClient!==client)return;
   const nextId=session?.user?.id||null;
   if(event==='INITIAL_SESSION'&&!restoringSession)return;
   const version=++authEvent;
   if(event==='SIGNED_OUT'){
-    restoringSession=false;pendingAuthUserId=null;identity.set(null,true);state.user=null;resetData();state.loading=logoutBusy;
-    app.innerHTML=loading('Menutup sesi akun…');queueMicrotask(()=>void render());return;
+    if(logoutBusy){logoutEventSeen=true;authStorage.clear();return;}
+    void logout({broadcast:false});return;
   }
   // getSession may refresh an expired stored JWT before it resolves. Accept
   // that same restoration identity; an A→B→A sequence must still invalidate it.
@@ -227,13 +240,15 @@ client.auth.onAuthStateChange((event,session)=>{
     identity.set(null,true);state.user=null;resetData();state.loading=true;app.innerHTML=loading('Memeriksa sesi akun…');
     queueMicrotask(()=>void logout());return;
   }
-  if(logoutBusy){if(nextId)sessionDuringLogout=true;return;}
+  if(logoutBusy)return;
   // Auth forms explicitly adopt successful results; don't render over their in-flight request.
   if(authBusy){if(nextId!==state.user?.id)pendingAuthUserId=nextId;return;}
   if(nextId===(state.user?.id||null))return;
   // A late SDK response after logout must never re-open private data.
   queueMicrotask(()=>{if(version===authEvent&&!authBusy&&!logoutBusy)void logout();});
 });
+}
+listenAuth(client);
 void render();
 const initialIdentity=identity.capture();
 client.auth.getSession().then(async({data,error})=>{

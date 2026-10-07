@@ -1,12 +1,20 @@
-import { loadOperations, saveProduct, deleteProduct, addCategory, saveStaff, deleteStaff, patchSettings, savePayment, uploadLogo, PAYMENT_TYPES, newId, productCsv, prepareImport, runImport } from '/dashboard-operations-data.js';
+import { loadOperations, saveProduct, deleteProduct, addCategory, saveStaff, deleteStaff, patchSettings, savePayment, uploadLogo, PAYMENT_TYPES, newId, prepareImport, prepareImportRows, runImport } from '/dashboard-operations-data.js';
+import { createProductWorkbook, readProductWorkbook } from '/dashboard-product-workbook.js';
 export { loadOperations };
 /** Start a user-initiated CSV download while keeping its DOM target alive for WebKit. */
 export function downloadCsvFile(content, filename) {
-  const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
+  downloadFile(content, filename, 'text/csv;charset=utf-8', 'Unduh CSV');
+}
+/** Both formats use a real attached download target so WebKit can finish saving. */
+export function downloadXlsxFile(bytes, filename) {
+  downloadFile(bytes, filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Unduh Excel');
+}
+function downloadFile(content, filename, type, label) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
-  link.textContent = 'Unduh CSV';
+  link.textContent = label;
   link.setAttribute('aria-hidden', 'true');
   link.tabIndex = -1;
   link.style.position = 'fixed';
@@ -74,12 +82,13 @@ export function renderOperations(view,{tab,data,outlet}={}){
   return view==='products'?productsView():view==='settings'?settingsView():'';
 }
 export function bindOperations(container,api){
-  const abortController=new AbortController();let modalController,busy=false,logoDraft=null;
+  const abortController=new AbortController();let modalController,busy=false,logoDraft=null,importAttempt=0;
+  const readyDownloads=new Map();
   const current=()=>!abortController.signal.aborted&&!api.signal?.aborted&&api.isCurrent();
   const guard=()=>{if(!current())throw new DOMException('Halaman outlet berubah.','AbortError');};
   const context=()=>[api.client,api.user,api.outlet];
   const toast=message=>{if(current())api.toast(message);};
-  function modal(options){modalController?.abort();modalController=new AbortController();return api.modal(options);}
+  function modal(options){importAttempt++;modalController?.abort();modalController=new AbortController();return api.modal(options);}
   function on(panel,type,fn){panel.addEventListener(type,fn,{signal:modalController.signal});}
   function inlineError(panel,error){let box=panel.querySelector('[data-ops-form-error]');if(!box){box=document.createElement('p');box.className='ops-inline-error';box.setAttribute('role','alert');box.dataset.opsFormError='';(panel.querySelector('form')||panel).append(box);}box.hidden=false;box.textContent=error?.message||'Permintaan belum berhasil. Periksa koneksi lalu coba lagi.';}
   async function mutate(panel,job,message,{close=true}={}){
@@ -91,8 +100,47 @@ export function bindOperations(container,api){
     finally{busy=false;status.remove();panel.removeAttribute('aria-busy');controls.forEach((el,i)=>el.disabled=previous[i]);}
   }
   const rerender=view=>{if(current()){container.innerHTML=renderOperations(view,{tab:state.settings,data:api.data,outlet:api.outlet});}};
-  const closeAction=event=>{if(event.target.closest('[data-ops="modal-close"]')&&!busy)api.closeModal();};
-  const download=(content,name)=>{guard();downloadCsvFile(content,name);toast('Unduhan CSV dimulai. Periksa daftar unduhan browser.');};
+  const closeAction=event=>{if(event.target.closest('[data-ops="modal-close"]')&&!busy){importAttempt++;modalController?.abort();api.closeModal();}};
+  function readyWorkbook(bytes,filename,panel,signal,active){
+    const host=panel||container;readyDownloads.get(host)?.();
+    const url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    const feedback=document.createElement('div'),label=document.createElement('span'),link=document.createElement('a');
+    feedback.className='ops-import-template';feedback.dataset.opsReadyDownload='';feedback.setAttribute('role','status');
+    label.textContent='File Excel siap. Klik tombol untuk mengunduh.';
+    link.className='btn btn-primary';link.textContent='Unduh file Excel';link.href=url;link.download=filename;
+    feedback.append(label,link);
+    let observer,released=false;
+    const signals=[abortController.signal,api.signal,signal].filter(Boolean);
+    const release=()=>{
+      if(released)return;released=true;observer?.disconnect();
+      signals.forEach(s=>s.removeEventListener('abort',release));
+      feedback.remove();URL.revokeObjectURL(url);
+      if(readyDownloads.get(host)===release)readyDownloads.delete(host);
+    };
+    readyDownloads.set(host,release);signals.forEach(s=>s.addEventListener('abort',release,{once:true}));
+    link.addEventListener('click',event=>{if(!active()){event.preventDefault();release();}});
+    // A real user click on this persistent link also works when WebKit declines
+    // downloads triggered programmatically after asynchronous XLSX generation.
+    if(panel)(panel.querySelector('.modal-body')||panel).append(feedback);
+    else{const heading=container.querySelector('.ops-heading');if(heading)heading.after(feedback);else container.prepend(feedback);}
+    observer=new MutationObserver(()=>{if(!active()||!feedback.isConnected)release();});
+    observer.observe(document.body,{childList:true,subtree:true});
+    link.focus();
+  }
+  async function downloadWorkbook(mode,trigger,panel=null){
+    if(!current()||trigger.disabled)return;
+    const outletId=api.outlet.id,scope=api.data.outletId,signal=panel?modalController.signal:null;
+    const active=()=>current()&&api.outlet.id===outletId&&api.data.outletId===scope&&scope===outletId&&(!panel||(panel.isConnected&&!signal.aborted));
+    const original=trigger.innerHTML;trigger.disabled=true;trigger.setAttribute('aria-busy','true');trigger.innerHTML='<span class="ops-loading-spinner"></span>Menyiapkan Excel…';
+    try{
+      guard();if(scope!==outletId)throw new Error('Data outlet belum siap. Muat ulang halaman produk.');
+      const bytes=await createProductWorkbook({mode,outlet:{...api.outlet},products:api.data.products.map(p=>({...p})),categories:api.data.categories.map(c=>({...c}))});
+      if(!active())return;
+      const prefix={add:'template-tambah-produk',update:'template-ubah-produk',export:'ekspor-produk'}[mode];
+      readyWorkbook(bytes,`${prefix}-vora-${new Date().toISOString().slice(0,10)}.xlsx`,panel,signal,active);
+    }catch(error){if(active()){if(panel)inlineError(panel,error);else toast(error?.message||'File Excel belum berhasil disiapkan. Coba lagi.');}}
+    finally{trigger.disabled=false;trigger.removeAttribute('aria-busy');trigger.innerHTML=original;}
+  }
   function productModal(id){
     const existing=api.data.products.find(p=>p.id===id);const p=existing||{id:newId('P'),name:'',sku:'',category:api.data.categories[0]?.name||'',unit:'Pcs',price:'',buy_price:0,stock:0,track_stock:false,extras:[]};
     const selected=new Map((p.extras||[]).map(extra=>[typeof extra==='string'?extra:extra.id,typeof extra==='string'?{id:extra,required:false,multiple:false}:extra]));
@@ -105,8 +153,59 @@ export function bindOperations(container,api){
   function categoryModal(){const panel=modal({title:'Tambah kategori',description:'Kategori hanya ditambahkan pada outlet '+api.outlet.name+'.',content:`<form>${input('Nama kategori','name','','text','required maxlength="100"')}<p class="ops-inline-error" data-ops-form-error hidden role="alert"></p></form>`,footer:button('Batal','modal-close')+button('Tambah kategori','save-category','primary')});const save=e=>{e.preventDefault();const form=panel.querySelector('form');if(form.reportValidity())void mutate(panel,()=>addCategory(...context(),form.elements.name.value,api.signal),'Kategori berhasil ditambahkan.');};on(panel,'submit',save);on(panel,'click',e=>{closeAction(e);if(e.target.closest('[data-ops="save-category"]'))save(e);});}
   function paymentModal(id,group){const existing=(api.data.settings.payment_methods||[]).find(p=>p.id===id);const p=existing||{id:newId('PAY'),name:'',type:PAYMENT_TYPES.includes(group)?group:'QRIS',is_active:true,customer_mdr:0,merchant_mdr:0};const panel=modal({title:existing?'Ubah metode pembayaran':'Tambah metode pembayaran',description:'Metode akan tersedia di kasir setelah pengaturan tersinkron.',content:`<form class="ops-modal-form"><div class="ops-form-grid"><label class="field ops-field"><span>Kelompok pembayaran</span><select class="input" name="type">${PAYMENT_TYPES.map(type=>`<option ${type===p.type?'selected':''}>${escape(type)}</option>`).join('')}</select></label>${input('Nama metode','name',p.name,'text','required maxlength="100" placeholder="Contoh: QRIS BCA"')}${input('Biaya pelanggan (%)','customer_mdr',p.customer_mdr||0,'number','required min="0" max="100" step="0.01"')}${input('Biaya merchant (%)','merchant_mdr',p.merchant_mdr||0,'number','required min="0" max="100" step="0.01"')}</div><div class="ops-setting-row divided"><div><h3>Aktifkan metode</h3><p>Tampilkan sebagai pilihan kasir.</p></div>${toggle('is_active',p.is_active,'Aktifkan metode')}</div><p class="ops-inline-error" data-ops-form-error hidden role="alert"></p></form>`,footer:`${existing?button('Hapus metode','delete-payment'):''}${button('Batal','modal-close')}${button('Simpan metode','save-payment','primary')}`});const save=e=>{e.preventDefault();const form=panel.querySelector('form');if(!form.reportValidity())return;const data=new FormData(form);void mutate(panel,()=>savePayment(...context(),{...Object.fromEntries(data),id:p.id,is_active:data.get('is_active')==='on'},existing?.id,api.signal,false,existing),'Metode pembayaran tersimpan.');};on(panel,'submit',save);on(panel,'click',e=>{closeAction(e);if(e.target.closest('[data-ops="save-payment"]'))save(e);if(e.target.closest('[data-ops="delete-payment"]')&&existing&&!busy){const confirm=modal({title:'Hapus metode pembayaran?',description:existing.name+' tidak lagi menjadi pilihan kasir. Riwayat pembayaran tetap tersimpan.',content:'<p class="ops-inline-error" data-ops-form-error role="alert" hidden></p>',footer:button('Batal','modal-close')+button('Hapus metode','confirm-payment-delete','primary')});on(confirm,'click',ev=>{closeAction(ev);if(ev.target.closest('[data-ops="confirm-payment-delete"]'))void mutate(confirm,()=>savePayment(...context(),{},existing.id,api.signal,true,existing),'Metode pembayaran dihapus.');});}});}
   function staffModal(id){const existing=api.data.staff.find(s=>s.id===id);if(existing?.role==='owner')return;const p=existing||{id:newId('S'),name:'',role:'cashier'};const panel=modal({title:existing?'Edit staf':'Tambah staf / kasir',description:'Akses berlaku pada outlet '+api.outlet.name+'.',content:`<form class="ops-modal-form" autocomplete="off"><div class="ops-form-grid">${input('Nama staf','name',p.name,'text','required maxlength="200"')}<label class="field ops-field"><span>Peran</span><select class="input" name="role">${['cashier','staff','admin'].map(role=>`<option value="${role}" ${role===p.role||(role==='admin'&&p.role==='manager')?'selected':''}>${roles[role]}</option>`).join('')}</select></label><label class="field ops-field full"><span>PIN 6 angka (opsional)</span><input class="input" type="password" inputmode="numeric" name="pin" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="new-password" placeholder="${existing?'Kosongkan untuk mempertahankan PIN':'Kosongkan untuk PIN default 123456'}"><small>${existing?'Kosongkan untuk mempertahankan PIN sekarang.':'PIN staf baru adalah 123456 jika kolom ini kosong.'} PIN tidak akan ditampilkan atau dibaca kembali.</small></label></div><div class="ops-access-info ops-staff-role-note">${icon('shield')}Kasir tidak dapat mengakses laporan penjualan/laba rugi. Staf hanya absen tidak bisa masuk kasir.</div><p class="ops-inline-error" data-ops-form-error hidden role="alert"></p></form>`,footer:`${existing?button('Hapus staf','delete-staff'):''}${button('Batal','modal-close')}${button('Simpan staf','save-staff','primary')}`});const save=e=>{e.preventDefault();const form=panel.querySelector('form');if(!form.reportValidity())return;const name=form.elements.name.value,role=form.elements.role.value,pin=form.elements.pin.value;void mutate(panel,async()=>{await saveStaff(...context(),{id:p.id,name,role,pin},existing,api.signal);form.elements.pin.value='';},'Staf berhasil disimpan.');};on(panel,'submit',save);on(panel,'click',e=>{closeAction(e);if(e.target.closest('[data-ops="save-staff"]'))save(e);if(e.target.closest('[data-ops="delete-staff"]')&&existing&&!busy)confirmDelete('staf',existing,()=>deleteStaff(...context(),existing,api.signal));});}
-  function importOptions(){const panel=modal({title:'Impor produk',description:'Pilih kebutuhan katalog, unggah CSV, lalu tinjau sebelum menyimpan.',content:`<div class="ops-import-choices"><button class="ops-import-choice" data-ops="import-add"><span class="ops-metric-icon">${icon('plus')}</span><span><strong>Tambah produk massal</strong><small>SKU baru, harga, kategori, dan stok awal.</small></span>${icon('chevron')}</button><button class="ops-import-choice" data-ops="import-update"><span class="ops-metric-icon blue">${icon('sync')}</span><span><strong>Ubah produk massal</strong><small>Cocokkan SKU; saldo stok dan data lain dipertahankan.</small></span>${icon('chevron')}</button></div><div class="ops-import-template"><span>Maksimal 500 baris / 2 MB</span><button class="ops-text-button" data-ops="template">Unduh template</button></div>`,footer:button('Batal','modal-close')});on(panel,'click',e=>{closeAction(e);const action=e.target.closest('[data-ops]')?.dataset.ops;if(action==='template')download(productCsv([],true),'template-produk-vora.csv');if(action==='import-add'||action==='import-update')importFile(action==='import-add'?'add':'update');});}
-  function importFile(mode){let entries;const panel=modal({title:mode==='add'?'Tambah produk massal':'Ubah produk massal',description:'CSV diperiksa pada perangkat ini sebelum ada data yang disimpan.',content:`<div class="ops-upload-zone"><span>${icon('up')}</span><h3>Pilih file CSV katalog</h3><p>${mode==='add'?'Gunakan kategori yang sudah ada di outlet.':'SKU menjadi acuan. Kolom kosong dipertahankan; kolom Stok awal wajib kosong.'}</p><label class="btn btn-primary ops-file-button">Pilih file CSV<input type="file" accept=".csv,text/csv" data-ops-import-file></label><small>Maksimal 500 produk · 2 MB</small></div><div data-ops-import-review></div><p class="ops-inline-error" data-ops-form-error hidden role="alert"></p>`,footer:button('Batal','modal-close')+`<button class="btn btn-primary" data-ops="commit-import" disabled>Simpan produk</button>`});on(panel,'change',async e=>{if(!e.target.matches('[data-ops-import-file]'))return;const file=e.target.files?.[0];entries=null;panel.querySelector('[data-ops="commit-import"]').disabled=true;const review=panel.querySelector('[data-ops-import-review]');review.textContent='Memeriksa CSV…';try{if(!file||file.size>2*1024*1024)throw new Error('Pilih CSV maksimal 2 MB.');const source=await file.text();guard();entries=prepareImport(source,mode,api.data,api.outlet.id);review.innerHTML=`<div class="ops-review-summary"><span>${icon('check')}</span><div><h3>${entries.length} produk siap disimpan</h3><p>${escape(file.name)} · seluruh baris lolos validasi</p></div></div><div class="table-wrap"><table class="ops-table compact"><thead><tr><th>SKU</th><th>Nama</th><th>Harga</th></tr></thead><tbody>${entries.slice(0,10).map(row=>`<tr><td>${escape(row.draft.sku)}</td><td>${escape(row.draft.name)}</td><td>${currency(row.draft.price)}</td></tr>`).join('')}</tbody></table></div><p class="ops-footnote">Menampilkan ${Math.min(10,entries.length)} dari ${entries.length} baris. Penyimpanan dilakukan per produk; hasil setiap baris ditampilkan jika proses terhenti.</p>`;panel.querySelector('[data-ops-form-error]').hidden=true;panel.querySelector('[data-ops="commit-import"]').disabled=false;}catch(error){review.textContent='';inlineError(panel,error);}});on(panel,'click',event=>{closeAction(event);if(!event.target.closest('[data-ops="commit-import"]')||!entries||busy||!current())return;const button=panel.querySelector('[data-ops="commit-import"]');void mutate(panel,async()=>{const result=await runImport(...context(),entries,api.signal,progress=>{button.textContent=`Menyimpan ${progress.completed}/${progress.total}…`;});if(result.failed.length)throw new Error(`${result.completed}/${result.total} produk tersimpan. Baris ${result.failed[0].line}: ${result.failed[0].message}. Klik Simpan untuk melanjutkan baris yang belum berhasil.`);},'Semua produk dalam file berhasil disimpan.');});}
+  function importOptions(){
+    const panel=modal({title:'Impor produk',description:'Gunakan template Excel sesuai kebutuhan, lalu periksa hasil impor sebelum menyimpan.',content:`<div class="ops-import-choices"><button class="ops-import-choice" data-ops="import-add"><span class="ops-metric-icon">${icon('plus')}</span><span><strong>Tambah produk massal</strong><small>Template kosong untuk SKU baru, harga, kategori, dan stok awal.</small></span>${icon('chevron')}</button><button class="ops-import-choice" data-ops="import-update"><span class="ops-metric-icon blue">${icon('sync')}</span><span><strong>Ubah produk massal</strong><small>Template berisi seluruh produk outlet ini. Cocokkan berdasarkan ID produk; saldo stok dipertahankan.</small></span>${icon('chevron')}</button></div><div class="ops-import-template"><span>Untuk menambahkan produk baru</span><button type="button" class="ops-text-button" data-ops="template-add">Unduh template tambah (.xlsx)</button></div><div class="ops-import-template"><span>${api.data.products.length} produk outlet ${escape(api.outlet.name)}</span><button type="button" class="ops-text-button" data-ops="template-update">Unduh template ubah (.xlsx)</button></div><p class="ops-footnote">Excel maksimal 5 MB dan 500 produk per impor. Referensi kategori tersedia di dalam file. File CSV lama tetap dapat digunakan.</p><p class="ops-inline-error" data-ops-form-error hidden role="alert"></p>`,footer:button('Batal','modal-close')});
+    on(panel,'click',event=>{
+      closeAction(event);const trigger=event.target.closest('[data-ops]'),action=trigger?.dataset.ops;
+      if(action==='template-add'||action==='template-update')void downloadWorkbook(action==='template-add'?'add':'update',trigger,panel);
+      if(action==='import-add'||action==='import-update')importFile(action==='import-add'?'add':'update');
+    });
+  }
+  function importFile(mode){
+    let entries;const update=mode==='update';
+    const panel=modal({title:update?'Ubah produk massal':'Tambah produk massal',description:'File diperiksa pada perangkat ini sebelum ada data yang disimpan.',content:`<div class="ops-upload-zone"><span>${icon('up')}</span><h3>Pilih file Excel produk</h3><p>${update?'Unduh template berisi seluruh produk outlet, lalu ubah data yang diperlukan. Jangan mengubah ID produk. Kolom kosong mempertahankan nilai sekarang; saldo stok tidak diubah.':'Isi produk baru di template tambah. Pilih kategori yang sudah tersedia pada sheet Kategori.'}</p><label class="btn btn-primary ops-file-button">Pilih file (.xlsx)<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,text/csv" data-ops-import-file></label><small>Maksimal 500 produk · Excel 5 MB · CSV lama 2 MB</small></div><div class="ops-import-template"><span>${update?'Berisi seluruh produk, termasuk yang tidak sedang ditampilkan oleh filter.':'Template kosong dengan petunjuk dan daftar kategori outlet.'}</span><button type="button" class="ops-text-button" data-ops="template-${mode}">Unduh template ${update?'ubah':'tambah'} (.xlsx)</button></div>${update&&api.data.products.length>500?'<p class="ops-note">Seluruh produk tetap diunduh. Jika mengubah lebih dari 500 produk, buat beberapa salinan file dan sisakan maksimal 500 baris produk pada setiap file, dengan sheet lainnya tetap utuh.</p>':''}<div data-ops-import-review aria-live="polite"></div><p class="ops-inline-error" data-ops-form-error hidden role="alert"></p>`,footer:button('Batal','modal-close')+'<button class="btn btn-primary" data-ops="commit-import" disabled>Simpan produk</button>'});
+    const modalSignal=modalController.signal,outletId=api.outlet.id;
+    const active=attempt=>current()&&panel.isConnected&&!modalSignal.aborted&&attempt===importAttempt&&api.outlet.id===outletId&&api.data.outletId===outletId;
+    on(panel,'change',async event=>{
+      if(!event.target.matches('[data-ops-import-file]')||busy)return;
+      const file=event.target.files?.[0],attempt=++importAttempt;
+      entries=null;panel.querySelector('[data-ops="commit-import"]').disabled=true;
+      const review=panel.querySelector('[data-ops-import-review]');
+      panel.querySelector('[data-ops-form-error]').hidden=true;
+      review.innerHTML='<p class="ops-saving" role="status"><span class="ops-loading-spinner"></span>Memeriksa file produk…</p>';
+      review.setAttribute('aria-busy','true');
+      try{
+        if(!file)throw new Error('Pilih file Excel (.xlsx) atau CSV produk.');
+        const xlsx=/\.xlsx$/i.test(file.name),csv=/\.csv$/i.test(file.name);
+        if(!xlsx&&!csv)throw new Error('Format file harus Excel (.xlsx) atau CSV.');
+        if(file.size>(xlsx?5:2)*1024*1024)throw new Error(xlsx?'Pilih file Excel maksimal 5 MB.':'Pilih CSV maksimal 2 MB.');
+        let prepared;
+        if(xlsx){
+          const bytes=await file.arrayBuffer();if(!active(attempt))return;
+          const rows=await readProductWorkbook(bytes,mode,outletId);if(!active(attempt))return;
+          prepared=prepareImportRows(rows,mode,api.data,outletId,{xlsx:true});
+        }else{
+          const source=await file.text();if(!active(attempt))return;
+          prepared=prepareImport(source,mode,api.data,outletId);
+        }
+        if(!active(attempt))return;
+        entries=prepared;
+        review.innerHTML=`<div class="ops-review-summary"><span>${icon('check')}</span><div><h3>${entries.length} produk siap disimpan</h3><p>${escape(file.name)} · seluruh baris lolos validasi</p></div></div><div class="table-wrap"><table class="ops-table compact"><thead><tr><th>SKU</th><th>Nama</th><th>Harga</th></tr></thead><tbody>${entries.slice(0,10).map(row=>`<tr><td>${escape(row.draft.sku)}</td><td>${escape(row.draft.name)}</td><td>${currency(row.draft.price)}</td></tr>`).join('')}</tbody></table></div><p class="ops-footnote">Menampilkan ${Math.min(10,entries.length)} dari ${entries.length} baris. Penyimpanan dilakukan per produk; hasil setiap baris ditampilkan jika proses terhenti.</p>`;
+        panel.querySelector('[data-ops="commit-import"]').disabled=false;
+      }catch(error){if(active(attempt)){review.textContent='';inlineError(panel,error);}}
+      finally{if(active(attempt))review.removeAttribute('aria-busy');}
+    });
+    on(panel,'click',event=>{
+      closeAction(event);const trigger=event.target.closest('[data-ops]'),action=trigger?.dataset.ops;
+      if(action===`template-${mode}`)void downloadWorkbook(mode,trigger,panel);
+      if(action!=='commit-import'||!entries||busy||!active(importAttempt))return;
+      const commit=panel.querySelector('[data-ops="commit-import"]'),prepared=entries;
+      void mutate(panel,async()=>{
+        const result=await runImport(...context(),prepared,api.signal,progress=>{commit.textContent=`Menyimpan ${progress.completed}/${progress.total}…`;});
+        if(result.failed.length)throw new Error(`${result.completed}/${result.total} produk tersimpan. Baris ${result.failed[0].line}: ${result.failed[0].message}. Klik Simpan untuk melanjutkan baris yang belum berhasil.`);
+      },'Semua produk dalam file berhasil disimpan.');
+    });
+  }
   async function saveSettings(form,event){event.preventDefault();if(!form.reportValidity())return;const fields=new FormData(form),kind=form.dataset.opsSettingsForm;let changes,field;
     if(kind==='business'){field='profile_data';changes={businessName:fields.get('businessName').trim(),address:fields.get('address').trim(),phone:fields.get('phone').trim(),email:fields.get('email').trim(),wifiPassword:fields.get('wifiPassword')};if(logoDraft)changes.logoUri=logoDraft;}
     if(kind==='tax'){field='tax_config';changes={ppnActive:fields.get('ppnActive')==='on',ppnRate:Number(fields.get('ppnRate')),serviceActive:fields.get('serviceActive')==='on',serviceRate:Number(fields.get('serviceRate')),serviceTaxable:fields.get('serviceTaxable')==='on',isInclusive:fields.get('isInclusive')==='true'};}
@@ -127,9 +226,9 @@ export function bindOperations(container,api){
     if(action==='add-category')categoryModal();
     if(action==='add-payment'||action==='edit-payment')paymentModal(el.dataset.id,el.dataset.group);
     if(action==='add-staff'||action==='edit-staff')staffModal(el.dataset.id);
-    if(action==='export-products')download(productCsv(api.data.products),'produk-vora.csv');
+    if(action==='export-products')void downloadWorkbook('export',el);
     if(action==='import-options')importOptions();
     if(action==='receipt-preview')container.querySelector('[data-ops-receipt-panel]')?.scrollIntoView({behavior:'smooth',block:'start'});
   },{signal:abortController.signal});
-  return ()=>{abortController.abort();modalController?.abort();logoDraft=null;};
+  return ()=>{importAttempt++;abortController.abort();modalController?.abort();logoDraft=null;};
 }

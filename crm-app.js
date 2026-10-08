@@ -1,6 +1,6 @@
 import { createAuth } from '/crm-auth.js';
 import { createApi } from '/crm-data.js';
-import { STATUS, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, allowedPages, humanError } from '/crm-model.js';
+import { STATUS, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, isRenewalConflict, allowedPages, humanError } from '/crm-model.js';
 const app = document.querySelector('#app'),
   modalRoot = document.querySelector('#modal-root');
 const paths = {
@@ -487,7 +487,7 @@ async function saveRenewal() {
     if (epoch !== state.epoch || state.modal !== m) return;
     if (denyAccess(error)) return;
     m.error = humanError(error);
-    m.conflict = error?.code === '40001';
+    m.conflict = isRenewalConflict(error);
     m.uncertain = !m.conflict && !definiteError(error);
     m.busy = false;
     renderModal();

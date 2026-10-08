@@ -113,6 +113,11 @@ export function renewalPayload(values, operationId) {
     p_note: note
   };
 }
+export function isRenewalConflict(error) {
+  // PT409 gives PostgREST an explicit HTTP conflict without its automatic
+  // serialization-failure retries. Keep 40001 for older CRM deployments.
+  return error?.code === 'PT409' || error?.code === '40001';
+}
 export function allowedPages(permissions) {
   return ['overview', ...(permissions.read_customers ? ['users', 'followups'] : []), ...(permissions.renew ? ['renewals'] : []), ...(permissions.manage_members ? ['team'] : []), ...(permissions.read_audit ? ['audit'] : [])];
 }

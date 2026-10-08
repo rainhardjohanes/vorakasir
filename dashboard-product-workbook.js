@@ -10,6 +10,8 @@ export const PRODUCT_WORKBOOK_LIMITS = Object.freeze({ fileBytes: 5 * 1024 * 102
 const META_NAME = '_VORA';
 const FORMAT = 'VORA_PRODUCT_XLSX';
 const SCHEMA = '1';
+const EXAMPLE_NAME = '[CONTOH] Kopi Susu';
+const EXAMPLE_SKU = 'CONTOH-001';
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
 const theme = { dark: 'FF10251F', green: 'FF00B887', ink: 'FF17221F', line: 'FFDDE8E2', pale: 'FFF0F7F3' };
 const message = detail => new Error(detail);
@@ -73,26 +75,31 @@ export async function createProductWorkbook({ mode, outlet, products = [], categ
       'Harga jual': finiteNumber(product.price, 'Harga jual'), 'Harga pokok': finiteNumber(product.buy_price, 'Harga pokok'),
       'Monitor stok': product.track_stock ? 'Ya' : 'Tidak', 'Versi produk': literal(product.updated_at),
     });
+  } else {
+    sheet.addRow({ 'Nama produk': EXAMPLE_NAME, SKU: EXAMPLE_SKU, Kategori: 'Minuman', Satuan: 'Cup', 'Harga jual': 18000, 'Harga pokok': 8000, 'Monitor stok': 'Ya', 'Stok awal': 20 });
   }
   const editableRows = templateMode === 'add' ? 501 : Math.max(2, Math.min(501, sheet.rowCount));
   for (let index = 2; index <= editableRows; index++) {
     const row = sheet.getRow(index);
     // Persist a text cell even in blank add rows so Excel preserves barcode zeros.
-    if (templateMode === 'add') { row.getCell('SKU').value = ''; row.getCell('SKU').numFmt = '@'; }
+    if (templateMode === 'add') { if (index > 2) row.getCell('SKU').value = ''; row.getCell('SKU').numFmt = '@'; }
     row.getCell('Monitor stok').dataValidation = { type: 'list', allowBlank: templateMode === 'add', formulae: ['"Ya,Tidak"'], showErrorMessage: true, errorTitle: 'Pilihan belum sesuai', error: 'Pilih Ya atau Tidak.' };
     for (const field of ['Harga jual', 'Harga pokok', ...(templateMode === 'add' ? ['Stok awal'] : [])]) row.getCell(field).dataValidation = { type: field === 'Stok awal' ? 'whole' : 'decimal', operator: 'between', formulae: [0, field === 'Stok awal' ? 2147483647 : 1000000000000], allowBlank: field !== 'Harga jual', showErrorMessage: true, errorTitle: 'Angka belum sesuai', error: 'Isi angka nol atau lebih, tanpa Rp atau rumus.' };
   }
   headerStyle(sheet);
+  if (templateMode === 'add') sheet.getRow(2).eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4D6' } };
+  });
   const guidance = workbook.addWorksheet('Petunjuk', { properties: { tabColor: { argb: theme.green } } });
   guidance.columns = [{ header: 'VORA KASIR', width: 29 }, { header: templateMode === 'add' ? 'PANDUAN TAMBAH PRODUK' : 'PANDUAN UBAH PRODUK', width: 100 }];
   const directions = [
     ['Outlet', literal(outlet.name || outlet.id)],
     ['Diunduh pada', new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(workbook.created) + ' WITA'],
-    ['Mulai di sheet Produk', templateMode === 'add' ? 'Isi produk baru mulai baris 2. Template sengaja kosong agar contoh tidak ikut terimpor.' : 'Produk aktif outlet ini sudah terisi. Sisakan baris yang akan diubah; menghapus baris dari file tidak menghapus produk di aplikasi.'],
+    ['Mulai di sheet Produk', templateMode === 'add' ? 'Baris 2 berisi satu produk CONTOH. Ganti datanya dengan produk Anda atau hapus baris tersebut. Nama bertanda [CONTOH] dan SKU CONTOH-001 harus diganti agar contoh tidak ikut tersimpan.' : 'Produk aktif outlet ini sudah terisi. Sisakan baris yang akan diubah; menghapus baris dari file tidak menghapus produk di aplikasi.'],
     ['Batas impor', 'Maksimal 500 produk dan 5 MB per unggahan. Katalog lebih besar tetap diekspor utuh; bagi menjadi beberapa file dengan sheet Petunjuk, Kategori, dan _VORA tetap disertakan.'],
     ['Kolom wajib', templateMode === 'add' ? 'Nama produk, SKU, Kategori, dan Harga jual wajib diisi. Satuan kosong menggunakan Pcs; Harga pokok dan Stok awal kosong menggunakan 0.' : 'ID produk dan Versi produk adalah identitas serta versi saat diunduh. Jangan mengubahnya. Kolom Versi produk disembunyikan agar tidak teredit.'],
     ['SKU', 'Gunakan format sel Teks, terutama barcode dengan nol di depan atau lebih dari 15 digit. Jangan gunakan rumus.'],
-    ['Kategori', 'Gunakan nama yang sudah ada pada sheet Kategori. Tambahkan kategori di dashboard lebih dahulu bila diperlukan.'],
+    ['Kategori', 'Gunakan nama pada sheet Kategori atau tulis kategori baru. Kategori baru ditampilkan pada pratinjau dan dibuat hanya untuk outlet terpilih setelah Anda menyetujui simpan impor.'],
     ['Angka', 'Harga ditulis sebagai angka tanpa Rp. Nilai 0 adalah nilai sah. Stok awal harus berupa bilangan bulat.'],
     ['Monitor stok', 'Isi Ya atau Tidak. Mengubah Monitor stok tidak mengubah saldo stok produk yang sudah ada.'],
     ['Saldo stok', templateMode === 'add' ? 'Stok awal hanya berlaku saat membuat produk baru dan Monitor stok = Ya.' : 'Saldo stok tidak disertakan sebagai kolom yang dapat diubah. Gunakan pembelian atau opname untuk menyesuaikan stok.'],
@@ -262,6 +269,7 @@ export async function readProductWorkbook(input, mode, outletId) {
     if (rowNumber === 1) return;
     const values = columns.map((_, column) => simpleCell(row.getCell(column + 1)));
     if (values.every(value => value === '' || typeof value === 'string' && !value.trim())) return;
+    if (templateMode === 'add' && (literal(values[0]).trim().toUpperCase().startsWith('[CONTOH]') || literal(values[1]).trim().toUpperCase() === EXAMPLE_SKU)) throw message(`Baris ${rowNumber} masih berisi produk contoh. Ganti nama [CONTOH] dan SKU CONTOH-001 dengan produk Anda, atau hapus baris contoh sebelum mengimpor.`);
     if (rows.length > PRODUCT_WORKBOOK_LIMITS.importRows) throw message('Impor maksimal 500 produk per file. Sisakan baris yang akan diproses, lalu unggah sisanya terpisah.');
     for (const key of ['SKU', ...(templateMode === 'update' ? ['ID produk', 'Versi produk'] : [])]) {
       if (typeof values[columns.indexOf(key)] !== 'string') throw message(`Baris ${rowNumber}: ${key} harus berformat Teks. Nol di depan dan nomor panjang tidak boleh diubah menjadi angka Excel. Unduh ulang template bila angkanya sudah berubah.`);

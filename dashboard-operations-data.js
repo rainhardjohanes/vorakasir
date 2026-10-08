@@ -161,6 +161,16 @@ export function parseCsv(source){
 export function prepareImport(source,mode,data,outletId){
   return prepareImportRows(parseCsv(source),mode,data,outletId);
 }
+const categoryKey=name=>String(name??'').trim().toLowerCase();
+function categoryNames(categories,outletId){
+  const names=new Map();
+  for(const category of categories){
+    if(category.outlet_id!==outletId)throw new Error('Kategori lintas outlet ditolak.');
+    const key=categoryKey(category.name);
+    if(names.has(key))names.set(key,null);else names.set(key,category);
+  }
+  return names;
+}
 // Both upload formats use the same validation and scoped, versioned write path.
 export function prepareImportRows(table,mode,data,outletId,{xlsx=false}={}){
   if(!['add','update'].includes(mode)||data.outletId!==outletId)throw new Error('Lingkup impor tidak valid.');
@@ -178,6 +188,7 @@ export function prepareImportRows(table,mode,data,outletId,{xlsx=false}={}){
   if(idMode&&['ID produk','Versi produk'].some(key=>indexes.get(key)<0))throw new Error('Gunakan template Ubah Produk yang memuat ID dan versi produk.');
   if(mode==='add'&&['Nama produk','Kategori','Harga jual'].some(key=>indexes.get(key)<0))throw new Error('Tambah massal memerlukan Nama produk, SKU, Kategori, dan Harga jual.');
   const seen=new Set(),seenIds=new Set(),catalog=new Map(),byId=new Map();
+  const categories=categoryNames(data.categories,outletId),newCategories=new Map();
   for(const p of data.products){
     if(p.outlet_id!==outletId)throw new Error('Katalog lintas outlet ditolak.');
     if(byId.has(String(p.id)))throw new Error('ID katalog tidak unik. Muat ulang produk.');
@@ -209,12 +220,47 @@ export function prepareImportRows(table,mode,data,outletId,{xlsx=false}={}){
     const map={'Nama produk':'name','Kategori':'category','Satuan':'unit','Harga jual':'price','Harga pokok':'buy_price','Stok awal':'stock'};
     for(const [col,field]of Object.entries(map)){const v=get(col);if(v!==''||mode==='add')draft[field]=v===''?(['buy_price','stock'].includes(field)?0:field==='unit'?'Pcs':''):v;}
     const track=get('Monitor stok').toLowerCase();if(track&&!['ya','tidak','true','false','1','0'].includes(track))throw new Error(`Baris ${line}: Monitor stok harus Ya atau Tidak.`);if(track||mode==='add')draft.track_stock=['ya','true','1'].includes(track);
-    if(!data.categories.some(c=>c.outlet_id===outletId&&c.name===draft.category))throw new Error(`Baris ${line}: kategori belum ada di outlet. Tambahkan kategori dahulu.`);
-    productPayload(draft,outletId,existing);return {line,draft,existing,completed:false};
+    const categoryName=text(draft.category,`Kategori baris ${line}`,100),categoryId=categoryKey(categoryName),category=categories.get(categoryId);
+    if(categories.has(categoryId)&&!category)throw new Error(`Baris ${line}: nama kategori tidak unik setelah huruf besar/kecil disamakan. Rapikan kategori tersebut sebelum impor.`);
+    if(category?.deleted_at)throw new Error(`Baris ${line}: kategori sudah dihapus. Gunakan kategori lain atau pulihkan kategori terlebih dahulu.`);
+    let newCategory=null;
+    if(category)draft.category=category.name;
+    else{if(!newCategories.has(categoryId))newCategories.set(categoryId,categoryName);newCategory=newCategories.get(categoryId);draft.category=newCategory;}
+    productPayload(draft,outletId,existing);return {line,outletId,draft,existing,newCategory,completed:false};
   });
 }
+async function importCategory(client,user,outlet,name,signal,categories){
+  const key=categoryKey(name),existing=categories.get(key);
+  if(categories.has(key)&&!existing)throw new Error('Nama kategori tidak unik setelah huruf besar/kecil disamakan. Rapikan kategori tersebut sebelum impor.');
+  if(existing){if(existing.deleted_at)throw new Error('Kategori sudah dihapus. Gunakan kategori lain atau pulihkan kategori terlebih dahulu.');return existing.name;}
+  // The stable database key is outlet/name, not a generated ID. Re-read it on
+  // retries so a committed insert with a lost response never creates a copy.
+  await verifyOwner(client,user,outlet,signal);
+  const payload={name:text(name,'Kategori',100),outlet_id:outlet.id,sort_order:0};
+  const query=client.from('categories').insert(payload).select('name,outlet_id,sort_order,deleted_at').single();
+  const response=await (signal?query.abortSignal(signal):query);abort(signal);
+  if(!response.error){const row=ownRow(response.data,outlet);if(row.name!==payload.name||row.deleted_at)throw new Error('Kategori tersimpan belum dapat diverifikasi. Muat ulang katalog.');categories.set(key,row);return row.name;}
+  if(response.error.code==='23505'){
+    // Another request may have inserted it since the first scoped read. Never
+    // upsert: a legacy global name key must not transfer another outlet's row.
+    const current=categoryNames(await rows(client,'categories','name,outlet_id,sort_order,deleted_at',outlet,signal,'name',20000,false),outlet.id);
+    const found=current.get(key);
+    if(found&&!found.deleted_at){categories.set(key,found);return found.name;}
+    throw new Error('Kategori belum dapat dibuat di outlet ini karena nama berbenturan atau sudah dihapus. Muat ulang kategori atau gunakan nama lain.');
+  }
+  throw new Error('Kategori belum dapat dipastikan tersimpan. Coba Simpan impor lagi; kategori yang sudah tersimpan akan digunakan kembali.');
+}
 export async function runImport(client,user,outlet,entries,signal,onProgress=()=>{}){
-  if(!entries.length||entries.length>500)throw new Error('Jumlah baris impor tidak valid.');const failed=[];let completed=entries.filter(row=>row.completed).length;
-  for(const entry of entries){abort(signal);if(entry.completed)continue;try{await saveProduct(client,user,outlet,entry.draft,entry.existing,signal);entry.completed=true;completed++;}catch(error){if(error.name==='AbortError')throw error;failed.push({line:entry.line,message:error.message||'Gagal menyimpan'});break;}onProgress({completed,total:entries.length});}
+  if(!Array.isArray(entries)||!entries.length||entries.length>500)throw new Error('Jumlah baris impor tidak valid.');
+  scope(user,outlet);abort(signal);
+  for(const entry of entries){if(entry.outletId!==undefined&&entry.outletId!==outlet.id||entry.draft?.outlet_id!==undefined&&entry.draft.outlet_id!==outlet.id||entry.existing&&entry.existing.outlet_id!==outlet.id)throw new Error('Rencana impor lintas outlet ditolak.');}
+  const failed=[];let completed=entries.filter(row=>row.completed).length,categories;
+  for(const entry of entries){abort(signal);if(entry.completed)continue;try{
+    if(entry.newCategory){
+      if(!categories){await verifyOwner(client,user,outlet,signal);categories=categoryNames(await rows(client,'categories','name,outlet_id,sort_order,deleted_at',outlet,signal,'name',20000,false),outlet.id);}
+      entry.draft.category=await importCategory(client,user,outlet,entry.newCategory,signal,categories);
+    }
+    await saveProduct(client,user,outlet,entry.draft,entry.existing,signal);entry.completed=true;completed++;
+  }catch(error){if(error.name==='AbortError')throw error;failed.push({line:entry.line,message:error.message||'Gagal menyimpan'});break;}onProgress({completed,total:entries.length});}
   return {completed,total:entries.length,failed};
 }

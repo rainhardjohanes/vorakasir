@@ -1,6 +1,6 @@
 import { config } from './auth-config.js';
 
-export const RESET_EMAIL_NOTICE = 'Jika email terdaftar, tautan untuk membuat password baru akan dikirim. Periksa inbox dan folder spam Anda.';
+export const RESET_EMAIL_NOTICE = 'Permintaan diterima. Jika email terdaftar, tautan reset akan dikirim ke inbox atau folder spam. Email yang belum terdaftar tidak akan menerima tautan. Periksa ejaan email atau daftar akun terlebih dahulu.';
 const RECOVERY_URL = 'https://vorakasir.com/reset-password.html';
 
 export class ForgotPasswordError extends Error {
@@ -34,6 +34,9 @@ export function createForgotPasswordFlow({ supabaseUrl, supabaseKey, authRecover
     controller = new AbortController();
     const timer = setTimeout(() => controller?.abort(), timeoutMs);
     try {
+      // Supabase checks account existence server-side before sending recovery mail.
+      // Its empty 200 response also covers unknown accounts; it is not a delivery receipt.
+      // Never query a public user directory or use signup/OTP as an existence check.
       const url = new URL(base.origin + '/auth/v1/recover');
       url.searchParams.set('redirect_to', authRecoveryUrl);
       const response = await fetchImpl(url.href, {
@@ -86,11 +89,11 @@ export function mountForgotPasswordPage(document, settings = config) {
     sending = true;
     button.disabled = true;
     button.setAttribute('aria-busy', 'true');
-    button.textContent = 'Mengirim tautan…';
+    button.textContent = 'Memproses permintaan…';
     const spinner = document.createElement('span'); spinner.className = 'spinner'; spinner.setAttribute('aria-hidden', 'true'); button.prepend(spinner);
     input.disabled = true;
     feedback.hidden = true;
-    try { const notice = await flow.request(input.value); if (mounted) message(notice, 'success'); }
+    try { const notice = await flow.request(input.value); if (mounted) message(notice, 'info'); }
     catch (error) {
       if (mounted) {
         message(error.message || 'Permintaan belum berhasil. Silakan coba kembali.', 'error');

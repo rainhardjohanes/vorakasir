@@ -1,5 +1,5 @@
 import { config } from '/dashboard-config.js';
-import { loadOutlets, loadReport, requestScope, makeCsv } from '/dashboard-data.js';
+import { loadOutlets, loadReport, requestScope, makeCsv, outletDisplayName } from '/dashboard-data.js';
 import { identityGuard, validatePublicConfig, boundedFetch } from '/dashboard-session.js';
 import { createAuthStorage, finishAuthLogout } from '/dashboard-auth-session.js';
 import { icon, escape as h } from '/dashboard-icons.js';
@@ -67,7 +67,7 @@ function navigate(target) {
   if(location.hash===`#${target}`)void render();else location.hash=target;
 }
 function picker(isMobile=false) {
-  const selected=outlet();return `<div class="outlet-picker ${isMobile?'outlet-picker-mobile':'outlet-picker-sidebar'}"><span class="outlet-picker-label">PILIH OUTLET</span><button class="outlet-picker-button" data-action="outlet" aria-haspopup="dialog">${icon('store')}<span><strong>${h(selected?.name||'Memuat outlet…')}</strong><small>${h(selected?.address||'Outlet bisnis Anda')}</small></span>${icon('down')}</button></div>`;
+  const selected=outlet();return `<div class="outlet-picker ${isMobile?'outlet-picker-mobile':'outlet-picker-sidebar'}"><span class="outlet-picker-label">PILIH OUTLET</span><button class="outlet-picker-button" data-action="outlet" aria-haspopup="dialog">${icon('store')}<span><strong>${h(outletDisplayName(selected)||'Memuat outlet…')}</strong><small>${h(selected?.address||'Outlet bisnis Anda')}</small></span>${icon('down')}</button></div>`;
 }
 function brand() { return '<a href="#overview" data-route="overview" class="brand" aria-label="VORA POS — beranda"><img class="brand-logo" src="/dashboard-assets-vora-logo-transparent.png" alt="VORA POS"><span class="brand-subtitle">BACKOFFICE</span></a>'; }
 function initials() { return h((state.user?.email||'V').slice(0,2).toUpperCase()); }
@@ -77,7 +77,7 @@ function sidebar(current) {
 }
 function shell(current,content) {
   const [title,description]=titles[current];
-  return `${sidebar(current)}<div class="main-shell"><header class="topbar"><button class="icon-btn menu-toggle" data-action="menu" aria-label="Buka menu navigasi" aria-expanded="false">${icon('menu')}</button>${picker(true)}<div class="breadcrumb"><span>${h(outlet()?.name||'Bisnis Anda')}</span>${icon('chevron')}<strong>${title}</strong></div><div class="top-actions"><button class="icon-btn" data-action="refresh" aria-label="Muat ulang data" ${state.loading?'disabled':''}>${icon('clock')}</button><button class="icon-btn search-button" data-action="search" aria-label="Cari menu">${icon('search')}</button><button class="avatar" data-action="profile" aria-label="Akun dan keluar">${initials()}</button></div></header><main class="dashboard-main" id="main" tabindex="-1"><section class="page-heading"><div><h1>${title}</h1><p>${description}</p></div>${!operationRoutes.has(current)?`<div class="page-heading-actions"><button class="btn btn-secondary period-select" data-action="period" aria-haspopup="dialog">${icon('calendar')}<span>${h(formatRange(state.range))}</span>${icon('down')}</button><button class="btn btn-primary" data-action="export" ${!state.report||state.loading?'disabled':''}>${icon('download')} Ekspor laporan</button></div>`:''}</section><div id="page-content">${content}</div><footer class="page-footer"><span>© VORA POS · ${h(outlet()?.name||'')}</span><span>Data tersinkron dari aplikasi kasir</span></footer></main></div>`;
+  return `${sidebar(current)}<div class="main-shell"><header class="topbar"><button class="icon-btn menu-toggle" data-action="menu" aria-label="Buka menu navigasi" aria-expanded="false">${icon('menu')}</button>${picker(true)}<div class="breadcrumb"><span>${h(outletDisplayName(outlet())||'Bisnis Anda')}</span>${icon('chevron')}<strong>${title}</strong></div><div class="top-actions"><button class="icon-btn" data-action="refresh" aria-label="Muat ulang data" ${state.loading?'disabled':''}>${icon('clock')}</button><button class="icon-btn search-button" data-action="search" aria-label="Cari menu">${icon('search')}</button><button class="avatar" data-action="profile" aria-label="Akun dan keluar">${initials()}</button></div></header><main class="dashboard-main" id="main" tabindex="-1"><section class="page-heading"><div><h1>${title}</h1><p>${description}</p></div>${!operationRoutes.has(current)?`<div class="page-heading-actions"><button class="btn btn-secondary period-select" data-action="period" aria-haspopup="dialog">${icon('calendar')}<span>${h(formatRange(state.range))}</span>${icon('down')}</button><button class="btn btn-primary" data-action="export" ${!state.report||state.loading?'disabled':''}>${icon('download')} Ekspor laporan</button></div>`:''}</section><div id="page-content">${content}</div><footer class="page-footer"><span>© VORA POS · ${h(outletDisplayName(outlet()))}</span><span>Data tersinkron dari aplikasi kasir</span></footer></main></div>`;
 }
 function loading(message='Memuat data outlet…') { return `<div class="loading-state" role="status"><span class="vora-spinner" aria-hidden="true"></span><strong>${h(message)}</strong><p>Mohon tunggu sebentar.</p></div>`; }
 function errorView(message) { return `<div class="card error-state" role="alert"><h2>Data belum tersedia</h2><p>${h(message)}</p><button class="btn btn-primary" data-action="refresh">Coba lagi</button><button class="btn btn-secondary" data-action="logout">Keluar akun</button></div>`; }
@@ -144,7 +144,10 @@ async function render() {
   try{
     const value=operationRoutes.has(current)?await loadOperations(client,state.user,selected,scope.signal):await loadReport(client,state.user.id,selected,state.range,scope.signal);
     if(sequence!==renderSequence||!scope.current()||!validIdentity())return;
-    if(operationRoutes.has(current))state.data=value;else state.report=value;
+    if(operationRoutes.has(current)){
+      if(value.outletId!==selected.id||value.settings?.outlet_id!==selected.id)throw new Error('Data lintas outlet ditolak.');
+      state.data=value;selected.businessName=value.settings.profile_data?.businessName;
+    }else state.report=value;
     state.loading=false;
     const tab=new URLSearchParams(location.hash.split('?')[1]||'').get('tab');
     const content=operationRoutes.has(current)?renderOperations(current,{tab,data:state.data,outlet:selected}):renderReport(current,{report:state.report,outlet:selected,range:state.range});
@@ -172,9 +175,9 @@ async function logout({broadcast=true}={}) {
 function exportReport() {
   if(!state.report||state.loading||state.error)return;
   const current=route(), report=state.report,selected=outlet();
-  const el=modal({title:'Ekspor laporan',description:`${selected.name} · ${state.range.start} – ${state.range.end}`,content:'<p>Unduh seluruh data laporan pada periode ini, atau gunakan Cetak / Simpan PDF pada browser.</p>',footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><button class="btn btn-primary" id="export-csv">Unduh CSV</button>'});
+  const el=modal({title:'Ekspor laporan',description:`${outletDisplayName(selected)} · ${state.range.start} – ${state.range.end}`,content:'<p>Unduh seluruh data laporan pada periode ini, atau gunakan Cetak / Simpan PDF pada browser.</p>',footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><button class="btn btn-primary" id="export-csv">Unduh CSV</button>'});
   el.querySelector('#export-csv').addEventListener('click',()=>{
-    const rows=[['VORA POS',selected.name],['Periode',state.range.start,state.range.end],[],...reportExportRows(current,report)];
+    const rows=[['VORA POS',outletDisplayName(selected)],['Periode',state.range.start,state.range.end],[],...reportExportRows(current,report)];
     downloadCsvFile(makeCsv(rows),`VORA-${current}-${state.range.start}-${state.range.end}.csv`);
     closeModal();toast('Unduhan CSV dimulai. Periksa folder unduhan browser Anda.');
   });
@@ -191,10 +194,10 @@ function action(name) {
   if(name==='menu'||name==='close-menu'){const open=name==='menu'&&!document.body.classList.contains('menu-open');document.body.classList.toggle('menu-open',open);syncMenuAccess();document.querySelector('.menu-toggle')?.setAttribute('aria-expanded',String(open));return;}
   if(name==='export')return exportReport();if(name==='period')return periodDialog();
   if(name==='outlet'){
-    const el=modal({title:'Pilih outlet',description:'Laporan, produk, dan pengaturan hanya untuk outlet yang dipilih.',content:state.outlets.map(o=>`<button class="outlet-option ${o.id===state.outletId?'selected':''}" data-outlet-id="${h(o.id)}">${icon('store')}<span><strong>${h(o.name)}</strong><small>${h(o.address||'')}</small></span>${o.id===state.outletId?'<span class="badge">Dipilih</span>':''}</button>`).join('')});
+    const el=modal({title:'Pilih outlet',description:'Laporan, produk, dan pengaturan hanya untuk outlet yang dipilih.',content:state.outlets.map(o=>`<button class="outlet-option ${o.id===state.outletId?'selected':''}" data-outlet-id="${h(o.id)}">${icon('store')}<span><strong>${h(outletDisplayName(o))}</strong><small>${h(o.address||'')}</small></span>${o.id===state.outletId?'<span class="badge">Dipilih</span>':''}</button>`).join('')});
     el.querySelectorAll('[data-outlet-id]').forEach(b=>b.addEventListener('click',()=>{if(!state.outlets.some(o=>o.id===b.dataset.outletId))return;state.outletId=b.dataset.outletId;state.data=null;state.report=null;void render();}));return;
   }
-  if(name==='profile')return modal({title:'Akun pemilik bisnis',description:state.user?.email||'',content:`<p>Outlet aktif: <strong>${h(outlet()?.name||'')}</strong></p><p>Keluar hanya mengakhiri sesi browser ini. Sesi aplikasi kasir tetap berjalan.</p>`,footer:'<button class="btn btn-secondary" data-close-modal>Tutup</button><button class="btn btn-primary" data-action="logout">Keluar akun</button>'});
+  if(name==='profile')return modal({title:'Akun pemilik bisnis',description:state.user?.email||'',content:`<p>Outlet aktif: <strong>${h(outletDisplayName(outlet()))}</strong></p><p>Keluar hanya mengakhiri sesi browser ini. Sesi aplikasi kasir tetap berjalan.</p>`,footer:'<button class="btn btn-secondary" data-close-modal>Tutup</button><button class="btn btn-primary" data-action="logout">Keluar akun</button>'});
   if(name==='search'){
     const el=modal({title:'Cari menu dashboard',content:`<label class="field">Nama menu<input class="input" id="menu-search" placeholder="Cari laporan, produk, pengaturan…"></label><div class="search-results">${Object.entries(titles).map(([key,[title]])=>`<a class="search-result" data-route="${key}" href="#${key}">${h(title)}</a>`).join('')}</div>`});
     el.querySelector('input').addEventListener('input',e=>el.querySelectorAll('.search-result').forEach(a=>a.hidden=!a.textContent.toLowerCase().includes(e.target.value.toLowerCase())));

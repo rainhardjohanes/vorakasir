@@ -44,10 +44,26 @@ export async function collect(makeQuery, validate, signal, limit = MAX_ROWS) {
     cursor = data[data.length - 1].id;
   }
 }
-export function loadOutlets(client, userId, signal) {
+export function outletDisplayName(outlet) {
+  const name = outlet?.businessName;
+  return typeof name === 'string' && name.trim() ? name.trim() : outlet?.name || '';
+}
+export async function loadOutlets(client, userId, signal) {
   if (!userId) throw new Error('Masuk terlebih dahulu.');
-  return collect(() => client.from('outlets').select('id,name,merchant_id,address,is_deleted,subscription_plan,subscription_end_date')
+  const outlets = await collect(() => client.from('outlets').select('id,name,merchant_id,address,is_deleted,subscription_plan,subscription_end_date')
     .eq('merchant_id', userId).eq('is_deleted', false), row => row.merchant_id === userId && row.is_deleted === false, signal, 1000);
+  const names = new Map();
+  for (let i = 0; i < outlets.length; i += 100) {
+    const ids = outlets.slice(i, i + 100).map(outlet => outlet.id), allowed = new Set(ids);
+    // Fetch only the displayed name, never the rest of the business profile.
+    const profiles = await collect(() => client.from('settings').select('id,outlet_id,business_name:profile_data->businessName')
+      .in('outlet_id', ids), row => allowed.has(row.outlet_id), signal, ids.length);
+    for (const profile of profiles) {
+      if (names.has(profile.outlet_id)) throw new Error('Data outlet berulang. Muat ulang daftar outlet.');
+      names.set(profile.outlet_id, profile.business_name);
+    }
+  }
+  return outlets.map(outlet => ({ ...outlet, businessName: names.get(outlet.id) }));
 }
 export async function loadReport(client, userId, outlet, range, signal) {
   validateRange(range);

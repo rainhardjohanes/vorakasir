@@ -1,4 +1,11 @@
 :root{--vora-brand-background:#47704c}
+.subscription-card{display:flex;align-items:center;gap:28px;padding:22px 24px;margin:0 0 24px;border:1px solid #c8dfcd;border-radius:16px;background:#f1f8f2;color:#14291c}
+.subscription-copy{flex:1;min-width:0}.subscription-label{display:block;font-size:10px;letter-spacing:.09em;font-weight:800;color:#315f40;margin-bottom:8px}.subscription-card h2{font-size:19px;line-height:1.35;font-weight:750;margin:0 0 8px}.subscription-card p{font-size:13px;line-height:1.6;margin:0;overflow-wrap:anywhere}.subscription-card .subscription-note{margin-top:7px;color:#344b3b;font-size:12px}
+.subscription-actions{display:flex;flex-direction:column;gap:9px;flex:0 1 310px;min-width:0}.subscription-actions .btn{min-height:44px;white-space:normal;text-align:center;line-height:1.4;padding:10px 14px}.subscription-refresh{border:0;background:none;padding:6px;font:inherit;font-size:12px;font-weight:700;line-height:1.5;text-decoration:underline;color:#255b38;cursor:pointer;min-height:36px}.subscription-refresh:disabled{opacity:.6;cursor:wait}.subscription-refresh:focus-visible{outline:2px solid #255b38;outline-offset:2px;border-radius:6px}
+.subscription-expired{background:#fff8ec;border-color:#ead2a9}.subscription-unknown{background:#f6f7fa;border-color:#d7dde7}
+@media(max-width:1050px){.subscription-card{align-items:stretch;flex-direction:column;gap:16px}.subscription-actions{flex-basis:auto;display:grid;grid-template-columns:1fr 1fr}.subscription-refresh{grid-column:1/-1}}
+@media(max-width:520px){.subscription-card{padding:18px 16px;margin-bottom:20px}.subscription-card h2{font-size:18px}.subscription-actions{grid-template-columns:1fr}.subscription-actions .btn{width:100%}.subscription-refresh{min-height:44px}}
+@media print{.subscription-card{display:none!important}}
 .sidebar{background:var(--vora-brand-background);border-right:0;color:white}
 .sidebar .brand{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:22px;padding:0 12px}
 .brand-logo{display:block;width:146px;height:76px;object-fit:contain}

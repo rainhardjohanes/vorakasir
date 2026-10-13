@@ -7,6 +7,7 @@ import { renderAuth, bindAuth } from '/dashboard-auth.js';
 import { renderReport, bindReport, reportExportRows } from '/dashboard-reports.js';
 import { loadOperations, renderOperations, bindOperations, downloadCsvFile } from '/dashboard-operations.js';
 import { formatRange, mountDateRange } from '/dashboard-date-range.js';
+import { renderSubscriptionCard } from '/dashboard-subscription.js';
 
 validatePublicConfig(config);
 let storage;
@@ -39,6 +40,7 @@ const day = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-$
 function rangePreset(value) { const end=new Date(),start=new Date(end); if(value==='month')start.setDate(1);if(value==='week')start.setDate(start.getDate()-6); return { start:day(start),end:day(end) }; }
 const state = { user:null,outlets:[],outletId:'',ready:false,loading:true,error:'',report:null,data:null,range:rangePreset('month') };
 let cleanupPage, renderSequence=0, authBusy=false, logoutBusy=false, toastTimer, modalCleanup, focusBeforeModal;
+let subscriptionRefreshRequest=null;
 let restoringSession=true, restoredUserId=null, logoutEventSeen=false, pendingAuthUserId=null, logoutStorageError=null;
 const mobile = window.matchMedia('(max-width:800px)');
 const outlet = () => state.outlets.find(o=>o.id===state.outletId);
@@ -77,11 +79,11 @@ function sidebar(current) {
 }
 function shell(current,content) {
   const [title,description]=titles[current];
-  return `${sidebar(current)}<div class="main-shell"><header class="topbar"><button class="icon-btn menu-toggle" data-action="menu" aria-label="Buka menu navigasi" aria-expanded="false">${icon('menu')}</button>${picker(true)}<div class="breadcrumb"><span>${h(outletDisplayName(outlet())||'Bisnis Anda')}</span>${icon('chevron')}<strong>${title}</strong></div><div class="top-actions"><button class="icon-btn" data-action="refresh" aria-label="Muat ulang data" ${state.loading?'disabled':''}>${icon('clock')}</button><button class="icon-btn search-button" data-action="search" aria-label="Cari menu">${icon('search')}</button><button class="avatar" data-action="profile" aria-label="Akun dan keluar">${initials()}</button></div></header><main class="dashboard-main" id="main" tabindex="-1"><section class="page-heading"><div><h1>${title}</h1><p>${description}</p></div>${!operationRoutes.has(current)?`<div class="page-heading-actions"><button class="btn btn-secondary period-select" data-action="period" aria-haspopup="dialog">${icon('calendar')}<span>${h(formatRange(state.range))}</span>${icon('down')}</button><button class="btn btn-primary" data-action="export" ${!state.report||state.loading?'disabled':''}>${icon('download')} Ekspor laporan</button></div>`:''}</section><div id="page-content">${content}</div><footer class="page-footer"><span>© VORA POS · ${h(outletDisplayName(outlet()))}</span><span>Data tersinkron dari aplikasi kasir</span></footer></main></div>`;
+  return `${sidebar(current)}<div class="main-shell"><header class="topbar"><button class="icon-btn menu-toggle" data-action="menu" aria-label="Buka menu navigasi" aria-expanded="false">${icon('menu')}</button>${picker(true)}<div class="breadcrumb"><span>${h(outletDisplayName(outlet())||'Bisnis Anda')}</span>${icon('chevron')}<strong>${title}</strong></div><div class="top-actions"><button class="icon-btn" data-action="refresh" aria-label="Muat ulang data" ${state.loading?'disabled':''}>${icon('clock')}</button><button class="icon-btn search-button" data-action="search" aria-label="Cari menu">${icon('search')}</button><button class="avatar" data-action="profile" aria-label="Akun dan keluar">${initials()}</button></div></header><main class="dashboard-main" id="main" tabindex="-1"><section class="page-heading"><div><h1>${title}</h1><p>${description}</p></div>${!operationRoutes.has(current)?`<div class="page-heading-actions"><button class="btn btn-secondary period-select" data-action="period" aria-haspopup="dialog">${icon('calendar')}<span>${h(formatRange(state.range))}</span>${icon('down')}</button><button class="btn btn-primary" data-action="export" ${!state.report||state.loading?'disabled':''}>${icon('download')} Ekspor laporan</button></div>`:''}</section>${renderSubscriptionCard(outlet(),state.user?.id,{page:current,loading:!!subscriptionRefreshRequest})}<div id="page-content">${content}</div><footer class="page-footer"><span>© VORA POS · ${h(outletDisplayName(outlet()))}</span><span>Data tersinkron dari aplikasi kasir</span></footer></main></div>`;
 }
 function loading(message='Memuat data outlet…') { return `<div class="loading-state" role="status"><span class="vora-spinner" aria-hidden="true"></span><strong>${h(message)}</strong><p>Mohon tunggu sebentar.</p></div>`; }
 function errorView(message) { return `<div class="card error-state" role="alert"><h2>Data belum tersedia</h2><p>${h(message)}</p><button class="btn btn-primary" data-action="refresh">Coba lagi</button><button class="btn btn-secondary" data-action="logout">Keluar akun</button></div>`; }
-function resetData() { outletsScope.cancel();pageScope.cancel();state.outlets=[];state.outletId='';state.report=null;state.data=null;state.ready=false;state.error='';cleanupPage?.();cleanupPage=null;closeModal(); }
+function resetData() { subscriptionRefreshRequest=null;outletsScope.cancel();pageScope.cancel();state.outlets=[];state.outletId='';state.report=null;state.data=null;state.ready=false;state.error='';cleanupPage?.();cleanupPage=null;closeModal(); }
 async function adoptSession(session, preferredOutlet) {
   const user=session?.user||null;
   if(identity.id!==user?.id){identity.set(user?.id||null);resetData();}
@@ -188,8 +190,21 @@ function periodDialog() {
   el.classList.add('date-range-panel');
   mountDateRange(el,{range:state.range,signal:modalCleanup.signal,onApply:range=>{state.range=range;void render();}});
 }
+async function refreshSubscription() {
+  if(subscriptionRefreshRequest||!state.user||!outlet())return;
+  const request={},validIdentity=identity.capture();subscriptionRefreshRequest=request;
+  const updateButton=busy=>document.querySelectorAll('[data-action="subscription-refresh"]').forEach(button=>{
+    button.disabled=busy;button.setAttribute('aria-busy',String(busy));
+    button.textContent=busy?'Memeriksa status…':'Sudah dikonfirmasi admin? Periksa status';
+  });
+  updateButton(true);
+  try{await refreshSession();}
+  catch{if(validIdentity())toast('Status belum dapat diperbarui. Periksa koneksi lalu coba lagi.');}
+  finally{if(subscriptionRefreshRequest===request){subscriptionRefreshRequest=null;updateButton(false);}}
+}
 function action(name) {
   if(name==='logout')return void logout();
+  if(name==='subscription-refresh')return void refreshSubscription();
   if(name==='refresh')return void (state.outlets.length?render():refreshSession());
   if(name==='menu'||name==='close-menu'){const open=name==='menu'&&!document.body.classList.contains('menu-open');document.body.classList.toggle('menu-open',open);syncMenuAccess();document.querySelector('.menu-toggle')?.setAttribute('aria-expanded',String(open));return;}
   if(name==='export')return exportReport();if(name==='period')return periodDialog();

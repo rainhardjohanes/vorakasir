@@ -27,6 +27,7 @@ export function createApi(client) {
     cancel,
     session: () => call('vora_crm_session'),
     list: (args = {}) => call('vora_crm_list', args),
+    activity: (args = {}) => call('vora_crm_list_activity', args),
     detail: id => call('vora_crm_detail', {
       p_merchant_id: id
     }),

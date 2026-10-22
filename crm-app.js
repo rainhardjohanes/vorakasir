@@ -1,6 +1,6 @@
 import { createAuth } from '/crm-auth.js';
 import { createApi } from '/crm-data.js';
-import { STATUS, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, isRenewalConflict, allowedPages, humanError } from '/crm-model.js';
+import { STATUS, USAGE_STAGES, USAGE_HELP, USAGE_SORTS, usageCount, saleDate, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, isRenewalConflict, allowedPages, humanError } from '/crm-model.js';
 const app = document.querySelector('#app'),
   modalRoot = document.querySelector('#modal-root');
 const paths = {
@@ -43,6 +43,8 @@ const state = {
   error: '',
   search: '',
   status: 'all',
+  usage: 'all',
+  sort: 'recent',
   offset: 0,
   menu: false,
   epoch: 0,
@@ -93,6 +95,8 @@ function clearPrivate() {
   state.loading = false;
   state.search = '';
   state.status = 'all';
+  state.usage = 'all';
+  state.sort = 'recent';
   state.offset = 0;
   state.page = 'overview';
   state.menu = false;
@@ -205,8 +209,8 @@ function navButton(page) {
 }
 function pageHeading() {
   const titles = {
-    overview: ['GAMBARAN HARI INI', 'Hubungan yang bertumbuh.', 'Pantau perjalanan pengguna, dari trial hingga pelanggan setia.'],
-    users: ['DIREKTORI PENGGUNA', 'Kenali pengguna Anda.', 'Data pendaftaran, kontak, outlet, dan status langganan dalam satu tempat.'],
+    overview: ['AKTIVITAS PENGGUNA', 'Siapa yang sudah menggunakan VORA?', 'Lihat kesiapan produk dan kebiasaan transaksi untuk menentukan tindak lanjut.'],
+    users: ['DIREKTORI PENGGUNA', 'Pengguna & aktivitas usaha', 'Bandingkan produk, transaksi, dan masa aktif setiap akun usaha.'],
     followups: ['HUBUNGAN PELANGGAN', 'Percakapan berikutnya.', 'Catat hasil komunikasi dan jadwalkan tindak lanjut yang tepat.'],
     renewals: ['LANGGANAN', 'Bantu bisnis terus berjalan.', 'Perpanjang outlet setelah pembayaran pengguna Anda verifikasi.'],
     team: ['PENGELOLAAN AKSES', 'Tim yang tepat, akses yang tepat.', 'Tentukan siapa yang dapat melihat data dan membantu pelanggan.'],
@@ -252,7 +256,7 @@ async function loadPage() {
       p_limit: 25,
       p_offset: state.offset
     });else if (page === 'overview' && can('read_customers')) {
-      const [all, trial] = await Promise.all([api.list({
+      const [all, trial] = await Promise.all([api.activity({
         p_limit: 6
       }), api.list({
         p_status: 'trial',
@@ -262,7 +266,14 @@ async function loadPage() {
         ...all,
         trialItems: trial.items || []
       };
-    } else data = await api.list({
+    } else if (['users', 'followups'].includes(page) && can('read_customers')) data = await api.activity({
+      p_search: state.search,
+      p_status: state.status,
+      p_usage: state.usage,
+      p_sort: state.sort,
+      p_limit: 25,
+      p_offset: state.offset
+    }); else data = await api.list({
       p_search: state.search,
       p_status: state.status,
       p_limit: 25,
@@ -292,15 +303,29 @@ function pageContent() {
 function kpi(label, value, hint, symbol, featured = false) {
   return `<article class="kpi ${featured ? 'featured' : ''}"><div class="label">${esc(label)}${icon(symbol)}</div><div class="value">${esc(value ?? 0)}</div><div class="hint">${esc(hint)}</div></article>`;
 }
+function usageBadge(usage) {
+  if (!can('read_customers')) return '';
+  const stage = usage?.stage;
+  return USAGE_STAGES[stage] ? `<span class="usage-badge ${esc(stage)}" title="${esc(USAGE_HELP[stage])}">${esc(USAGE_STAGES[stage])}</span>` : '<span class="usage-unavailable">Aktivitas belum tersedia</span>';
+}
+function usageWindowNote(meta = state.data?.usage_meta) {
+  if (!can('read_customers')) return '';
+  return `<div class="usage-method"><strong>Data penggunaan yang tersinkron</strong><p>Transaksi selesai dan refund sebagian dihitung; refund penuh, draf, batal, dan nilai nol tidak dihitung. Setiap struk pembayaran dihitung terpisah, termasuk split bill. Data uji belum dapat dibedakan. Transaksi offline yang belum tersinkron belum terlihat.</p><p>Rentang 7/30 hari mencakup hari ini, dengan acuan kalender WITA. Tanggal transaksi mengikuti tanggal pada perangkat kasir.${meta?.as_of_date ? ` Acuan data: ${esc(saleDate(meta.as_of_date))}.` : ''}</p></div>`;
+}
+function usageOverview(d) {
+  const s = d.usage_summary;
+  return `<section class="adoption-section" aria-labelledby="adoption-title"><div class="section-heading"><div><h2 id="adoption-title">Penggunaan aplikasi</h2><p>Jumlah akun usaha, digabung dari seluruh outlet yang masih ada.</p></div><button class="button tiny" data-action="nav" data-page="users">Lihat aktivitas ${icon('arrow')}</button></div><div class="kpis usage-kpis">${kpi('Sudah punya produk', usageCount(s?.product_ready), 'Minimal 1 produk tersimpan', 'store', true)}${kpi('Bertransaksi 7 hari', usageCount(s?.active_7d), 'Ada transaksi dalam 7 hari terakhir', 'check')}${kpi('Rutin bertransaksi', usageCount(s?.regular), 'Transaksi pada 3+ hari berbeda / 7 hari', 'calendar')}${kpi('Belum bertransaksi', usageCount(s?.no_transactions), 'Belum ada transaksi yang dihitung', 'clock')}</div>${!s ? '<div class="notice warning">Ringkasan aktivitas belum tersedia. Muat ulang setelah layanan aktivitas siap; nilai kosong bukan berarti tidak digunakan.</div>' : ''}<div class="usage-stage-list" aria-label="Tahap penggunaan">${Object.entries(USAGE_STAGES).map(([key,label])=>`<button class="usage-stage-button" data-action="usage-filter" data-usage="${key}" title="${esc(USAGE_HELP[key])}"><span class="usage-badge ${key}">${label}</span><strong>${usageCount(s?.[key])}</strong>${icon('chevron')}</button>`).join('')}</div></section>`;
+}
 function overview() {
   const d = state.data,
     s = d.summary || {},
     ending = (d.trialItems || []).filter(c => Number(c.days_remaining) <= 3).sort((a, b) => a.days_remaining - b.days_remaining).slice(0, 5);
   if (!can('read_customers')) return empty('Ruang kerja Anda siap', 'Gunakan menu yang tersedia sesuai akses yang diberikan pemilik.', 'shield');
-  return `<section class="kpis" aria-label="Ringkasan pengguna">${kpi('Total pengguna', s.total, 'Akun yang telah mendaftar', 'users', true)}${kpi('Sedang trial', s.trial, 'Kesempatan membangun kepercayaan', 'clock')}${kpi('Berlangganan aktif', s.active, 'Pengguna dengan langganan aktif', 'check')}${kpi('Perlu follow-up', s.followup_due, 'Jadwal tindak lanjut telah tiba', 'chat')}</section><div class="callout"><div class="callout-icon">${icon('spark')}</div><div><h3>Percakapan kecil, hubungan yang berarti.</h3><p>${Number(s.expired) > 0 ? `${esc(s.expired)} pengguna telah melewati masa aktif. Hubungi mereka untuk memahami kebutuhan dan membantu melanjutkan langganan.` : 'Mulai dari pengguna yang mendekati akhir trial. Tanyakan pengalaman mereka dan bantu kendala yang dihadapi.'}</p></div><button class="button" data-action="nav" data-page="followups">Buka follow-up ${icon('arrow')}</button></div><div class="overview-grid"><section class="panel"><header class="panel-header"><div><h2>Pengguna terbaru</h2><p>Awal perjalanan mereka bersama VORA.</p></div><button class="button tiny" data-action="nav" data-page="users">Lihat semua ${icon('arrow')}</button></header>${customerTable(d.items || [], true)}<footer class="panel-footer">Data pendaftaran tersimpan langsung dari akun VORA.</footer></section><div class="stack"><section class="panel"><header class="panel-header"><div><h2>Trial segera berakhir</h2><p>Pengguna dengan sisa trial 3 hari atau kurang.</p></div><span class="badge-count">${ending.length}</span></header>${ending.length ? `<div class="list">${ending.map(c => `<div class="list-item"><div class="initials">${esc(initials(customerName(c)))}</div><div><button class="link-button" data-action="detail" data-id="${esc(c.merchant_id)}">${esc(customerName(c))}</button><div class="subtitle">${esc(c.outlets?.[0]?.name || 'Belum ada outlet')}</div></div><div class="right"><span class="status trial">${esc(remaining(c.days_remaining, 'trial'))}</span></div></div>`).join('')}</div>` : empty('Semua masih punya waktu', 'Belum ada trial yang segera berakhir dalam daftar ini.', 'clock')}<footer class="panel-footer">Dari maksimal 100 pengguna trial terbaru.</footer></section><section class="panel"><div class="panel-body"><h3>Perjalanan pengguna</h3><div class="stat-row"><span class="muted">Menunggu verifikasi email</span><span class="value">${esc(s.unverified || 0)}</span></div><div class="stat-row"><span class="muted">Belum membuat outlet</span><span class="value">${esc(s.onboarding || 0)}</span></div><div class="stat-row"><span class="muted">Masa aktif berakhir</span><span class="value">${esc(s.expired || 0)}</span></div></div></section></div></div>`;
+  return `${usageOverview(d)}<section class="account-stats" aria-label="Ringkasan akun"><div><span>Total pengguna</span><strong>${usageCount(s.total)}</strong></div><div><span>Sedang trial</span><strong>${usageCount(s.trial)}</strong></div><div><span>Berlangganan aktif</span><strong>${usageCount(s.active)}</strong></div><div><span>Follow-up jatuh tempo</span><strong>${usageCount(s.followup_due)}</strong></div></section><div class="overview-grid"><section class="panel"><header class="panel-header"><div><h2>Aktivitas transaksi terbaru</h2><p>Urutan transaksi terakhir; akun tanpa transaksi berada di bawah.</p></div><button class="button tiny" data-action="nav" data-page="users">Lihat semua ${icon('arrow')}</button></header>${customerTable(d.items || [], true)}<footer class="panel-footer">Aktivitas membantu menentukan kebutuhan pendampingan, bukan memastikan niat membeli.</footer></section><div class="stack"><section class="panel"><header class="panel-header"><div><h2>Trial segera berakhir</h2><p>Sisa trial 3 hari atau kurang. Buka detail untuk melihat penggunaannya.</p></div><span class="badge-count">${ending.length}</span></header>${ending.length ? `<div class="list">${ending.map(c => `<div class="list-item"><div class="initials">${esc(initials(customerName(c)))}</div><div><button class="link-button" data-action="detail" data-id="${esc(c.merchant_id)}">${esc(customerName(c))}</button><div class="subtitle">${esc(c.outlets?.[0]?.name || 'Belum ada outlet')}</div></div><div class="right"><span class="status trial">${esc(remaining(c.days_remaining, 'trial'))}</span></div></div>`).join('')}</div>` : empty('Tidak ada trial segera berakhir', 'Belum ada trial yang segera berakhir dalam daftar ini.', 'clock')}<footer class="panel-footer">Dari maksimal 100 pengguna trial terbaru.</footer></section><section class="panel"><div class="panel-body"><h3>Perlu pendampingan</h3><div class="stat-row"><span>Menunggu verifikasi email</span><span class="value">${usageCount(s.unverified)}</span></div><div class="stat-row"><span>Belum membuat outlet</span><span class="value">${usageCount(s.onboarding)}</span></div><div class="stat-row"><span>Masa aktif berakhir</span><span class="value">${usageCount(s.expired)}</span></div><button class="button full" data-action="nav" data-page="followups">Buka follow-up ${icon('arrow')}</button></div></section></div></div>${usageWindowNote()}`;
 }
 function toolbar() {
-  return `<form id="search-form" class="toolbar"><label class="search">${icon('search')}<input name="search" id="customer-search" aria-label="Cari pengguna" placeholder="${can('read_customers') ? 'Cari nama, email, nomor HP, atau outlet…' : 'Cari nama outlet…'}" maxlength="100" value="${esc(state.search)}"></label><select name="status" id="status-filter" class="filter" aria-label="Filter status"><option value="all">Semua status</option>${state.page === 'followups' ? `<option value="followup_due" ${state.status === 'followup_due' ? 'selected' : ''}>Follow-up jatuh tempo</option>` : ''}${Object.entries(STATUS).map(([key, value]) => `<option value="${key}" ${state.status === key ? 'selected' : ''}>${value}</option>`).join('')}</select><button class="button" type="submit">Cari</button></form>`;
+  const activity = can('read_customers') && ['users', 'followups'].includes(state.page);
+  return `<form id="search-form" class="toolbar ${activity ? 'activity-toolbar' : ''}"><label class="search">${icon('search')}<input name="search" id="customer-search" aria-label="Cari pengguna" placeholder="${can('read_customers') ? 'Cari nama, email, nomor HP, atau outlet…' : 'Cari nama outlet…'}" maxlength="100" value="${esc(state.search)}"></label><label class="filter-field"><span>Status akun</span><select name="status" id="status-filter" class="filter" aria-label="Filter status"><option value="all">Semua status</option>${state.page === 'followups' ? `<option value="followup_due" ${state.status === 'followup_due' ? 'selected' : ''}>Follow-up jatuh tempo</option>` : ''}${Object.entries(STATUS).map(([key, value]) => `<option value="${key}" ${state.status === key ? 'selected' : ''}>${value}</option>`).join('')}</select></label>${activity ? `<label class="filter-field"><span>Aktivitas penggunaan</span><select name="usage" id="usage-filter" class="filter"><option value="all">Semua aktivitas</option>${Object.entries(USAGE_STAGES).map(([key,label])=>`<option value="${key}" ${state.usage===key?'selected':''}>${label}</option>`).join('')}</select></label><label class="filter-field"><span>Urutkan berdasarkan</span><select name="sort" id="usage-sort" class="filter">${Object.entries(USAGE_SORTS).map(([key,label])=>`<option value="${key}" ${state.sort===key?'selected':''}>${label}</option>`).join('')}</select></label>` : ''}<button class="button" type="submit">Terapkan</button></form>`;
 }
 function pagination() {
   const d = state.data,
@@ -308,18 +333,27 @@ function pagination() {
     count = (d.items || []).length;
   return `<div class="pagination"><span>${total ? `${state.offset + 1}–${Math.min(state.offset + count, total)} dari ${total}` : '0'} ${state.page === 'audit' ? 'aktivitas' : 'data'}</span><span class="spacer"></span><button class="button" data-action="previous" ${state.offset <= 0 ? 'disabled' : ''}>Sebelumnya</button><button class="button" data-action="next" ${state.offset + 25 >= total ? 'disabled' : ''}>Berikutnya</button></div>`;
 }
+function transactionCell(usage) {
+  return `<strong class="metric-number">${usageCount(usage?.transactions_7d)}</strong><span class="cell-secondary">${usageCount(usage?.transactions_30d)} dalam 30 hari</span>`;
+}
+function latestSale(usage) {
+  if (!usage) return '—';
+  if (!usage.last_transaction_date) return usageCount(usage.transactions_total) === '0' ? 'Belum transaksi' : 'Tanggal belum tersedia';
+  return esc(saleDate(usage.last_transaction_date, usage.last_transaction_time));
+}
 function customerTable(items, compact = false) {
-  if (!items.length) return empty('Belum ada pengguna', 'Data akan muncul ketika pengguna mendaftar, atau coba ubah pencarian Anda.');
-  return `<div class="table-scroll"><table><thead><tr><th>Pengguna</th>${!compact ? '<th>Kontak</th>' : ''}<th>Status</th><th>${compact ? 'Terdaftar' : 'Masa aktif'}</th>${!compact ? '<th>Outlet</th>' : ''}<th><span class="muted">Detail</span></th></tr></thead><tbody>${items.map(c => `<tr><td><div class="table-name"><span class="initials">${esc(initials(customerName(c)))}</span><div><strong>${esc(customerName(c))}</strong><small>${esc(c.outlets?.[0]?.name || c.email || 'Belum ada outlet')}</small></div></div></td>${!compact ? `<td>${esc(c.phone || 'Belum diisi')}<span class="cell-secondary">${esc(c.email || '—')}</span></td>` : ''}<td>${badge(c.status)}</td><td>${compact ? esc(date(c.created_at)) : `${esc(remaining(c.days_remaining, c.status))}<span class="cell-secondary">${esc(date(customerExpiry(c)))}</span>`}</td>${!compact ? `<td>${esc(c.outlet_count || c.outlets?.length || 0)} outlet</td>` : ''}<td><button class="table-action" data-action="detail" data-id="${esc(c.merchant_id)}">Buka ${icon('arrow')}</button></td></tr>`).join('')}</tbody></table></div>`;
+  if (!can('read_customers')) return '';
+  if (!items.length) return empty('Tidak ada pengguna yang cocok', 'Ubah pencarian atau filter aktivitas untuk melihat pengguna lain.');
+  return `<p class="table-swipe-hint">Geser tabel ke samping untuk melihat kolom lainnya.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Tabel aktivitas pengguna"><table class="activity-table"><thead><tr><th>Pengguna</th><th>Penggunaan</th><th>Produk</th><th>Transaksi 7 hari</th>${!compact ? '<th>Transaksi terakhir</th><th>Status & masa aktif</th><th>Kontak</th>' : ''}<th>Detail</th></tr></thead><tbody>${items.map(c => `<tr><td><div class="table-name"><span class="initials">${esc(initials(customerName(c)))}</span><div><strong>${esc(customerName(c))}</strong><small>${esc(c.outlets?.[0]?.name || c.email || 'Belum ada outlet')}${!compact ? ` · ${usageCount(c.outlet_count ?? c.outlets?.length)} outlet` : ''}</small></div></div></td><td>${usageBadge(c.usage)}</td><td><strong class="metric-number">${usageCount(c.usage?.product_count)}</strong></td><td>${transactionCell(c.usage)}</td>${!compact ? `<td>${latestSale(c.usage)}</td><td>${badge(c.status)}<span class="cell-secondary">${esc(remaining(c.days_remaining, c.status))} · ${esc(date(customerExpiry(c)))}</span></td><td>${esc(c.phone || 'Belum diisi')}<span class="cell-secondary">${esc(c.email || '—')}</span></td>` : ''}<td><button class="table-action" data-action="detail" data-id="${esc(c.merchant_id)}">Buka ${icon('arrow')}</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 function directory() {
   const items = state.data.items || [];
-  if (state.page === 'users') return `<section class="panel">${toolbar()}${customerTable(items)}${pagination()}</section>`;
-  return `<section class="panel">${toolbar()}${items.length ? `<div class="table-scroll"><table><thead><tr><th>Pengguna</th><th>Status akun</th><th>Follow-up terakhir</th><th>Jadwal berikutnya</th><th>Tindakan</th></tr></thead><tbody>${items.map(c => {
+  if (state.page === 'users') return `<section class="panel">${toolbar()}${customerTable(items)}${pagination()}</section>${usageWindowNote()}`;
+  return `<section class="panel">${toolbar()}${items.length ? `<p class="table-swipe-hint">Geser tabel ke samping untuk melihat kolom lainnya.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Tabel aktivitas dan follow-up"><table class="activity-table"><thead><tr><th>Pengguna</th><th>Aktivitas</th><th>Transaksi 7 hari</th><th>Status akun</th><th>Follow-up terakhir</th><th>Jadwal berikutnya</th><th>Tindakan</th></tr></thead><tbody>${items.map(c => {
     const f = c.last_followup;
     const due = c.next_followup_at && new Date(c.next_followup_at) <= new Date(state.data.server_now || Date.now());
-    return `<tr><td><div class="table-name"><span class="initials">${esc(initials(customerName(c)))}</span><div><strong>${esc(customerName(c))}</strong><small>${esc(c.phone || c.email || 'Kontak belum diisi')}</small></div></div></td><td>${badge(c.status)}</td><td>${f ? badge(f.outcome, OUTCOME) : '<span class="muted">Belum dihubungi</span>'}${f ? `<span class="cell-secondary">${esc(date(f.created_at))}</span>` : ''}</td><td>${c.next_followup_at ? `${due ? '<span class="status trial">Perlu ditindaklanjuti</span>' : ''}<span class="cell-secondary">${esc(date(c.next_followup_at, true))}</span>` : '<span class="muted">Belum dijadwalkan</span>'}</td><td><button class="table-action" data-action="detail" data-id="${esc(c.merchant_id)}">${can('followup') ? 'Tindak lanjuti' : 'Lihat catatan'} ${icon('arrow')}</button></td></tr>`;
-  }).join('')}</tbody></table></div>` : empty('Belum ada pengguna untuk dihubungi', 'Coba ubah pencarian atau filter status.', 'chat')}${pagination()}</section>`;
+    return `<tr><td><div class="table-name"><span class="initials">${esc(initials(customerName(c)))}</span><div><strong>${esc(customerName(c))}</strong><small>${esc(c.phone || c.email || 'Kontak belum diisi')}</small></div></div></td><td>${usageBadge(c.usage)}</td><td>${transactionCell(c.usage)}</td><td>${badge(c.status)}</td><td>${f ? badge(f.outcome, OUTCOME) : '<span class="muted">Belum dihubungi</span>'}${f ? `<span class="cell-secondary">${esc(date(f.created_at))}</span>` : ''}</td><td>${c.next_followup_at ? `${due ? '<span class="status trial">Perlu ditindaklanjuti</span>' : ''}<span class="cell-secondary">${esc(date(c.next_followup_at, true))}</span>` : '<span class="muted">Belum dijadwalkan</span>'}</td><td><button class="table-action" data-action="detail" data-id="${esc(c.merchant_id)}">${can('followup') ? 'Tindak lanjuti' : 'Lihat catatan'} ${icon('arrow')}</button></td></tr>`;
+  }).join('')}</tbody></table></div>` : empty('Belum ada pengguna untuk dihubungi', 'Coba ubah pencarian atau filter status.', 'chat')}${pagination()}</section>${usageWindowNote()}`;
 }
 function renewals() {
   const items = state.data.items || [],
@@ -423,11 +457,27 @@ async function openDetail(id) {
 function datum(label, value) {
   return `<div class="datum"><dt>${esc(label)}</dt><dd>${esc(value || '—')}</dd></div>`;
 }
+function usageDetails(usage, compact = false) {
+  if (!can('read_customers')) return '';
+  if (!usage) return '<div class="notice warning">Data aktivitas belum tersedia. Nilai kosong tidak berarti pengguna belum menggunakan aplikasi.</div>';
+  const metrics = [
+    ['Produk tersimpan', usage.product_count],
+    ['Kategori', usage.category_count],
+    ['Staf selain owner', usage.staff_count],
+    ['Metode bayar aktif', usage.payment_method_count],
+    ['Transaksi 7 hari', usage.transactions_7d],
+    ['Transaksi 30 hari', usage.transactions_30d],
+    ['Hari transaksi / 7 hari', usage.active_days_7d],
+    ['Hari transaksi / 30 hari', usage.active_days_30d]
+  ];
+  return `<div class="usage-detail ${compact ? 'compact' : ''}"><div class="row wrap">${usageBadge(usage)}</div><p class="usage-stage-help">${esc(USAGE_HELP[usage.stage] || '')}</p><dl class="usage-metrics">${metrics.map(([label,value])=>`<div><dt>${label}</dt><dd>${usageCount(value)}</dd></div>`).join('')}</dl><div class="usage-last"><div><span>Total transaksi</span><strong>${usageCount(usage.transactions_total)}</strong></div><div><span>Transaksi terakhir</span><strong>${latestSale(usage)}</strong></div></div></div>`;
+}
 function detailModal(m) {
+  if (!can('read_customers')) return '';
   if (!m.detail) return modalFrame('Detail pengguna', '', m.error ? `<div class="error">${esc(m.error)}</div><button class="button" data-action="retry-detail">Coba lagi</button>` : loading(), ' ', true);
   const c = m.detail.customer,
     url = whatsapp(c.phone);
-  return modalFrame(customerName(c), c.email || '', `<div class="row wrap">${badge(c.status)}<span class="small muted">${esc(remaining(c.days_remaining, c.status))}</span><span class="spacer"></span>${url ? `<a class="button tiny" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('chat')} WhatsApp</a>` : ''}</div><dl class="detail-grid">${datum('Nomor HP', c.phone)}${datum('Terdaftar', date(c.created_at, true))}${datum('Terakhir masuk', date(c.last_sign_in_at, true))}${datum('ID pengguna', c.merchant_id)}${datum('Email diverifikasi', date(c.email_confirmed_at, true))}${datum('Trial dimulai', date(c.first_confirmed_at, true))}${datum('Trial awal berakhir', date(c.trial_end_date, true))}${datum('Masa aktif hingga', date(customerExpiry(c), true))}${datum('Jumlah outlet', `${c.outlet_count || c.outlets?.length || 0} outlet`)}</dl><section class="detail-section"><div class="row between"><h3>Outlet & langganan</h3></div>${c.outlets?.length ? c.outlets.map(o => `<article class="outlet-card"><div class="row"><div><strong>${esc(o.name || 'Outlet')}</strong><p>${esc(planName(o.subscription_plan))} · ${esc(remaining(o.days_remaining, o.status))}</p></div>${can('renew') ? `<button class="button tiny primary" data-action="renew" data-id="${esc(o.id)}">Perpanjang</button>` : ''}</div><p>Aktif hingga ${esc(date(o.subscription_end_date, true))}</p>${o.address ? `<p>${esc(o.address)}</p>` : ''}${o.type ? `<p>${esc(o.type)}</p>` : ''}${o.email ? `<p>Email outlet: ${esc(o.email)}</p>` : ''}${o.phone ? `<p>Kontak outlet: ${esc(o.phone)}</p>` : ''}</article>`).join('') : empty('Belum ada outlet', 'Pengguna belum menyelesaikan pembuatan outlet.', 'store')}</section><section class="detail-section"><div class="row between"><h3>Catatan follow-up</h3>${can('followup') ? '<button class="button tiny" data-action="followup">+ Catat follow-up</button>' : ''}</div>${m.detail.followups?.length ? `<div class="timeline">${m.detail.followups.map(f => `<div class="timeline-item">${badge(f.outcome, OUTCOME)}<p>${esc(f.note)}</p><small>${esc(date(f.created_at, true))} · ${esc(f.actor_email || 'Tim CRM')}</small>${f.next_followup_at ? `<p class="muted">Berikutnya: ${esc(date(f.next_followup_at, true))}</p>` : ''}</div>`).join('')}</div>` : empty('Belum ada percakapan tercatat', 'Catat hasil komunikasi agar tindak lanjut tetap terarah.', 'chat')}${m.detail.followups_total > 100 ? '<p class="helper">Menampilkan 100 catatan terbaru.</p>' : ''}</section><section class="detail-section"><h3>Riwayat perpanjangan</h3>${m.detail.renewals?.length ? `<div class="timeline">${m.detail.renewals.map(r => `<div class="timeline-item"><strong>${esc(r.outlet_name || 'Outlet')} · ${esc(r.months)} bulan</strong><p>${esc(money(r.amount_idr))} · ${esc(r.payment_reference)}</p><small>Aktif hingga ${esc(date(r.new_subscription_end_date))}<br>${esc(date(r.created_at, true))} · ${esc(r.actor_email || 'Tim CRM')}</small></div>`).join('')}</div>` : empty('Belum ada perpanjangan', 'Perpanjangan manual yang dicatat di CRM akan tampil di sini.', 'clock')}${m.detail.renewals_total > 50 ? '<p class="helper">Menampilkan 50 perpanjangan terbaru.</p>' : ''}</section>`, can('followup') ? '<button class="button primary" data-action="followup">Catat follow-up</button>' : '<button class="button" data-action="close-modal">Tutup</button>', true);
+  return modalFrame(customerName(c), c.email || '', `<div class="row wrap">${badge(c.status)}<span class="small muted">${esc(remaining(c.days_remaining, c.status))}</span><span class="spacer"></span>${url ? `<a class="button tiny" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('chat')} WhatsApp</a>` : ''}</div><dl class="detail-grid">${datum('Nomor HP', c.phone)}${datum('Terdaftar', date(c.created_at, true))}${datum('Login akun terakhir', date(c.last_sign_in_at, true))}${datum('ID pengguna', c.merchant_id)}${datum('Email diverifikasi', date(c.email_confirmed_at, true))}${datum('Trial dimulai', date(c.first_confirmed_at, true))}${datum('Trial awal berakhir', date(c.trial_end_date, true))}${datum('Masa aktif hingga', date(customerExpiry(c), true))}${datum('Jumlah outlet', `${c.outlet_count || c.outlets?.length || 0} outlet`)}</dl><section class="detail-section"><h3>Penggunaan seluruh outlet</h3>${usageDetails(c.usage)}<p class="helper usage-login-note">Login akun terakhir menunjukkan autentikasi akun, bukan waktu terakhir kasir digunakan.</p>${usageWindowNote(m.detail.usage_meta)}</section><section class="detail-section"><div class="row between"><h3>Outlet & langganan</h3></div>${c.outlets?.length ? c.outlets.map(o => `<article class="outlet-card"><div class="row"><div><strong>${esc(o.name || 'Outlet')}</strong><p>${esc(planName(o.subscription_plan))} · ${esc(remaining(o.days_remaining, o.status))}</p></div>${can('renew') ? `<button class="button tiny primary" data-action="renew" data-id="${esc(o.id)}">Perpanjang</button>` : ''}</div><p>Aktif hingga ${esc(date(o.subscription_end_date, true))}</p>${o.address ? `<p>${esc(o.address)}</p>` : ''}${o.type ? `<p>${esc(o.type)}</p>` : ''}${o.email ? `<p>Email outlet: ${esc(o.email)}</p>` : ''}${o.phone ? `<p>Kontak outlet: ${esc(o.phone)}</p>` : ''}${usageDetails(o.usage, true)}</article>`).join('') : empty('Belum ada outlet', 'Pengguna belum menyelesaikan pembuatan outlet.', 'store')}</section><section class="detail-section"><div class="row between"><h3>Catatan follow-up</h3>${can('followup') ? '<button class="button tiny" data-action="followup">+ Catat follow-up</button>' : ''}</div>${m.detail.followups?.length ? `<div class="timeline">${m.detail.followups.map(f => `<div class="timeline-item">${badge(f.outcome, OUTCOME)}<p>${esc(f.note)}</p><small>${esc(date(f.created_at, true))} · ${esc(f.actor_email || 'Tim CRM')}</small>${f.next_followup_at ? `<p class="muted">Berikutnya: ${esc(date(f.next_followup_at, true))}</p>` : ''}</div>`).join('')}</div>` : empty('Belum ada percakapan tercatat', 'Catat hasil komunikasi agar tindak lanjut tetap terarah.', 'chat')}${m.detail.followups_total > 100 ? '<p class="helper">Menampilkan 100 catatan terbaru.</p>' : ''}</section><section class="detail-section"><h3>Riwayat perpanjangan</h3>${m.detail.renewals?.length ? `<div class="timeline">${m.detail.renewals.map(r => `<div class="timeline-item"><strong>${esc(r.outlet_name || 'Outlet')} · ${esc(r.months)} bulan</strong><p>${esc(money(r.amount_idr))} · ${esc(r.payment_reference)}</p><small>Aktif hingga ${esc(date(r.new_subscription_end_date))}<br>${esc(date(r.created_at, true))} · ${esc(r.actor_email || 'Tim CRM')}</small></div>`).join('')}</div>` : empty('Belum ada perpanjangan', 'Perpanjangan manual yang dicatat di CRM akan tampil di sini.', 'clock')}${m.detail.renewals_total > 50 ? '<p class="helper">Menampilkan 50 perpanjangan terbaru.</p>' : ''}</section>`, can('followup') ? '<button class="button primary" data-action="followup">Catat follow-up</button>' : '<button class="button" data-action="close-modal">Tutup</button>', true);
 }
 function findOutlet(id) {
   let customers = state.data?.items || [];
@@ -654,13 +704,15 @@ async function handleAuth(form, type) {
     renderAuth();
   }
 }
-function navigate(page) {
+function navigate(page, usage = 'all') {
   if (!allowedPages(state.session?.permissions || {}).includes(page)) return;
   state.page = page;
   state.menu = false;
   state.data = null;
   state.search = '';
   state.status = 'all';
+  state.usage = USAGE_STAGES[usage] ? usage : 'all';
+  state.sort = 'recent';
   state.offset = 0;
   state.error = '';
   void loadPage();
@@ -693,6 +745,7 @@ async function action(button) {
   }
   if (!state.session) return;
   if (a === 'nav') return navigate(button.dataset.page);
+  if (a === 'usage-filter' && can('read_customers')) return navigate('users', button.dataset.usage);
   if (a === 'menu') {
     state.menu = true;
     render();
@@ -771,6 +824,8 @@ document.addEventListener('submit', event => {
     const values = Object.fromEntries(new FormData(form));
     state.search = values.search.trim();
     state.status = values.status;
+    state.usage = values.usage || 'all';
+    state.sort = values.sort || 'recent';
     state.offset = 0;
     return void loadPage();
   }
@@ -797,10 +852,12 @@ document.addEventListener('submit', event => {
   if (form.id === 'member-form') return void saveMember(form);
 });
 document.addEventListener('change', event => {
-  if (event.target.id === 'status-filter') {
+  if (['status-filter', 'usage-filter', 'usage-sort'].includes(event.target.id)) {
     const form = event.target.form;
     state.search = form.elements.search.value.trim();
-    state.status = event.target.value;
+    state.status = form.elements.status.value;
+    state.usage = form.elements.usage?.value || 'all';
+    state.sort = form.elements.sort?.value || 'recent';
     state.offset = 0;
     void loadPage();
   }

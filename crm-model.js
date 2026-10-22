@@ -5,6 +5,42 @@ export const STATUS = {
   expired: 'Sudah berakhir',
   active: 'Berlangganan'
 };
+export const USAGE_STAGES = {
+  regular: 'Rutin bertransaksi',
+  active: 'Aktif 1–2 hari / 7 hari',
+  cooling: 'Tidak transaksi 7 hari',
+  dormant: 'Tidak transaksi 30 hari',
+  setup: 'Produk siap, belum transaksi',
+  empty: 'Belum produk & transaksi'
+};
+export const USAGE_HELP = {
+  regular: 'Bertransaksi pada setidaknya 3 hari berbeda dalam 7 hari terakhir.',
+  active: 'Ada transaksi dalam 7 hari terakhir, pada kurang dari 3 hari berbeda.',
+  cooling: 'Pernah bertransaksi dalam 30 hari terakhir, tetapi tidak dalam 7 hari terakhir.',
+  dormant: 'Pernah bertransaksi, tetapi tidak dalam 30 hari terakhir.',
+  setup: 'Sudah memiliki produk, belum ada transaksi tercatat.',
+  empty: 'Belum memiliki produk maupun transaksi tercatat.'
+};
+export const USAGE_SORTS = {
+  recent: 'Transaksi terbaru',
+  transactions: 'Transaksi 30 hari terbanyak',
+  products: 'Produk terbanyak'
+};
+// Missing usage is not a zero: an older or unavailable backend must never
+// make an active customer appear unused. Raw dates are POS local sale dates.
+export function usageCount(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= 0 ? new Intl.NumberFormat('id-ID').format(n) : '—';
+}
+export function saleDate(value, time = null) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return '—';
+  const d = new Date(value + 'T00:00:00Z');
+  if (!Number.isFinite(+d) || d.toISOString().slice(0, 10) !== value) return '—';
+  const formatted = new Intl.DateTimeFormat('id-ID', {day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC'}).format(d);
+  const clock = /^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(String(time || '')) ? String(time).slice(0, 5) : '';
+  return formatted + (clock ? ' · ' + clock.replace(':', '.') : '');
+}
 export const OUTCOME = {
   contacted: 'Sudah dihubungi',
   interested: 'Tertarik',

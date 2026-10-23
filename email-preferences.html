@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Pengaturan email · VORA POS</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./email-preferences.css">
+  <script type="module" src="./email-preferences.js"></script>
+</head>
+<body>
+  <main class="preference-card" aria-labelledby="page-title">
+    <header class="brand"><a href="https://www.vorakasir.com/" aria-label="Kembali ke website VORA POS">VORA <span>POS</span></a><p>Kasir rapi. Bisnis lebih terkendali.</p></header>
+    <section class="content">
+      <p class="eyebrow">PREFERENSI KOMUNIKASI</p>
+      <h1 id="page-title">Pengaturan email VORA</h1>
+      <p id="intro">Anda dapat menghentikan email informasi langganan dan panduan penggunaan melalui halaman ini.</p>
+      <div class="notice" id="feedback" role="status" aria-live="polite" tabindex="-1"><span id="feedback-text">Memeriksa tautan di perangkat Anda…</span></div>
+      <div id="confirmation" hidden>
+        <div class="scope"><h2>Email yang akan dihentikan</h2><ul><li>Informasi pembelian dan perpanjangan langganan.</li><li>Pengingat masa trial atau langganan berakhir.</li><li>Panduan untuk mulai menggunakan produk dan kasir.</li></ul></div>
+        <p class="note">Email keamanan, verifikasi akun, dan reset kata sandi tetap tersedia. Tindakan ini tidak membatalkan langganan atau menghapus akun Anda.</p>
+        <button type="button" id="unsubscribe-button" class="primary">Berhenti menerima pengingat</button>
+        <p class="note small">Preferensi baru disimpan setelah Anda menekan tombol di atas.</p>
+      </div>
+      <div id="next-steps" hidden><p id="next-copy"></p></div>
+      <nav class="links" aria-label="Tautan bantuan"><a href="https://wa.me/6289636974140" rel="noreferrer">Hubungi admin</a><span aria-hidden="true">·</span><a href="https://www.vorakasir.com/">Kembali ke VORA</a></nav>
+      <noscript><p class="notice error">Aktifkan JavaScript, lalu buka kembali tautan dari email untuk mengubah preferensi. Anda juga dapat menghubungi admin.</p></noscript>
+    </section>
+    <footer>VORA POS · Pengaturan email akun</footer>
+  </main>
+</body>
+</html>

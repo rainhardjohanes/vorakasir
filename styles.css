@@ -15,3 +15,32 @@
 .connected-grid .small-note a{text-decoration:underline;text-underline-offset:3px;display:inline-block;min-height:32px;padding-top:5px}.demo-caption{z-index:5;bottom:-26px}.hero-visual{margin-bottom:20px}@media(max-width:700px){.demo-caption{bottom:-10px;left:122px}.hero-visual{margin-bottom:8px}}@media(max-width:360px){.demo-caption{left:103px;font-size:7px;bottom:-12px}}
 .trial-note{font-size:13px;line-height:1.8;margin-top:18px;max-width:430px}.trial-note strong{color:var(--green)}.contact-download{margin-top:25px}.steps .text-link{font-size:12px;margin-top:12px}.pricing-note{font-size:12px;line-height:1.8}.main-nav .nav-cta{white-space:nowrap}
 @media(max-width:700px){.steps .text-link{grid-column:2;margin-top:8px}.trial-note{font-size:12px}.mobile-offer>.mobile-download:first-child{flex:1;flex-direction:row;gap:12px;min-height:48px;min-width:0;font-size:12px}.mobile-download span{display:block;text-align:left}.mobile-offer .mobile-download small{font-size:9px;letter-spacing:.07em;color:var(--dark);margin-top:3px}.mobile-offer .mobile-admin{border-color:#ffffff50;color:#fff;min-height:48px;min-width:92px;font-size:12px;flex-shrink:0}.mobile-offer .mobile-admin:hover{background:#ffffff10}.pricing-note{font-size:11px}.contact-download{width:100%}}
+
+/* Consultation-first marketing: keep download available, offer all durations clearly. */
+.hero-price{margin-top:20px;font-size:15px;line-height:1.7;color:var(--ink)}
+.hero-price strong{color:var(--green);font-size:19px}
+.hero-price>span{display:block;font-size:13px;color:var(--muted)}
+.hero-actions{margin-top:20px}
+.local-support{display:flex;gap:12px;align-items:flex-start;margin-top:22px;padding:16px 17px;border:1px solid #cbdcce;border-radius:12px;background:#eaf2e3;max-width:460px}
+.local-support>.icon{flex:none;width:22px;height:22px;color:var(--green);margin-top:2px}
+.local-support strong{display:block;font-size:13px;line-height:1.55;color:var(--ink)}
+.local-support p{font-size:12px;line-height:1.75;margin-top:5px;color:#45594e}
+.pricing-grid{max-width:1170px;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.price-card{padding:27px;min-width:0}
+.price-card .price{font-size:clamp(35px,3.5vw,49px)}
+.price-card h3{min-height:2.4em}
+.price-card .check-list{font-size:12px}
+.price-card .button{font-size:12px;padding-inline:12px}
+.contact-consult{margin-top:25px}
+.contact-download{display:flex;width:fit-content;font-size:13px;margin-top:16px;min-height:44px}
+@media(min-width:701px) and (max-width:1079px){.pricing-grid{grid-template-columns:1fr;max-width:550px}.price-card{padding:32px}.price-card h3{min-height:0}.price-card .price{font-size:52px}.price-card .check-list{font-size:13px}}
+@media(max-width:700px){
+ .hero-price{font-size:13px;margin-top:18px}.hero-price strong{font-size:18px}.hero-price>span{font-size:12px}
+ .hero-actions .button{font-size:12px;padding-inline:15px}.local-support{padding:14px;margin-top:19px}.local-support strong{font-size:12px}.local-support p{font-size:11px}
+ .pricing-grid{grid-template-columns:1fr}.price-card{padding:25px}.price-card h3{min-height:0}.price-card .price{font-size:49px}
+ .contact-consult{width:100%;font-size:12px;padding-inline:14px}.contact-download{width:fit-content;font-size:12px}
+ .mobile-offer>.mobile-consult:first-child{flex:1;flex-direction:row;gap:10px;min-height:48px;min-width:0;font-size:12px}
+ .mobile-consult span{display:block;text-align:left}.mobile-offer .mobile-consult small{font-size:9px;letter-spacing:.07em;color:var(--dark);margin-top:3px}
+ .mobile-offer .mobile-play{border:1px solid #ffffff50;color:#fff;min-height:48px;min-width:110px;font-size:12px;flex-shrink:0}.mobile-offer .mobile-play:hover{background:#ffffff10}
+}
+@media(max-width:360px){.price-card{padding:22px}.price-card .price{font-size:43px}.mobile-offer .mobile-play{min-width:97px;padding-inline:10px}.mobile-offer>.mobile-consult:first-child{padding-inline:10px;font-size:11px;gap:7px}}

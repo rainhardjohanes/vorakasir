@@ -35,7 +35,7 @@ const form=document.querySelector('#demo-form');
 form.addEventListener('submit',event=>{
   const business=document.querySelector('#business-name').value.trim();
   if(!business){event.preventDefault();const input=document.querySelector('#business-name');input.setCustomValidity('Masukkan nama usaha Anda.');input.reportValidity();return;}
-  const message=`Halo Admin VORA, saya ingin bantuan langganan.\n\nNama usaha: ${business}\nJenis usaha: ${document.querySelector('#business-type').value}\nPilihan: ${document.querySelector('#package').value}\n\nMohon bantuannya. Jika saya memilih paket berbayar, mohon petunjuk pembayaran dan konfirmasi aktivasi setelah pembayaran diverifikasi.`;
+  const message=`Halo Admin VORA, saya ingin konsultasi aplikasi kasir untuk usaha saya.\n\nNama usaha: ${business}\nJenis usaha: ${document.querySelector('#business-type').value}\nPilihan: ${document.querySelector('#package').value}\n\nMohon bantuannya. Jika saya memilih paket berbayar, mohon petunjuk pembayaran dan konfirmasi aktivasi setelah pembayaran diverifikasi.`;
   let text=form.querySelector('input[name="text"]');
   if(!text){text=document.createElement('input');text.type='hidden';text.name='text';form.append(text);}
   text.value=message;

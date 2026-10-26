@@ -1,0 +1,15 @@
+/* Optional measurement UI. No marketing controls are blocked by this panel. */
+.ads-consent[hidden],.ads-consent-settings[hidden]{display:none!important}
+.ads-consent{position:fixed;z-index:60;right:24px;bottom:24px;width:min(460px,calc(100% - 48px));max-height:calc(100dvh - 48px);overflow:auto;padding:23px;border:1px solid #b8cfc1;border-radius:18px;background:#fff;color:#162e24;box-shadow:0 12px 45px #102e2a30;font-size:13px;line-height:1.7}
+.ads-consent h2{font-size:18px;letter-spacing:0;margin:0 32px 9px 0;line-height:1.4}
+.ads-consent p{margin:8px 0;color:#354c41}
+.ads-consent a{color:#155a3b;text-decoration:underline;text-underline-offset:3px}
+.ads-consent-close{position:absolute;right:12px;top:10px;border:0;border-radius:8px;background:transparent;color:#244b37;width:40px;height:40px;font:inherit;font-size:24px;cursor:pointer}
+.ads-consent-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px}
+.ads-consent-actions button{flex:1;min-width:135px;min-height:44px;border:1px solid #44634f;border-radius:9px;background:white;color:#173523;padding:10px 13px;font:inherit;font-weight:700;cursor:pointer}
+.ads-consent-actions .ads-consent-accept{background:#155a3b;color:white}
+.ads-consent button:focus-visible,.ads-consent-settings:focus-visible{outline:3px solid #078b59;outline-offset:3px}
+.ads-consent-settings{border:0;padding:0;background:transparent;color:inherit;font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:32px}
+.ads-consent-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:700px){.ads-consent{right:12px;bottom:calc(92px + env(safe-area-inset-bottom));width:calc(100% - 24px);max-height:calc(100dvh - 120px - env(safe-area-inset-bottom));padding:18px}.ads-consent h2{font-size:17px}.ads-consent-actions button{font-size:12px;min-width:115px}}
+@media print{.ads-consent,.ads-consent-settings,.ads-consent-status{display:none!important}}

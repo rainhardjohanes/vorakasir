@@ -53,13 +53,15 @@ export const ROLES = {
   renewal: 'Perpanjangan saja',
   sales: 'Pengguna & follow-up',
   manager: 'Pengguna, follow-up & perpanjangan',
+  admin: 'Admin CRM',
   owner: 'Pemilik'
 };
 export const ROLE_HELP = {
   viewer: 'Melihat data dan detail pengguna.',
   renewal: 'Melihat daftar outlet terbatas dan memperpanjang langganan. Tanpa kontak pengguna.',
   sales: 'Melihat data pengguna dan mencatat follow-up.',
-  manager: 'Melihat data pengguna, mencatat follow-up, dan memperpanjang langganan.'
+  manager: 'Melihat data pengguna, mencatat follow-up, dan memperpanjang langganan.',
+  admin: 'Melihat pengguna, follow-up, memperpanjang langganan dan membuat akun demo. Tidak mengelola akses tim.'
 };
 export const PLANS = {
   1: 99000,
@@ -155,7 +157,7 @@ export function isRenewalConflict(error) {
   return error?.code === 'PT409' || error?.code === '40001';
 }
 export function allowedPages(permissions) {
-  return ['overview', ...(permissions.read_customers ? ['users', 'followups'] : []), ...(permissions.renew ? ['renewals'] : []), ...(permissions.manage_members ? ['team'] : []), ...(permissions.read_audit ? ['audit'] : [])];
+  return ['overview', ...(permissions.read_customers ? ['users', 'followups'] : []), ...(permissions.renew ? ['renewals'] : []), ...(permissions.create_demo ? ['demos'] : []), ...(permissions.manage_members ? ['team'] : []), ...(permissions.read_audit ? ['audit'] : [])];
 }
 export function humanError(error) {
   const code = error?.code;
@@ -167,4 +169,58 @@ export function humanError(error) {
   if (code === 'PGRST202' || code === '42883') return 'Layanan CRM belum siap. Hubungi pemilik CRM.';
   if (error instanceof TypeError || /fetch|network|abort/i.test(error?.message || '')) return 'Koneksi terputus. Periksa internet Anda, lalu coba kembali.';
   return error?.message || 'Terjadi kendala. Silakan coba kembali.';
+}
+
+
+export const DEMO_CATEGORIES = ['Resto', 'Cafe', 'Barber', 'Retail', 'Laundry'];
+export const DEMO_STATUS = {pending: 'Sedang disiapkan', ready: 'Siap digunakan', failed: 'Perlu dilanjutkan'};
+const OPERATION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function demoAccountPayload(values, operationId) {
+  const localPart = String(values.local_part || '').trim().toLowerCase();
+  const password = String(values.password || '');
+  const outletName = String(values.outlet_name || '').trim() || 'Demo ' + localPart;
+  if (!/^[a-z0-9][a-z0-9._-]{1,46}[a-z0-9]$/.test(localPart) || localPart.includes('..')) throw new Error('Nama email harus 3-48 karakter: huruf, angka, titik, garis bawah atau tanda hubung. Awali dan akhiri dengan huruf/angka.');
+  if (password.length < 12 || password.length > 72 || !/[a-z]/i.test(password) || !/[0-9]/.test(password) || /[\x00-\x1f\x7f]/.test(password)) throw new Error('Kata sandi harus 12-72 karakter, berisi huruf dan angka, tanpa karakter kontrol.');
+  if (new TextEncoder().encode(password).byteLength > 72) throw new Error('Kata sandi terlalu panjang. Gunakan kata sandi yang lebih singkat.');
+  if (outletName.length > 80 || /[\x00-\x1f\x7f]/.test(outletName)) throw new Error('Nama outlet maksimal 80 karakter, tanpa karakter kontrol.');
+  if (!OPERATION_UUID.test(String(operationId))) throw new Error('Identitas permintaan tidak valid. Muat ulang halaman.');
+  return {action: 'create', operation_id: operationId, local_part: localPart, password, outlet_name: outletName};
+}
+// Only a random request ID is persisted, bound to the signed-in CRM actor.
+// Passwords, email, outlet name and provisioning results are never written here.
+export function demoRecovery(storage, userId, operationId = undefined) {
+  if (!userId) return null;
+  const key = 'vora-crm-demo-operation:' + encodeURIComponent(userId);
+  try {
+    if (operationId === null) { storage.removeItem(key); return null; }
+    if (operationId !== undefined) {
+      if (!OPERATION_UUID.test(String(operationId))) return null;
+      storage.setItem(key, operationId); return operationId;
+    }
+    const saved = storage.getItem(key);
+    return OPERATION_UUID.test(String(saved)) ? saved : null;
+  } catch { return null; }
+}
+export function demoError(error) {
+  const messages = {
+    EMAIL_EXISTS: 'Email sudah digunakan. Akun lama tidak diubah. Pilih nama email lain.',
+    email_exists: 'Email sudah digunakan. Akun lama tidak diubah. Pilih nama email lain.',
+    VALIDATION_ERROR: 'Periksa nama email, kata sandi dan nama outlet sebelum mencoba lagi.',
+    validation_error: 'Periksa nama email, kata sandi dan nama outlet sebelum mencoba lagi.',
+    FORBIDDEN: 'Hanya pemilik dan Admin CRM yang dapat membuat akun demo.',
+    forbidden: 'Hanya pemilik dan Admin CRM yang dapat membuat akun demo.',
+    NOT_FOUND: 'Permintaan belum ditemukan. Periksa lagi, atau kirim ulang dengan identitas permintaan yang sama.',
+    not_found: 'Permintaan belum ditemukan. Periksa lagi, atau kirim ulang dengan identitas permintaan yang sama.',
+    SERVICE_UNAVAILABLE: 'Layanan akun demo belum siap. Hubungi pemilik CRM; jangan membuat permintaan baru untuk email yang sama.',
+    service_unavailable: 'Layanan akun demo belum siap. Hubungi pemilik CRM; jangan membuat permintaan baru untuk email yang sama.',
+    RATE_LIMITED: 'Terlalu banyak permintaan. Tunggu sebentar, lalu periksa hasil permintaan ini.',
+    OPERATION_CONFLICT: 'Identitas permintaan sudah dipakai untuk data berbeda. Periksa permintaan yang tersimpan.',
+    CONFLICT: 'Data permintaan berbeda dari yang sudah tersimpan. Periksa hasil permintaan ini.',
+    PASSWORD_REQUIRED: 'Kata sandi belum diterima untuk membuat akun. Isi kembali, lalu lanjutkan permintaan yang sama.',
+    IN_PROGRESS: 'Permintaan sedang dikerjakan server. Tunggu sebentar, lalu periksa status.',
+    PHOTO_UNAVAILABLE: 'Foto produk belum dapat disalin. Periksa status lagi untuk melanjutkan penyiapan akun.',
+  };
+  if (['42501', 'PGRST301', 'PGRST302'].includes(error?.code)) return messages.FORBIDDEN;
+  if (['PGRST202', '42883'].includes(error?.code)) return messages.SERVICE_UNAVAILABLE;
+  return messages[error?.code] || 'Hasil pembuatan belum dapat dipastikan. Periksa status permintaan ini sebelum mencoba lagi. Kata sandi perlu diisi ulang jika diminta.';
 }

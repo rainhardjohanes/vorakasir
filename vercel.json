@@ -1661,6 +1661,206 @@
     {
       "source": "/kasir/web-release.json",
       "destination": "/kasir-web-release.json"
+    },
+    {
+      "source": "/demo-assets/rst-01.jpg",
+      "destination": "/demo-assets-rst-01.jpg"
+    },
+    {
+      "source": "/demo-assets/rst-02.jpg",
+      "destination": "/demo-assets-rst-02.jpg"
+    },
+    {
+      "source": "/demo-assets/rst-03.jpg",
+      "destination": "/demo-assets-rst-03.jpg"
+    },
+    {
+      "source": "/demo-assets/rst-04.jpg",
+      "destination": "/demo-assets-rst-04.jpg"
+    },
+    {
+      "source": "/demo-assets/rst-05.jpg",
+      "destination": "/demo-assets-rst-05.jpg"
+    },
+    {
+      "source": "/demo-assets/rst-06.jpg",
+      "destination": "/demo-assets-rst-06.jpg"
+    },
+    {
+      "source": "/demo-assets/rst-07.jpg",
+      "destination": "/demo-assets-rst-07.jpg"
+    },
+    {
+      "source": "/demo-assets/rst-08.jpg",
+      "destination": "/demo-assets-rst-08.jpg"
+    },
+    {
+      "source": "/demo-assets/rst-09.jpg",
+      "destination": "/demo-assets-rst-09.jpg"
+    },
+    {
+      "source": "/demo-assets/rst-10.jpg",
+      "destination": "/demo-assets-rst-10.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-01.jpg",
+      "destination": "/demo-assets-caf-01.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-02.jpg",
+      "destination": "/demo-assets-caf-02.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-03.jpg",
+      "destination": "/demo-assets-caf-03.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-04.jpg",
+      "destination": "/demo-assets-caf-04.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-05.jpg",
+      "destination": "/demo-assets-caf-05.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-06.jpg",
+      "destination": "/demo-assets-caf-06.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-07.jpg",
+      "destination": "/demo-assets-caf-07.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-08.jpg",
+      "destination": "/demo-assets-caf-08.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-09.jpg",
+      "destination": "/demo-assets-caf-09.jpg"
+    },
+    {
+      "source": "/demo-assets/caf-10.jpg",
+      "destination": "/demo-assets-caf-10.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-01.jpg",
+      "destination": "/demo-assets-brb-01.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-02.jpg",
+      "destination": "/demo-assets-brb-02.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-03.jpg",
+      "destination": "/demo-assets-brb-03.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-04.jpg",
+      "destination": "/demo-assets-brb-04.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-05.jpg",
+      "destination": "/demo-assets-brb-05.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-06.jpg",
+      "destination": "/demo-assets-brb-06.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-07.jpg",
+      "destination": "/demo-assets-brb-07.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-08.jpg",
+      "destination": "/demo-assets-brb-08.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-09.jpg",
+      "destination": "/demo-assets-brb-09.jpg"
+    },
+    {
+      "source": "/demo-assets/brb-10.jpg",
+      "destination": "/demo-assets-brb-10.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-01.jpg",
+      "destination": "/demo-assets-rtl-01.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-02.jpg",
+      "destination": "/demo-assets-rtl-02.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-03.jpg",
+      "destination": "/demo-assets-rtl-03.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-04.jpg",
+      "destination": "/demo-assets-rtl-04.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-05.jpg",
+      "destination": "/demo-assets-rtl-05.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-06.jpg",
+      "destination": "/demo-assets-rtl-06.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-07.jpg",
+      "destination": "/demo-assets-rtl-07.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-08.jpg",
+      "destination": "/demo-assets-rtl-08.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-09.jpg",
+      "destination": "/demo-assets-rtl-09.jpg"
+    },
+    {
+      "source": "/demo-assets/rtl-10.jpg",
+      "destination": "/demo-assets-rtl-10.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-01.jpg",
+      "destination": "/demo-assets-ldr-01.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-02.jpg",
+      "destination": "/demo-assets-ldr-02.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-03.jpg",
+      "destination": "/demo-assets-ldr-03.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-04.jpg",
+      "destination": "/demo-assets-ldr-04.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-05.jpg",
+      "destination": "/demo-assets-ldr-05.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-06.jpg",
+      "destination": "/demo-assets-ldr-06.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-07.jpg",
+      "destination": "/demo-assets-ldr-07.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-08.jpg",
+      "destination": "/demo-assets-ldr-08.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-09.jpg",
+      "destination": "/demo-assets-ldr-09.jpg"
+    },
+    {
+      "source": "/demo-assets/ldr-10.jpg",
+      "destination": "/demo-assets-ldr-10.jpg"
     }
   ],
   "redirects": [

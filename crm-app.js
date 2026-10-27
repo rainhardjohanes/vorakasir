@@ -1,6 +1,6 @@
 import { createAuth } from '/crm-auth.js';
 import { createApi } from '/crm-data.js';
-import { STATUS, USAGE_STAGES, USAGE_HELP, USAGE_SORTS, usageCount, saleDate, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, isRenewalConflict, allowedPages, humanError } from '/crm-model.js';
+import { STATUS, USAGE_STAGES, USAGE_HELP, USAGE_SORTS, usageCount, saleDate, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, isRenewalConflict, allowedPages, humanError, DEMO_CATEGORIES, DEMO_STATUS, demoAccountPayload, demoRecovery, demoError } from '/crm-model.js';
 const app = document.querySelector('#app'),
   modalRoot = document.querySelector('#modal-root');
 const paths = {
@@ -31,6 +31,7 @@ const nav = {
   users: ['Pengguna', 'users'],
   followups: ['Follow-up', 'chat'],
   renewals: ['Perpanjangan', 'clock'],
+  demos: ['Akun demo', 'spark'],
   team: ['Tim & akses', 'shield'],
   audit: ['Log aktivitas', 'audit']
 };
@@ -54,7 +55,8 @@ const state = {
   authEmail: '',
   authError: '',
   authBusy: false,
-  authMessage: ''
+  authMessage: '',
+  demo: freshDemo()
 };
 let auth,
   api,
@@ -84,6 +86,12 @@ function toast(message) {
   document.querySelector('#toasts').append(node);
   setTimeout(() => node.remove(), 5500);
 }
+function freshDemo() {
+  return {operationId: null, localPart: '', outletName: '', result: null, error: '', busy: false, submitted: false, needsInput: false, canReset: false};
+}
+function demoStore(operationId = undefined) {
+  try { return demoRecovery(window.sessionStorage, state.userId, operationId); } catch { return null; }
+}
 function clearPrivate() {
   state.epoch++;
   state.loadId++;
@@ -91,6 +99,7 @@ function clearPrivate() {
   state.userId = null;
   state.session = null;
   state.data = null;
+  state.demo = freshDemo();
   state.error = '';
   state.loading = false;
   state.search = '';
@@ -133,6 +142,7 @@ async function authorize(session) {
     if (epoch !== state.epoch) return;
     if (!result?.member?.active) throw new Error('Email ini belum mendapat akses CRM. Minta pemilik menambahkan email Anda di Tim & akses.');
     state.session = result;
+    if (can('create_demo')) state.demo.operationId = demoStore();
     state.page = can('read_customers') ? 'overview' : can('renew') ? 'renewals' : 'overview';
     state.authBusy = false;
     render();
@@ -213,6 +223,7 @@ function pageHeading() {
     users: ['DIREKTORI PENGGUNA', 'Pengguna & aktivitas usaha', 'Bandingkan produk, transaksi, dan masa aktif setiap akun usaha.'],
     followups: ['HUBUNGAN PELANGGAN', 'Percakapan berikutnya.', 'Catat hasil komunikasi dan jadwalkan tindak lanjut yang tepat.'],
     renewals: ['LANGGANAN', 'Bantu bisnis terus berjalan.', 'Perpanjang outlet setelah pembayaran pengguna Anda verifikasi.'],
+    demos: ['DEMONSTRASI VORA', 'Akun siap untuk demo.', 'Buat akun dengan katalog bergambar dan masa aktif 6 bulan.'],
     team: ['PENGELOLAAN AKSES', 'Tim yang tepat, akses yang tepat.', 'Tentukan siapa yang dapat melihat data dan membantu pelanggan.'],
     audit: ['JEJAK AKTIVITAS', 'Setiap tindakan, tercatat.', 'Lihat perubahan akses, follow-up, dan perpanjangan oleh tim.']
   };
@@ -238,6 +249,7 @@ async function loadPage() {
       api.cancel();
       closeModal();
       state.data = null;
+      state.demo = freshDemo();
       state.session = session;
       state.loading = false;
       if (!allowedPages(session.permissions).includes(page)) state.page = session.permissions.renew ? 'renewals' : 'overview';
@@ -252,7 +264,7 @@ async function loadPage() {
       return loadPage();
     }
     let data;
-    if (page === 'team') data = await api.members();else if (page === 'audit') data = await api.audit({
+    if (page === 'demos') data = await api.demos({p_limit: 25, p_offset: state.offset});else if (page === 'team') data = await api.members();else if (page === 'audit') data = await api.audit({
       p_limit: 25,
       p_offset: state.offset
     });else if (page === 'overview' && can('read_customers')) {
@@ -284,7 +296,7 @@ async function loadPage() {
   } catch (error) {
     if (epoch !== state.epoch || id !== state.loadId) return;
     if (denyAccess(error)) return;
-    state.error = humanError(error);
+    state.error = page === 'demos' ? demoError(error) : humanError(error);
   } finally {
     if (epoch === state.epoch && id === state.loadId) {
       state.loading = false;
@@ -298,6 +310,7 @@ function pageContent() {
   if (state.page === 'team') return team();
   if (state.page === 'audit') return audit();
   if (state.page === 'renewals') return renewals();
+  if (state.page === 'demos') return demos();
   return directory();
 }
 function kpi(label, value, hint, symbol, featured = false) {
@@ -310,7 +323,7 @@ function usageBadge(usage) {
 }
 function usageWindowNote(meta = state.data?.usage_meta) {
   if (!can('read_customers')) return '';
-  return `<div class="usage-method"><strong>Data penggunaan yang tersinkron</strong><p>Transaksi selesai dan refund sebagian dihitung; refund penuh, draf, batal, dan nilai nol tidak dihitung. Setiap struk pembayaran dihitung terpisah, termasuk split bill. Data uji belum dapat dibedakan. Transaksi offline yang belum tersinkron belum terlihat.</p><p>Rentang 7/30 hari mencakup hari ini, dengan acuan kalender WITA. Tanggal transaksi mengikuti tanggal pada perangkat kasir.${meta?.as_of_date ? ` Acuan data: ${esc(saleDate(meta.as_of_date))}.` : ''}</p></div>`;
+  return `<div class="usage-method"><strong>Data penggunaan yang tersinkron</strong><p>Transaksi selesai dan refund sebagian dihitung; refund penuh, draf, batal, dan nilai nol tidak dihitung. Setiap struk pembayaran dihitung terpisah, termasuk split bill. Akun demo yang dibuat melalui CRM tidak dihitung. Data uji lama belum dapat dibedakan. Transaksi offline yang belum tersinkron belum terlihat.</p><p>Rentang 7/30 hari mencakup hari ini, dengan acuan kalender WITA. Tanggal transaksi mengikuti tanggal pada perangkat kasir.${meta?.as_of_date ? ` Acuan data: ${esc(saleDate(meta.as_of_date))}.` : ''}</p></div>`;
 }
 function usageOverview(d) {
   const s = d.usage_summary;
@@ -374,6 +387,90 @@ const planName = value => ({
   biennial: '2 tahun',
   free: 'Gratis'
 })[String(value || '').toLowerCase()] || value || '—';
+
+function demos() {
+  if (!can('create_demo')) return '';
+  const d = state.demo, result = d.result, ready = result?.status === 'ready';
+  const locked = d.busy || d.submitted || Boolean(result?.email);
+  const recovered = d.operationId && !d.localPart && !result && !d.needsInput;
+  const catalog = state.data?.catalog;
+  const items = state.data?.items || [];
+  const outcome = result ? `<section class="panel demo-result" aria-live="polite"><header class="panel-header"><div><h2>${ready ? 'Akun demo siap digunakan' : 'Periksa hasil pembuatan'}</h2><p>${esc(DEMO_STATUS[result.status] || 'Status belum diketahui')}</p></div>${badge(ready ? 'active' : 'trial', {active: 'Akun demo', trial: 'Diproses'})}</header><div class="panel-body stack"><dl class="detail-grid">${datum('Email masuk', result.email || 'Belum tersedia')}${datum('Nama outlet', result.outlet_name || 'Belum tersedia')}${datum('Masa aktif hingga', date(result.subscription_end_date))}${datum('Isi katalog', `${usageCount(result.product_count)} produk · ${usageCount(result.category_count)} kategori · ${usageCount(result.photo_count)} foto`)}</dl>${ready ? `<div class="notice"><strong>PIN owner awal: 123456.</strong> Masuk dengan email dan kata sandi yang Anda tentukan, pilih Owner, lalu gunakan PIN ini. Ubah PIN melalui Pengaturan sebelum akun dibagikan.</div><p class="helper">Kata sandi tidak ditampilkan ulang. Bagikan kredensial secara pribadi kepada petugas demo.</p><div class="row wrap"><a class="button primary" href="https://www.vorakasir.com/kasir/" target="_blank" rel="noopener noreferrer">Buka kasir web ${icon('arrow')}</a><button class="button" data-action="demo-new">Buat akun lainnya</button></div>` : `<div class="notice warning">Akun belum siap digunakan. Periksa status atau lanjutkan permintaan yang sama; tidak perlu membuat akun baru.</div><button class="button" data-action="demo-status" ${d.busy ? 'disabled' : ''}>${d.busy ? 'Memeriksa…' : 'Periksa status'}</button>`}</div></section>` : '';
+  const formPanel = `<section class="panel"><header class="panel-header"><div><h2>Buat akun demo</h2><p>Hanya untuk pemilik dan Admin CRM.</p></div>${icon('spark')}</header><div class="panel-body">${outcome && ready ? '<div class="notice">Akun selesai disiapkan. Gunakan tombol Buat akun lainnya untuk permintaan berikutnya.</div>' : `<form id="demo-form" class="stack"><label class="field">Nama email<div class="demo-email"><input name="local_part" id="demo-email-local" type="text" minlength="3" maxlength="48" pattern="[A-Za-z0-9][A-Za-z0-9._-]{1,46}[A-Za-z0-9]" autocapitalize="none" spellcheck="false" autocomplete="off" value="${esc(d.localPart)}" placeholder="demo.cafe" required ${locked || recovered ? 'readonly' : ''}><span>@vorakasir.com</span></div><small>Isi nama sebelum @. Alamat ini adalah identitas login; tidak membuat kotak email.</small></label><label class="field">Nama outlet (opsional)<input name="outlet_name" id="demo-outlet-name" type="text" maxlength="80" value="${esc(d.outletName)}" placeholder="Contoh: Demo Cafe VORA" autocomplete="off" ${locked || recovered ? 'readonly' : ''}><small>Jika kosong, nama outlet menjadi Demo diikuti nama email.</small></label><label class="field">Kata sandi akun<div class="demo-password"><input name="password" id="demo-password" type="password" minlength="12" maxlength="72" autocomplete="new-password" required ${d.busy || recovered ? 'disabled' : ''} placeholder="Minimal 12 karakter"><button type="button" class="button" data-action="demo-reveal" aria-controls="demo-password" aria-pressed="false" ${d.busy || recovered ? 'disabled' : ''}>Lihat</button></div><small>12-72 karakter, mengandung huruf dan angka. Kata sandi dikosongkan setelah permintaan dikirim.</small></label><div class="notice">Akun baru mendapat 6 bulan kalender sejak berhasil disiapkan, 5 kategori dan 50 produk bergambar. Data contoh dapat diedit di kasir. Akun ini tidak otomatis mendapat akses CRM.</div>${d.error ? `<div class="error" role="alert">${esc(d.error)}</div>` : ''}${d.canReset ? '<button class="button" type="button" data-action="demo-new">Gunakan nama email lain</button>' : ''}${d.operationId ? `<div class="notice warning">Permintaan ini memiliki identitas tetap. Periksa status dahulu. Jika akun sudah terbentuk, kata sandi awal tetap berlaku; mengisi ulang tidak mengganti kata sandi akun. Gunakan kata sandi awal bila perlu melanjutkan.</div><button class="button" type="button" data-action="demo-status" ${d.busy ? 'disabled' : ''}>Periksa status</button>` : ''}<button class="button primary full" type="submit" ${d.busy || recovered ? 'disabled' : ''}>${d.busy ? 'Menyiapkan akun…' : d.operationId ? 'Lanjutkan permintaan yang sama' : 'Buat akun demo 6 bulan'} ${icon('arrow')}</button></form>`}</div></section>`;
+  return `<div class="demo-grid">${ready ? outcome : formPanel}<aside class="stack"><section class="panel"><header class="panel-header"><div><h2>Katalog contoh UMKM</h2><p>Siap digunakan untuk presentasi produk.</p></div></header><div class="panel-body"><div class="demo-stat"><strong>50</strong><span>produk dengan foto</span></div><ul class="demo-categories">${DEMO_CATEGORIES.map(name => `<li><span>${name}</span><strong>10 produk</strong></li>`).join('')}</ul><p class="helper demo-note">Harga dan stok adalah data contoh. Akun demo baru dipisahkan dari metrik pelanggan nyata dan email pengingat pelanggan.</p>${catalog && Number(catalog.products ?? catalog.product_count) !== 50 ? '<div class="notice warning">Katalog server belum sesuai. Hubungi pemilik sebelum membuat akun.</div>' : ''}</div></section>${ready ? '' : outcome}</aside></div><section class="panel demo-history"><header class="panel-header"><div><h2>Riwayat akun demo</h2><p>Status dan masa aktif berdasarkan hasil server. Kata sandi tidak disimpan di riwayat.</p></div></header>${items.length ? `<div class="table-scroll"><table><thead><tr><th>Email / outlet</th><th>Status</th><th>Masa aktif hingga</th><th>Produk</th><th>Tindakan</th></tr></thead><tbody>${items.map(item => `<tr><td><strong>${esc(item.email)}</strong><span class="cell-secondary">${esc(item.outlet_name || 'Outlet demo')}</span></td><td>${esc(DEMO_STATUS[item.status] || item.status)}</td><td>${esc(date(item.subscription_end_date))}</td><td>${usageCount(item.product_count)}</td><td><button class="button tiny" data-action="demo-view" data-id="${esc(item.operation_id)}" ${d.busy ? 'disabled' : ''}>Lihat hasil</button></td></tr>`).join('')}</tbody></table></div>` : empty('Belum ada akun demo', 'Buat akun pertama melalui formulir di atas.', 'spark')}${pagination()}</section>`;
+}
+function applyDemoResult(result) {
+  if (!result || !['pending','ready','failed'].includes(result.status)) throw new Error('Invalid demo result');
+  state.demo.result = result;
+  if (typeof result.email === 'string' && result.email.endsWith('@vorakasir.com')) state.demo.localPart = result.email.slice(0, -'@vorakasir.com'.length);
+  if (typeof result.outlet_name === 'string') state.demo.outletName = result.outlet_name;
+  if (result.status === 'ready') {
+    demoStore(null);
+    state.demo.error = '';
+  } else if (result.error_code) {
+    state.demo.error = demoError({code: result.error_code});
+    state.demo.canReset = result.error_code === 'EMAIL_EXISTS';
+  }
+}
+async function createDemo(form) {
+  if (!can('create_demo') || state.demo.busy || state.demo.result?.status === 'ready') return;
+  const d = state.demo, epoch = state.epoch;
+  let payload;
+  try {
+    const input = Object.fromEntries(new FormData(form));
+    payload = demoAccountPayload({...input, ...(d.submitted ? {local_part: d.localPart, outlet_name: d.outletName} : {})}, d.operationId || uuid());
+    // Non-secret metadata may remain in memory; password lives only in the
+    // input and this request. It is never attached to state or recovery storage.
+    d.localPart = payload.local_part; d.outletName = payload.outlet_name;
+    d.operationId = payload.operation_id; d.submitted = true; d.error = ''; d.busy = true;
+    demoStore(d.operationId);
+    form.elements.password.value = '';
+    render();
+    const result = await api.demo(payload);
+    if (epoch !== state.epoch || d !== state.demo) return;
+    applyDemoResult(result);
+  } catch (error) {
+    if (epoch !== state.epoch || d !== state.demo) return;
+    if (denyAccess(error)) return;
+    d.error = payload ? demoError(error) : error.message;
+    d.canReset = error?.code === 'EMAIL_EXISTS' || error?.code === 'email_exists';
+  } finally {
+    payload = null;
+    if (epoch === state.epoch && d === state.demo) {
+      d.busy = false;
+      if (d.result?.status === 'ready') {
+        await loadPage();
+        if (state.page === 'demos') document.querySelector('.demo-result')?.scrollIntoView?.({block: 'start', behavior: 'smooth'});
+      } else if (state.page === 'demos') render();
+    }
+  }
+}
+async function checkDemo(operationId = state.demo.operationId) {
+  if (!can('create_demo') || state.demo.busy || !operationId) return;
+  const epoch = state.epoch, d = state.demo;
+  d.operationId = operationId; d.submitted = true; d.busy = true; d.error = '';
+  demoStore(operationId);
+  if (state.page === 'demos') render();
+  try {
+    const result = await api.demo({action: 'status', operation_id: operationId});
+    if (epoch !== state.epoch || d !== state.demo) return;
+    applyDemoResult(result);
+  } catch (error) {
+    if (epoch !== state.epoch || d !== state.demo) return;
+    if (denyAccess(error)) return;
+    d.error = demoError(error);
+    if (error?.code === 'NOT_FOUND' || error?.code === 'not_found') { d.submitted = false; d.needsInput = true; d.result = null; }
+    d.canReset = error?.code === 'EMAIL_EXISTS' || error?.code === 'email_exists';
+  } finally {
+    if (epoch === state.epoch && d === state.demo) {
+      d.busy = false;
+      if (state.page === 'demos') {
+        if (d.result?.status === 'ready') await loadPage(); else render();
+        document.querySelector('.demo-result')?.scrollIntoView?.({block: 'start', behavior: 'smooth'});
+      }
+    }
+  }
+}
 function team() {
   const items = state.data.items || [];
   return `<div class="notice page-error">Tambahkan email tim dan tentukan perannya. Anggota baru dapat memilih <strong>Aktifkan akun tim</strong> di halaman masuk CRM, lalu memverifikasi emailnya. Pemilik tetap menjadi satu-satunya pihak yang mengelola akses.</div><section class="panel"><header class="panel-header"><div><h2>Anggota CRM</h2><p>Izin hanya berlaku untuk ruang kerja CRM.</p></div><span class="badge-count">${items.length} anggota</span></header>${items.length ? `<div class="table-scroll"><table><thead><tr><th>Anggota</th><th>Akses</th><th>Status</th><th>Akun</th><th>Kelola</th></tr></thead><tbody>${items.map(m => `<tr><td><div class="table-name"><span class="initials">${esc(initials(m.email))}</span><div><strong>${esc(m.email)}</strong><small>Ditambahkan ${esc(date(m.created_at))}</small></div></div></td><td>${esc(ROLES[m.role] || m.role)}</td><td>${badge(m.active ? 'active' : 'expired', {
@@ -387,7 +484,10 @@ function audit() {
     'renewal.created': 'Langganan diperpanjang',
     'member.created': 'Akses tim ditambahkan',
     'member.updated': 'Akses tim diubah',
-    'member.bound': 'Akun tim diaktifkan'
+    'member.bound': 'Akun tim diaktifkan',
+    'demo.created': 'Akun demo dibuat',
+    'demo.ready': 'Akun demo siap',
+    'demo.requested': 'Akun demo diminta'
   };
   return `<section class="panel"><header class="panel-header"><div><h2>Aktivitas tim</h2><p>Catatan waktu dan pelaku setiap perubahan.</p></div></header>${state.data.items?.length ? `<div class="table-scroll"><table><thead><tr><th>Waktu</th><th>Aktivitas</th><th>Oleh</th><th>Detail</th></tr></thead><tbody>${state.data.items.map(a => `<tr><td>${esc(date(a.created_at, true))}</td><td>${esc(labels[a.action] || a.action)}</td><td>${esc(a.actor_email || 'Sistem')}</td><td class="audit-details">${esc(auditSummary(a.details))}</td></tr>`).join('')}</tbody></table></div>` : empty('Belum ada aktivitas', 'Perubahan yang dilakukan tim akan tercatat di sini.', 'audit')}${pagination()}</section>`;
 }
@@ -744,6 +844,28 @@ async function action(button) {
     return;
   }
   if (!state.session) return;
+  if (a === 'demo-reveal' && can('create_demo')) {
+    const input = document.querySelector('#demo-password');
+    if (input && !state.demo.busy) {
+      const visible = input.type === 'password';
+      input.type = visible ? 'text' : 'password';
+      button.textContent = visible ? 'Sembunyikan' : 'Lihat';
+      button.setAttribute('aria-pressed', String(visible));
+    }
+    return;
+  }
+  if (a === 'demo-status') return checkDemo();
+  if (a === 'demo-view' && can('create_demo') && !state.demo.busy) {
+    const item = state.data?.items?.find(item => item.operation_id === button.dataset.id);
+    if (!item) return;
+    state.demo = freshDemo();
+    return checkDemo(item.operation_id);
+  }
+  if (a === 'demo-new' && can('create_demo') && !state.demo.busy && (state.demo.result?.status === 'ready' || state.demo.canReset)) {
+    demoStore(null); state.demo = freshDemo(); render();
+    document.querySelector('#demo-email-local')?.focus();
+    return;
+  }
   if (a === 'nav') return navigate(button.dataset.page);
   if (a === 'usage-filter' && can('read_customers')) return navigate('users', button.dataset.usage);
   if (a === 'menu') {
@@ -820,6 +942,7 @@ document.addEventListener('submit', event => {
   if (form.id === 'login-form') return void handleAuth(form, 'login');
   if (form.id === 'signup-form') return void handleAuth(form, 'signup');
   if (form.id === 'verify-form') return void handleAuth(form, 'verify');
+  if (form.id === 'demo-form') return void createDemo(form);
   if (form.id === 'search-form') {
     const values = Object.fromEntries(new FormData(form));
     state.search = values.search.trim();
@@ -850,6 +973,11 @@ document.addEventListener('submit', event => {
   }
   if (form.id === 'followup-form') return void saveFollowup(form);
   if (form.id === 'member-form') return void saveMember(form);
+});
+document.addEventListener('input', event => {
+  if (!can('create_demo') || state.demo.busy || state.demo.submitted) return;
+  if (event.target.id === 'demo-email-local') state.demo.localPart = event.target.value;
+  if (event.target.id === 'demo-outlet-name') state.demo.outletName = event.target.value;
 });
 document.addEventListener('change', event => {
   if (['status-filter', 'usage-filter', 'usage-sort'].includes(event.target.id)) {

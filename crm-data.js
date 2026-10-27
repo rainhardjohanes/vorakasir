@@ -23,8 +23,27 @@ export function createApi(client) {
       pending.delete(c);
     }
   }
+  async function demo(args) {
+    const epoch = generation, c = new AbortController();
+    pending.add(c);
+    const timeout = setTimeout(() => c.abort(), 60000);
+    try {
+      const {data, error} = await client.functions.invoke('crm-demo-accounts', {body: args, signal: c.signal});
+      if (epoch !== generation) throw new DOMException('Request cancelled', 'AbortError');
+      if (error) {
+        let body;
+        try { body = await error.context?.json?.(); } catch { /* Only safe server codes leave this boundary. */ }
+        if (epoch !== generation) throw new DOMException('Request cancelled', 'AbortError');
+        throw Object.assign(new Error('Demo account request failed'), {code: body?.error_code || body?.error?.code || body?.code || error.code});
+      }
+      if (data?.error) throw Object.assign(new Error('Demo account request failed'), {code: data.error.code || data.code});
+      return data;
+    } finally { clearTimeout(timeout); pending.delete(c); }
+  }
   return {
     cancel,
+    demo,
+    demos: (args = {}) => call('vora_crm_demo_accounts', args),
     session: () => call('vora_crm_session'),
     list: (args = {}) => call('vora_crm_list', args),
     activity: (args = {}) => call('vora_crm_list_activity', args),

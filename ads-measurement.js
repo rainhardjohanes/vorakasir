@@ -130,7 +130,7 @@ export function createAdsMeasurement({ window, document, config = ADS_MEASUREMEN
     if (!enabled || revoked) return;
     persist('accepted');
     start();
-    setStatus('Pilihan disimpan. Pengukuran klik diizinkan; iklan personal tidak diaktifkan.');
+    setStatus('Pilihan disimpan. Cookie diizinkan.');
     showPanel(false);
   }
   function decline(options = {}) {

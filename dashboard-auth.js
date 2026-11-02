@@ -1,6 +1,6 @@
 const AUTH_COOLDOWN_MS = 60_000;
 const FORGOT_URL = 'https://vorakasir.com/forgot-password.html';
-const authDraft = { email: '', resendAt: 0 };
+const authDraft = { email: '', referralCode: '', resendAt: 0 };
 const activeRequests = new WeakMap();
 const BUSINESS_TYPES = ['Cafe / Coffee Shop', 'Restoran / Rumah Makan', 'Barbershop / Salon', 'Retail / Toko Kelontong', 'Lainnya'];
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -18,8 +18,13 @@ function phoneValue(value) {
   if (!/^\+?[0-9]{8,15}$/.test(phone)) throw problem('phone', 'Masukkan nomor telepon yang valid, misalnya 081234567890.');
   return phone;
 }
+function referralValue(value) {
+  const code = String(value || '').trim().replace(/[a-z]/g, letter => letter.toUpperCase());
+  if (code && !/^[A-Z0-9][A-Z0-9-]{2,22}[A-Z0-9]$/.test(code)) throw problem('referral', 'Kode referral harus berisi 4–24 huruf atau angka. Tanda hubung hanya boleh di tengah kode.');
+  return code;
+}
 export function authErrorMessage(error) {
-  if (error?.authUserMessage === true && ['email', 'phone', 'password', 'confirmation', 'otp', 'profile', 'cooldown', 'session', 'onboarding'].includes(error.code)) return error.message;
+  if (error?.authUserMessage === true && ['email', 'phone', 'password', 'confirmation', 'referral', 'otp', 'profile', 'cooldown', 'session', 'onboarding'].includes(error.code)) return error.message;
   const messages = {
     over_email_send_rate_limit: 'Permintaan terlalu sering. Tunggu sebentar sebelum mencoba lagi.',
     over_request_rate_limit: 'Permintaan terlalu sering. Tunggu sebentar sebelum mencoba lagi.',
@@ -35,7 +40,8 @@ export function authErrorMessage(error) {
 }
 
 // The shell owns the SDK and session persistence. This controller keeps only
-// an email/cooldown in memory; passwords and OTPs never enter application state.
+// an email, optional referral draft and cooldown in memory; passwords and OTPs
+// never enter application state. Referral attribution itself is server-owned.
 export function createAuthFlow({ client, user = null, isCurrent = () => true, onBusy = () => {}, onResult = async () => {}, now = Date.now, draft = authDraft }) {
   let disposed = false;
   let busy = false;
@@ -50,6 +56,7 @@ export function createAuthFlow({ client, user = null, isCurrent = () => true, on
       identityEpoch++;
       rpcController?.abort();
       draft.email = '';
+      draft.referralCode = '';
       draft.resendAt = 0;
     } else if (nextId !== identity) {
       // The SDK emits our own SIGNED_IN before resolving signIn/verifyOtp.
@@ -104,6 +111,7 @@ export function createAuthFlow({ client, user = null, isCurrent = () => true, on
     if (!session?.access_token || !account?.id || !account.email_confirmed_at || session.user?.id !== account.id || normalizeEmail(account.email) !== email) throw problem('session', 'Sesi masuk belum dapat dikonfirmasi. Silakan coba masuk kembali.');
     await assertSession(account.id, epoch);
     draft.email = '';
+    draft.referralCode = '';
     draft.resendAt = 0;
     return { kind: 'authenticated', session };
   };
@@ -124,18 +132,39 @@ export function createAuthFlow({ client, user = null, isCurrent = () => true, on
         return authenticated(data, email, epoch);
       });
     },
-    signup({ email: input, phone: inputPhone, password, confirmation }) {
+    signup({ email: input, phone: inputPhone, password, confirmation, referralCode: inputReferral }) {
       const email = emailValue(input);
       const phone = phoneValue(inputPhone);
+      const referralCode = referralValue(inputReferral);
       if (typeof password !== 'string' || password.length < 8 || password.length > 128) throw problem('password', 'Gunakan password minimal 8 karakter.');
       if (password !== confirmation) throw problem('confirmation', 'Konfirmasi password belum sama.');
       if (remainingSeconds()) throw problem('cooldown', `Tunggu ${remainingSeconds()} detik sebelum meminta email lagi.`);
       return run('signup', email, async epoch => {
         await assertSession(null, epoch);
+        draft.referralCode = referralCode;
+        if (referralCode) {
+          const controller = new AbortController();
+          rpcController = controller;
+          const timer = setTimeout(() => controller.abort(), 10_000);
+          try {
+            const { data, error } = await client.rpc('vora_validate_referral_code', { p_code: referralCode }).abortSignal(controller.signal);
+            assertCurrent(epoch);
+            if (error || !data || typeof data.valid !== 'boolean') throw problem('referral', 'Kode referral belum dapat diperiksa. Periksa koneksi internet lalu coba lagi. Akun belum didaftarkan.');
+            if (!data.valid) throw problem('referral', 'Kode referral tidak valid atau sudah tidak aktif. Periksa kode dari telesales Anda, atau kosongkan jika tidak memiliki kode.');
+          } catch (error) {
+            if (error?.code === 'cancelled' || error?.authUserMessage === true) throw error;
+            throw problem('referral', 'Kode referral belum dapat diperiksa. Periksa koneksi internet lalu coba lagi. Akun belum didaftarkan.');
+          } finally { clearTimeout(timer); if (rpcController === controller) rpcController = null; }
+          await assertSession(null, epoch);
+        }
         draft.resendAt = now() + AUTH_COOLDOWN_MS;
-        const { data, error } = await client.auth.signUp({ email, password, options: { data: { phone } } });
+        const metadata = { phone, ...(referralCode ? { referral_code: referralCode } : {}) };
+        const { data, error } = await client.auth.signUp({ email, password, options: { data: metadata } });
         assertCurrent(epoch);
-        if (error) throw error;
+        if (error) {
+          if (referralCode && (error.code === 'unexpected_failure' || Number(error.status) >= 500)) throw problem('referral', 'Pendaftaran belum berhasil. Coba lagi. Jika masalah berulang, minta admin memeriksa kode referral Anda.');
+          throw error;
+        }
         if (data?.session) return authenticated(data, email, epoch);
         if (!data?.user) throw problem('session', 'Pendaftaran belum dapat dikonfirmasi. Silakan coba lagi.');
         draft.email = email;
@@ -227,7 +256,7 @@ function login() {
   return `<div class="auth-heading"><span class="auth-kicker">SELAMAT DATANG KEMBALI</span><h1 id="auth-title">Ruang usaha Anda,<br>siap dibuka.</h1><p>Masuk dengan akun VORA POS Anda.</p></div><form class="auth-form" data-auth-form="login" novalidate>${emailField()}${password('auth-password')}<div class="auth-form-meta"><span>${icon('shield')} Akun VORA POS</span><a class="auth-link" href="${FORGOT_URL}">Lupa password?</a></div>${feedback}${submit('Masuk')}</form><div class="auth-signup-panel"><p>Belum punya akun?</p>${route('signup', `Daftar akun${icon('arrow')}`, 'auth-button auth-button-secondary auth-signup-button')}</div><p class="auth-switch">Sudah menerima kode? ${route('verify', 'Verifikasi email')}</p>`;
 }
 function signup() {
-  return `${steps(0)}<div class="auth-heading"><span class="auth-trial-tag">${icon('spark')} Mulai bersama VORA</span><h1 id="auth-title">Awal yang baik<br>untuk usaha Anda.</h1><p>Daftar, verifikasi email, lalu lengkapi profil usaha Anda.</p></div><form class="auth-form" data-auth-form="signup" novalidate>${emailField()}${field('auth-phone', 'Nomor handphone', 'type="tel" autocomplete="tel" inputmode="tel" placeholder="081234567890" required maxlength="24"', 'Kode verifikasi dikirim ke email, bukan ke nomor telepon.')}<div class="auth-field-pair">${password('auth-password', 'Password', true)}${password('auth-password-confirm', 'Ulangi password', true)}</div>${feedback}${submit('Daftar akun')}</form><p class="auth-demo-helper">Masa trial dihitung oleh sistem sejak email pertama kali terverifikasi.</p><p class="auth-switch">Sudah punya akun? ${route('login', 'Masuk')}</p>`;
+  return `${steps(0)}<div class="auth-heading"><span class="auth-trial-tag">${icon('spark')} Mulai bersama VORA</span><h1 id="auth-title">Awal yang baik<br>untuk usaha Anda.</h1><p>Daftar, verifikasi email, lalu lengkapi profil usaha Anda.</p></div><form class="auth-form" data-auth-form="signup" novalidate>${emailField()}${field('auth-phone', 'Nomor handphone', 'type="tel" autocomplete="tel" inputmode="tel" placeholder="081234567890" required maxlength="24"', 'Kode verifikasi dikirim ke email, bukan ke nomor telepon.')}${field('auth-referral', 'Kode referral (opsional)', `type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="64" value="${escape(authDraft.referralCode)}" placeholder="Kode dari telesales VORA"`, 'Kode menghubungkan akun Anda dengan telesales pendamping. Kosongkan jika tidak memiliki kode.')}<div class="auth-field-pair">${password('auth-password', 'Password', true)}${password('auth-password-confirm', 'Ulangi password', true)}</div>${feedback}${submit('Daftar akun')}</form><p class="auth-demo-helper">Masa trial dihitung oleh sistem sejak email pertama kali terverifikasi.</p><p class="auth-switch">Sudah punya akun? ${route('login', 'Masuk')}</p>`;
 }
 function verify() {
   return `${steps(1)}<div class="auth-heading"><span class="auth-state-icon">${icon('mail')}</span><h1 id="auth-title">Satu langkah lagi.<br>Verifikasi email Anda.</h1><p>Masukkan kode 8 digit dari email pendaftaran. Periksa juga folder spam.</p></div><form class="auth-form" data-auth-form="verify" novalidate>${emailField(authDraft.email)}${field('auth-code', 'Kode verifikasi 8 digit', 'type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" maxlength="8" minlength="8" placeholder="00000000" required', '', 'auth-input auth-code')}${feedback}${submit('Verifikasi & lanjutkan')}</form><p class="auth-demo-helper">Belum menerima kode? <button class="auth-text-button" type="button" data-auth-resend>Kirim ulang kode</button></p><p class="auth-switch">${route('login', `${icon('back')} Kembali ke login`, 'auth-link auth-back-link')}</p>`;
@@ -311,7 +340,7 @@ export function bindAuth(container, api) {
     for (const selector of ['[data-auth-error]', '[data-auth-status]']) { const box = find(selector); if (box) box.hidden = true; }
     try {
       if (kind === 'login') await flow.login({ email: value('auth-email'), password: value('auth-password') });
-      else if (kind === 'signup') await flow.signup({ email: value('auth-email'), phone: value('auth-phone'), password: value('auth-password'), confirmation: value('auth-password-confirm') });
+      else if (kind === 'signup') await flow.signup({ email: value('auth-email'), phone: value('auth-phone'), password: value('auth-password'), confirmation: value('auth-password-confirm'), referralCode: value('auth-referral') });
       else if (kind === 'verify') await flow.verify({ email: value('auth-email'), token: value('auth-code') });
       else if (kind === 'resend') await flow.resend({ email: value('auth-email') });
       else if (kind === 'business') await flow.completeBusiness({ businessName: value('auth-business-name'), ownerName: value('auth-owner-name'), phone: value('auth-business-phone'), address: value('auth-business-address'), businessType: value('auth-business-type') });
@@ -340,6 +369,7 @@ export function bindAuth(container, api) {
   }, { signal: events.signal, capture: true });
   container.addEventListener('input', event => {
     if (event.target.id === 'auth-code') event.target.value = event.target.value.replace(/\D/g, '').slice(0, 8);
+    if (event.target.id === 'auth-referral') authDraft.referralCode = event.target.value;
     for (const selector of ['[data-auth-error]', '[data-auth-status]']) { const box = find(selector); if (box) box.hidden = true; }
   }, { signal: events.signal });
   const timer = setInterval(refreshCooldown, 1000);

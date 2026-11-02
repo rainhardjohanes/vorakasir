@@ -52,6 +52,10 @@ export function createApi(client) {
     }),
     followup: args => call('vora_crm_followup', args),
     renew: args => call('vora_crm_renew', args),
+    telesales: (args = {}) => call('vora_crm_telesales', args),
+    saveTelesales: args => call('vora_crm_save_telesales', args),
+    resignTelesales: args => call('vora_crm_resign_telesales', args),
+    assignTelesales: args => call('vora_crm_assign_telesales', args),
     members: () => call('vora_crm_members'),
     saveMember: args => call('vora_crm_save_member', args),
     audit: (args = {}) => call('vora_crm_audit', args)

@@ -52,6 +52,7 @@ export const ROLES = {
   viewer: 'Lihat pengguna',
   renewal: 'Perpanjangan saja',
   sales: 'Pengguna & follow-up',
+  telesales: 'Telesales · pelanggan sendiri',
   manager: 'Pengguna, follow-up & perpanjangan',
   admin: 'Admin CRM',
   owner: 'Pemilik'
@@ -60,8 +61,9 @@ export const ROLE_HELP = {
   viewer: 'Melihat data dan detail pengguna.',
   renewal: 'Melihat daftar outlet terbatas dan memperpanjang langganan. Tanpa kontak pengguna.',
   sales: 'Melihat data pengguna dan mencatat follow-up.',
+  telesales: 'Hanya melihat pelanggan yang ditugaskan kepadanya dan mencatat follow-up. Email harus terdaftar sebagai telesales aktif. Tanpa perpanjangan atau pengelolaan tim.',
   manager: 'Melihat data pengguna, mencatat follow-up, dan memperpanjang langganan.',
-  admin: 'Melihat pengguna, follow-up, memperpanjang langganan dan membuat akun demo. Tidak mengelola akses tim.'
+  admin: 'Melihat pengguna, follow-up, memperpanjang langganan, membuat akun demo, dan mengelola referral. Tidak mengelola akses tim.'
 };
 export const PLANS = {
   1: 99000,
@@ -157,7 +159,7 @@ export function isRenewalConflict(error) {
   return error?.code === 'PT409' || error?.code === '40001';
 }
 export function allowedPages(permissions) {
-  return ['overview', ...(permissions.read_customers ? ['users', 'followups'] : []), ...(permissions.renew ? ['renewals'] : []), ...(permissions.create_demo ? ['demos'] : []), ...(permissions.manage_members ? ['team'] : []), ...(permissions.read_audit ? ['audit'] : [])];
+  return ['overview', ...(permissions.read_customers ? ['users', 'followups'] : []), ...(permissions.renew ? ['renewals'] : []), ...(permissions.create_demo ? ['demos'] : []), ...(permissions.manage_referrals ? ['referrals'] : []), ...(permissions.manage_members ? ['team'] : []), ...(permissions.read_audit ? ['audit'] : [])];
 }
 export function humanError(error) {
   const code = error?.code;
@@ -223,4 +225,28 @@ export function demoError(error) {
   if (['42501', 'PGRST301', 'PGRST302'].includes(error?.code)) return messages.FORBIDDEN;
   if (['PGRST202', '42883'].includes(error?.code)) return messages.SERVICE_UNAVAILABLE;
   return messages[error?.code] || 'Hasil pembuatan belum dapat dipastikan. Periksa status permintaan ini sebelum mencoba lagi. Kata sandi perlu diisi ulang jika diminta.';
+}
+
+
+// Referral attribution is read from server records, never inferred from auth
+// metadata or editable browser state. Codes remain reserved after resignation.
+export function telesalesPayload(values, operationId, existing = null) {
+  const name = String(values.name || '').trim();
+  const email = String(existing?.email || values.email || '').trim().toLowerCase();
+  const code = String(existing?.code || values.code || '').trim().toUpperCase();
+  if (!OPERATION_UUID.test(String(operationId))) throw new Error('Identitas permintaan tidak valid. Muat ulang halaman.');
+  if (name.length < 1 || name.length > 120 || /[\x00-\x1f\x7f]/.test(name)) throw new Error('Nama telesales harus 1–120 karakter.');
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Masukkan email telesales yang valid.');
+  if (!/^[A-Z0-9][A-Z0-9-]{2,22}[A-Z0-9]$/.test(code)) throw new Error('Kode referral harus 4–24 karakter: huruf A–Z, angka, atau tanda hubung. Awali dan akhiri dengan huruf/angka.');
+  if (existing && (!existing.active || !existing.id || !existing.updated_at)) throw new Error('Data telesales sudah berubah atau tidak aktif. Muat ulang daftar.');
+  return {p_operation_id: operationId, p_name: name, p_email: email, p_code: code,
+    p_id: existing?.id || null, p_expected_updated_at: existing?.updated_at || null};
+}
+export function referralError(error) {
+  if (error?.code === '23505') return 'Email atau kode referral sudah digunakan. Kode lama tetap disimpan dan tidak dapat diberikan kepada orang lain.';
+  if (isRenewalConflict(error)) return 'Data sudah berubah. Tutup formulir, muat ulang daftar, lalu periksa sebelum mencoba lagi.';
+  if (error?.code === '22023') return 'Periksa nama, email, dan kode referral. Data belum dapat disimpan.';
+  if (error?.code === 'P0002') return 'Data telesales tidak ditemukan atau sudah tidak aktif. Muat ulang daftar.';
+  if (['42501', 'PGRST301', 'PGRST302', 'PGRST202', '42883'].includes(error?.code)) return humanError(error);
+  return 'Hasil penyimpanan belum dapat dipastikan. Gunakan Periksa & simpan untuk mengulang permintaan yang sama tanpa membuat data ganda.';
 }

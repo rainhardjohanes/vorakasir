@@ -1,6 +1,6 @@
 import { createAuth } from '/crm-auth.js';
 import { createApi } from '/crm-data.js';
-import { STATUS, USAGE_STAGES, USAGE_HELP, USAGE_SORTS, usageCount, saleDate, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, isRenewalConflict, allowedPages, humanError, DEMO_CATEGORIES, DEMO_STATUS, demoAccountPayload, demoRecovery, demoError } from '/crm-model.js';
+import { STATUS, USAGE_STAGES, USAGE_HELP, USAGE_SORTS, usageCount, saleDate, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, isRenewalConflict, allowedPages, humanError, DEMO_CATEGORIES, DEMO_STATUS, demoAccountPayload, demoRecovery, demoError, telesalesPayload, referralError } from '/crm-model.js';
 const app = document.querySelector('#app'),
   modalRoot = document.querySelector('#modal-root');
 const paths = {
@@ -32,6 +32,7 @@ const nav = {
   followups: ['Follow-up', 'chat'],
   renewals: ['Perpanjangan', 'clock'],
   demos: ['Akun demo', 'spark'],
+  referrals: ['Telesales & referral', 'users'],
   team: ['Tim & akses', 'shield'],
   audit: ['Log aktivitas', 'audit']
 };
@@ -212,7 +213,7 @@ function render() {
   if (!state.session) return;
   const member = state.session.member;
   const pages = allowedPages(state.session.permissions);
-  app.innerHTML = `<div class="app-shell ${state.menu ? 'menu-open' : ''}"><button class="mobile-overlay" aria-label="Tutup navigasi" data-action="menu-close"></button><aside class="sidebar"><div class="brand"><img src="/crm-assets-vora-logo-transparent.png" alt="VORA"><span>CRM</span></div><div class="nav-label">WORKSPACE</div><nav class="nav-list" aria-label="Navigasi CRM">${pages.filter(p => !['team', 'audit'].includes(p)).map(p => navButton(p)).join('')}</nav>${pages.some(p => ['team', 'audit'].includes(p)) ? `<div class="nav-label">PENGELOLAAN</div><nav class="nav-list" aria-label="Pengelolaan CRM">${pages.filter(p => ['team', 'audit'].includes(p)).map(p => navButton(p)).join('')}</nav>` : ''}<div class="sidebar-bottom"><div class="row"><div class="member-avatar">${esc(initials(member.email))}</div><div class="member-copy"><strong>${esc(member.email?.split('@')[0] || 'Tim VORA')}</strong><small>${esc(ROLES[member.role] || member.role)}</small></div><button class="logout-button" data-action="logout" aria-label="Keluar" title="Keluar">${icon('logout')}</button></div><p class="sidebar-note">Ruang kerja internal VORA.<br>Akses sesuai peran Anda.</p></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>${nav[state.page][0]}</strong></div><div class="mobile-brand"><button class="icon-button mobile-menu" data-action="menu" aria-label="Buka navigasi" aria-expanded="${state.menu}">${icon('menu')}</button><img src="/crm-assets-vora-logo-transparent.png" alt="VORA"><small>CRM</small></div><div class="topbar-right"><span class="today">${esc(date(new Date()))}</span><span class="private-label">${icon('lock')} INTERNAL ONLY</span></div></header><main id="main" class="main-content" tabindex="-1">${pageHeading()}${state.error ? `<div class="error page-error" role="alert">${esc(state.error)} <button class="link-button" data-action="refresh">Coba lagi</button></div>` : ''}<div id="page-content" ${state.loading ? 'aria-busy="true"' : ''}>${state.loading && !state.data ? loading() : pageContent()}</div></main></div></div>`;
+  app.innerHTML = `<div class="app-shell ${state.menu ? 'menu-open' : ''}"><button class="mobile-overlay" aria-label="Tutup navigasi" data-action="menu-close"></button><aside class="sidebar"><div class="brand"><img src="/crm-assets-vora-logo-transparent.png" alt="VORA"><span>CRM</span></div><div class="nav-label">WORKSPACE</div><nav class="nav-list" aria-label="Navigasi CRM">${pages.filter(p => !['referrals', 'team', 'audit'].includes(p)).map(p => navButton(p)).join('')}</nav>${pages.some(p => ['referrals', 'team', 'audit'].includes(p)) ? `<div class="nav-label">PENGELOLAAN</div><nav class="nav-list" aria-label="Pengelolaan CRM">${pages.filter(p => ['referrals', 'team', 'audit'].includes(p)).map(p => navButton(p)).join('')}</nav>` : ''}<div class="sidebar-bottom"><div class="row"><div class="member-avatar">${esc(initials(member.email))}</div><div class="member-copy"><strong>${esc(member.email?.split('@')[0] || 'Tim VORA')}</strong><small>${esc(ROLES[member.role] || member.role)}</small></div><button class="logout-button" data-action="logout" aria-label="Keluar" title="Keluar">${icon('logout')}</button></div><p class="sidebar-note">Ruang kerja internal VORA.<br>Akses sesuai peran Anda.</p></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>${nav[state.page][0]}</strong></div><div class="mobile-brand"><button class="icon-button mobile-menu" data-action="menu" aria-label="Buka navigasi" aria-expanded="${state.menu}">${icon('menu')}</button><img src="/crm-assets-vora-logo-transparent.png" alt="VORA"><small>CRM</small></div><div class="topbar-right"><span class="today">${esc(date(new Date()))}</span><span class="private-label">${icon('lock')} INTERNAL ONLY</span></div></header><main id="main" class="main-content" tabindex="-1">${pageHeading()}${state.error ? `<div class="error page-error" role="alert">${esc(state.error)} <button class="link-button" data-action="refresh">Coba lagi</button></div>` : ''}<div id="page-content" ${state.loading ? 'aria-busy="true"' : ''}>${state.loading && !state.data ? loading() : pageContent()}</div></main></div></div>`;
 }
 function navButton(page) {
   return `<button class="nav-item ${state.page === page ? 'active' : ''}" data-action="nav" data-page="${page}" ${state.page === page ? 'aria-current="page"' : ''}>${icon(nav[page][1])}${nav[page][0]}</button>`;
@@ -224,11 +225,12 @@ function pageHeading() {
     followups: ['HUBUNGAN PELANGGAN', 'Percakapan berikutnya.', 'Catat hasil komunikasi dan jadwalkan tindak lanjut yang tepat.'],
     renewals: ['LANGGANAN', 'Bantu bisnis terus berjalan.', 'Perpanjang outlet setelah pembayaran pengguna Anda verifikasi.'],
     demos: ['DEMONSTRASI VORA', 'Akun siap untuk demo.', 'Buat akun dengan katalog bergambar dan masa aktif 6 bulan.'],
+    referrals: ['TELESALES & REFERRAL', 'Satu kode, hubungan yang berkelanjutan.', 'Kelola kode pendaftaran dan penanggung jawab pelanggan.'],
     team: ['PENGELOLAAN AKSES', 'Tim yang tepat, akses yang tepat.', 'Tentukan siapa yang dapat melihat data dan membantu pelanggan.'],
     audit: ['JEJAK AKTIVITAS', 'Setiap tindakan, tercatat.', 'Lihat perubahan akses, follow-up, dan perpanjangan oleh tim.']
   };
   const t = titles[state.page];
-  return `<div class="page-heading"><div><div class="eyebrow">${t[0]}</div><h1>${t[1]}</h1><p>${t[2]}</p></div>${state.page === 'team' ? `<button class="button primary" data-action="add-member">${icon('plus')} Tambah tim</button>` : `<button class="button" data-action="refresh" aria-label="Perbarui" ${state.loading ? 'disabled' : ''}>${icon('refresh')} <span class="refresh-text">Perbarui</span></button>`}</div>`;
+  return `<div class="page-heading"><div><div class="eyebrow">${t[0]}</div><h1>${t[1]}</h1><p>${t[2]}</p></div>${state.page === 'referrals' ? `<button class="button primary" data-action="add-telesales">${icon('plus')} Tambah telesales</button>` : state.page === 'team' ? `<button class="button primary" data-action="add-member">${icon('plus')} Tambah tim</button>` : `<button class="button" data-action="refresh" aria-label="Perbarui" ${state.loading ? 'disabled' : ''}>${icon('refresh')} <span class="refresh-text">Perbarui</span></button>`}</div>`;
 }
 async function loadPage() {
   if (!state.session) return;
@@ -244,7 +246,7 @@ async function loadPage() {
     if (!session?.member?.active) throw Object.assign(new Error('Akses akun sudah dinonaktifkan.'), {
       code: '42501'
     });
-    if (JSON.stringify(state.session.permissions) !== JSON.stringify(session.permissions)) {
+    if (JSON.stringify(state.session.permissions) !== JSON.stringify(session.permissions) || state.session.member?.role !== session.member?.role || state.session.telesales?.id !== session.telesales?.id || state.session.telesales?.active !== session.telesales?.active) {
       state.epoch++;
       api.cancel();
       closeModal();
@@ -264,7 +266,7 @@ async function loadPage() {
       return loadPage();
     }
     let data;
-    if (page === 'demos') data = await api.demos({p_limit: 25, p_offset: state.offset});else if (page === 'team') data = await api.members();else if (page === 'audit') data = await api.audit({
+    if (page === 'referrals') data = await api.telesales({p_search: state.search, p_status: state.status, p_limit: 25, p_offset: state.offset});else if (page === 'demos') data = await api.demos({p_limit: 25, p_offset: state.offset});else if (page === 'team') data = await api.members();else if (page === 'audit') data = await api.audit({
       p_limit: 25,
       p_offset: state.offset
     });else if (page === 'overview' && can('read_customers')) {
@@ -296,7 +298,7 @@ async function loadPage() {
   } catch (error) {
     if (epoch !== state.epoch || id !== state.loadId) return;
     if (denyAccess(error)) return;
-    state.error = page === 'demos' ? demoError(error) : humanError(error);
+    state.error = page === 'demos' ? demoError(error) : page === 'referrals' ? referralError(error) : humanError(error);
   } finally {
     if (epoch === state.epoch && id === state.loadId) {
       state.loading = false;
@@ -307,6 +309,7 @@ async function loadPage() {
 function pageContent() {
   if (!state.data) return state.error ? empty('Data belum dapat dimuat', 'Gunakan tombol coba lagi untuk menghubungkan ulang.', 'refresh') : loading();
   if (state.page === 'overview') return overview();
+  if (state.page === 'referrals') return referrals();
   if (state.page === 'team') return team();
   if (state.page === 'audit') return audit();
   if (state.page === 'renewals') return renewals();
@@ -329,12 +332,17 @@ function usageOverview(d) {
   const s = d.usage_summary;
   return `<section class="adoption-section" aria-labelledby="adoption-title"><div class="section-heading"><div><h2 id="adoption-title">Penggunaan aplikasi</h2><p>Jumlah akun usaha, digabung dari seluruh outlet yang masih ada.</p></div><button class="button tiny" data-action="nav" data-page="users">Lihat aktivitas ${icon('arrow')}</button></div><div class="kpis usage-kpis">${kpi('Sudah punya produk', usageCount(s?.product_ready), 'Minimal 1 produk tersimpan', 'store', true)}${kpi('Bertransaksi 7 hari', usageCount(s?.active_7d), 'Ada transaksi dalam 7 hari terakhir', 'check')}${kpi('Rutin bertransaksi', usageCount(s?.regular), 'Transaksi pada 3+ hari berbeda / 7 hari', 'calendar')}${kpi('Belum bertransaksi', usageCount(s?.no_transactions), 'Belum ada transaksi yang dihitung', 'clock')}</div>${!s ? '<div class="notice warning">Ringkasan aktivitas belum tersedia. Muat ulang setelah layanan aktivitas siap; nilai kosong bukan berarti tidak digunakan.</div>' : ''}<div class="usage-stage-list" aria-label="Tahap penggunaan">${Object.entries(USAGE_STAGES).map(([key,label])=>`<button class="usage-stage-button" data-action="usage-filter" data-usage="${key}" title="${esc(USAGE_HELP[key])}"><span class="usage-badge ${key}">${label}</span><strong>${usageCount(s?.[key])}</strong>${icon('chevron')}</button>`).join('')}</div></section>`;
 }
+function telesalesScopeNote() {
+  if (state.session?.member?.role !== 'telesales' || !can('read_customers')) return '';
+  const profile = state.session.telesales;
+  return `<div class="notice referral-access-note"><strong>Pelanggan yang ditugaskan kepada Anda</strong>Daftar, ringkasan aktivitas, dan follow-up hanya mencakup pelanggan yang sedang menjadi tanggung jawab Anda.${profile?.code ? `<p>Kode referral Anda: <code class="referral-code">${esc(profile.code)}</code></p>` : ''}</div>`;
+}
 function overview() {
   const d = state.data,
     s = d.summary || {},
     ending = (d.trialItems || []).filter(c => Number(c.days_remaining) <= 3).sort((a, b) => a.days_remaining - b.days_remaining).slice(0, 5);
   if (!can('read_customers')) return empty('Ruang kerja Anda siap', 'Gunakan menu yang tersedia sesuai akses yang diberikan pemilik.', 'shield');
-  return `${usageOverview(d)}<section class="account-stats" aria-label="Ringkasan akun"><div><span>Total pengguna</span><strong>${usageCount(s.total)}</strong></div><div><span>Sedang trial</span><strong>${usageCount(s.trial)}</strong></div><div><span>Berlangganan aktif</span><strong>${usageCount(s.active)}</strong></div><div><span>Follow-up jatuh tempo</span><strong>${usageCount(s.followup_due)}</strong></div></section><div class="overview-grid"><section class="panel"><header class="panel-header"><div><h2>Aktivitas transaksi terbaru</h2><p>Urutan transaksi terakhir; akun tanpa transaksi berada di bawah.</p></div><button class="button tiny" data-action="nav" data-page="users">Lihat semua ${icon('arrow')}</button></header>${customerTable(d.items || [], true)}<footer class="panel-footer">Aktivitas membantu menentukan kebutuhan pendampingan, bukan memastikan niat membeli.</footer></section><div class="stack"><section class="panel"><header class="panel-header"><div><h2>Trial segera berakhir</h2><p>Sisa trial 3 hari atau kurang. Buka detail untuk melihat penggunaannya.</p></div><span class="badge-count">${ending.length}</span></header>${ending.length ? `<div class="list">${ending.map(c => `<div class="list-item"><div class="initials">${esc(initials(customerName(c)))}</div><div><button class="link-button" data-action="detail" data-id="${esc(c.merchant_id)}">${esc(customerName(c))}</button><div class="subtitle">${esc(c.outlets?.[0]?.name || 'Belum ada outlet')}</div></div><div class="right"><span class="status trial">${esc(remaining(c.days_remaining, 'trial'))}</span></div></div>`).join('')}</div>` : empty('Tidak ada trial segera berakhir', 'Belum ada trial yang segera berakhir dalam daftar ini.', 'clock')}<footer class="panel-footer">Dari maksimal 100 pengguna trial terbaru.</footer></section><section class="panel"><div class="panel-body"><h3>Perlu pendampingan</h3><div class="stat-row"><span>Menunggu verifikasi email</span><span class="value">${usageCount(s.unverified)}</span></div><div class="stat-row"><span>Belum membuat outlet</span><span class="value">${usageCount(s.onboarding)}</span></div><div class="stat-row"><span>Masa aktif berakhir</span><span class="value">${usageCount(s.expired)}</span></div><button class="button full" data-action="nav" data-page="followups">Buka follow-up ${icon('arrow')}</button></div></section></div></div>${usageWindowNote()}`;
+  return `${telesalesScopeNote()}${usageOverview(d)}<section class="account-stats" aria-label="Ringkasan akun"><div><span>Total pengguna</span><strong>${usageCount(s.total)}</strong></div><div><span>Sedang trial</span><strong>${usageCount(s.trial)}</strong></div><div><span>Berlangganan aktif</span><strong>${usageCount(s.active)}</strong></div><div><span>Follow-up jatuh tempo</span><strong>${usageCount(s.followup_due)}</strong></div></section><div class="overview-grid"><section class="panel"><header class="panel-header"><div><h2>Aktivitas transaksi terbaru</h2><p>Urutan transaksi terakhir; akun tanpa transaksi berada di bawah.</p></div><button class="button tiny" data-action="nav" data-page="users">Lihat semua ${icon('arrow')}</button></header>${customerTable(d.items || [], true)}<footer class="panel-footer">Aktivitas membantu menentukan kebutuhan pendampingan, bukan memastikan niat membeli.</footer></section><div class="stack"><section class="panel"><header class="panel-header"><div><h2>Trial segera berakhir</h2><p>Sisa trial 3 hari atau kurang. Buka detail untuk melihat penggunaannya.</p></div><span class="badge-count">${ending.length}</span></header>${ending.length ? `<div class="list">${ending.map(c => `<div class="list-item"><div class="initials">${esc(initials(customerName(c)))}</div><div><button class="link-button" data-action="detail" data-id="${esc(c.merchant_id)}">${esc(customerName(c))}</button><div class="subtitle">${esc(c.outlets?.[0]?.name || 'Belum ada outlet')}</div></div><div class="right"><span class="status trial">${esc(remaining(c.days_remaining, 'trial'))}</span></div></div>`).join('')}</div>` : empty('Tidak ada trial segera berakhir', 'Belum ada trial yang segera berakhir dalam daftar ini.', 'clock')}<footer class="panel-footer">Dari maksimal 100 pengguna trial terbaru.</footer></section><section class="panel"><div class="panel-body"><h3>Perlu pendampingan</h3><div class="stat-row"><span>Menunggu verifikasi email</span><span class="value">${usageCount(s.unverified)}</span></div><div class="stat-row"><span>Belum membuat outlet</span><span class="value">${usageCount(s.onboarding)}</span></div><div class="stat-row"><span>Masa aktif berakhir</span><span class="value">${usageCount(s.expired)}</span></div><button class="button full" data-action="nav" data-page="followups">Buka follow-up ${icon('arrow')}</button></div></section></div></div>${usageWindowNote()}`;
 }
 function toolbar() {
   const activity = can('read_customers') && ['users', 'followups'].includes(state.page);
@@ -357,15 +365,15 @@ function latestSale(usage) {
 function customerTable(items, compact = false) {
   if (!can('read_customers')) return '';
   if (!items.length) return empty('Tidak ada pengguna yang cocok', 'Ubah pencarian atau filter aktivitas untuk melihat pengguna lain.');
-  return `<p class="table-swipe-hint">Geser tabel ke samping untuk melihat kolom lainnya.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Tabel aktivitas pengguna"><table class="activity-table"><thead><tr><th>Pengguna</th><th>Penggunaan</th><th>Produk</th><th>Transaksi 7 hari</th>${!compact ? '<th>Transaksi terakhir</th><th>Status & masa aktif</th><th>Kontak</th>' : ''}<th>Detail</th></tr></thead><tbody>${items.map(c => `<tr><td><div class="table-name"><span class="initials">${esc(initials(customerName(c)))}</span><div><strong>${esc(customerName(c))}</strong><small>${esc(c.outlets?.[0]?.name || c.email || 'Belum ada outlet')}${!compact ? ` · ${usageCount(c.outlet_count ?? c.outlets?.length)} outlet` : ''}</small></div></div></td><td>${usageBadge(c.usage)}</td><td><strong class="metric-number">${usageCount(c.usage?.product_count)}</strong></td><td>${transactionCell(c.usage)}</td>${!compact ? `<td>${latestSale(c.usage)}</td><td>${badge(c.status)}<span class="cell-secondary">${esc(remaining(c.days_remaining, c.status))} · ${esc(date(customerExpiry(c)))}</span></td><td>${esc(c.phone || 'Belum diisi')}<span class="cell-secondary">${esc(c.email || '—')}</span></td>` : ''}<td><button class="table-action" data-action="detail" data-id="${esc(c.merchant_id)}">Buka ${icon('arrow')}</button></td></tr>`).join('')}</tbody></table></div>`;
+  return `<p class="table-swipe-hint">Geser tabel ke samping untuk melihat kolom lainnya.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Tabel aktivitas pengguna"><table class="activity-table"><thead><tr><th>Pengguna</th><th>Penggunaan</th><th>Produk</th><th>Transaksi 7 hari</th>${!compact ? '<th>Transaksi terakhir</th><th>Status & masa aktif</th><th>Kontak</th>' : ''}<th>Detail</th></tr></thead><tbody>${items.map(c => `<tr><td><div class="table-name"><span class="initials">${esc(initials(customerName(c)))}</span><div><strong>${esc(customerName(c))}</strong><small>${esc(c.outlets?.[0]?.name || c.email || 'Belum ada outlet')}${!compact ? ` · ${usageCount(c.outlet_count ?? c.outlets?.length)} outlet` : ''}</small>${referralBadge(c.referral)}</div></div></td><td>${usageBadge(c.usage)}</td><td><strong class="metric-number">${usageCount(c.usage?.product_count)}</strong></td><td>${transactionCell(c.usage)}</td>${!compact ? `<td>${latestSale(c.usage)}</td><td>${badge(c.status)}<span class="cell-secondary">${esc(remaining(c.days_remaining, c.status))} · ${esc(date(customerExpiry(c)))}</span></td><td>${esc(c.phone || 'Belum diisi')}<span class="cell-secondary">${esc(c.email || '—')}</span></td>` : ''}<td><button class="table-action" data-action="detail" data-id="${esc(c.merchant_id)}">Buka ${icon('arrow')}</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 function directory() {
   const items = state.data.items || [];
-  if (state.page === 'users') return `<section class="panel">${toolbar()}${customerTable(items)}${pagination()}</section>${usageWindowNote()}`;
-  return `<section class="panel">${toolbar()}${items.length ? `<p class="table-swipe-hint">Geser tabel ke samping untuk melihat kolom lainnya.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Tabel aktivitas dan follow-up"><table class="activity-table"><thead><tr><th>Pengguna</th><th>Aktivitas</th><th>Transaksi 7 hari</th><th>Status akun</th><th>Follow-up terakhir</th><th>Jadwal berikutnya</th><th>Tindakan</th></tr></thead><tbody>${items.map(c => {
+  if (state.page === 'users') return `${telesalesScopeNote()}<section class="panel">${toolbar()}${customerTable(items)}${pagination()}</section>${usageWindowNote()}`;
+  return `${telesalesScopeNote()}<section class="panel">${toolbar()}${items.length ? `<p class="table-swipe-hint">Geser tabel ke samping untuk melihat kolom lainnya.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Tabel aktivitas dan follow-up"><table class="activity-table"><thead><tr><th>Pengguna</th><th>Aktivitas</th><th>Transaksi 7 hari</th><th>Status akun</th><th>Follow-up terakhir</th><th>Jadwal berikutnya</th><th>Tindakan</th></tr></thead><tbody>${items.map(c => {
     const f = c.last_followup;
     const due = c.next_followup_at && new Date(c.next_followup_at) <= new Date(state.data.server_now || Date.now());
-    return `<tr><td><div class="table-name"><span class="initials">${esc(initials(customerName(c)))}</span><div><strong>${esc(customerName(c))}</strong><small>${esc(c.phone || c.email || 'Kontak belum diisi')}</small></div></div></td><td>${usageBadge(c.usage)}</td><td>${transactionCell(c.usage)}</td><td>${badge(c.status)}</td><td>${f ? badge(f.outcome, OUTCOME) : '<span class="muted">Belum dihubungi</span>'}${f ? `<span class="cell-secondary">${esc(date(f.created_at))}</span>` : ''}</td><td>${c.next_followup_at ? `${due ? '<span class="status trial">Perlu ditindaklanjuti</span>' : ''}<span class="cell-secondary">${esc(date(c.next_followup_at, true))}</span>` : '<span class="muted">Belum dijadwalkan</span>'}</td><td><button class="table-action" data-action="detail" data-id="${esc(c.merchant_id)}">${can('followup') ? 'Tindak lanjuti' : 'Lihat catatan'} ${icon('arrow')}</button></td></tr>`;
+    return `<tr><td><div class="table-name"><span class="initials">${esc(initials(customerName(c)))}</span><div><strong>${esc(customerName(c))}</strong><small>${esc(c.phone || c.email || 'Kontak belum diisi')}</small>${referralBadge(c.referral)}</div></div></td><td>${usageBadge(c.usage)}</td><td>${transactionCell(c.usage)}</td><td>${badge(c.status)}</td><td>${f ? badge(f.outcome, OUTCOME) : '<span class="muted">Belum dihubungi</span>'}${f ? `<span class="cell-secondary">${esc(date(f.created_at))}</span>` : ''}</td><td>${c.next_followup_at ? `${due ? '<span class="status trial">Perlu ditindaklanjuti</span>' : ''}<span class="cell-secondary">${esc(date(c.next_followup_at, true))}</span>` : '<span class="muted">Belum dijadwalkan</span>'}</td><td><button class="table-action" data-action="detail" data-id="${esc(c.merchant_id)}">${can('followup') ? 'Tindak lanjuti' : 'Lihat catatan'} ${icon('arrow')}</button></td></tr>`;
   }).join('')}</tbody></table></div>` : empty('Belum ada pengguna untuk dihubungi', 'Coba ubah pencarian atau filter status.', 'chat')}${pagination()}</section>${usageWindowNote()}`;
 }
 function renewals() {
@@ -471,6 +479,127 @@ async function checkDemo(operationId = state.demo.operationId) {
     }
   }
 }
+function referralBadge(referral) {
+  if (!can('read_customers') || !referral) return '';
+  const label = referral.current_name || 'Menunggu penanggung jawab';
+  return `<span class="referral-label ${referral.current_telesales_id ? '' : 'unassigned'}">${icon('users')} ${esc(label)}</span>`;
+}
+function referralDetails(referral) {
+  if (!can('read_customers')) return '';
+  if (!referral) return '<section class="detail-section"><h3>Referral & penanggung jawab</h3><p class="muted">Akun ini tidak memiliki catatan referral.</p></section>';
+  return `<section class="detail-section"><div class="row between wrap"><h3>Referral & penanggung jawab</h3>${!referral.current_telesales_id && can('manage_referrals') ? '<button class="button tiny" data-action="assign-telesales">Pilih penanggung jawab</button>' : ''}</div><dl class="detail-grid">${datum('Kode saat mendaftar', referral.code)}${datum('Telesales asal', referral.original_name)}${datum('Penanggung jawab saat ini', referral.current_name || 'Belum ditetapkan — dikelola pemilik')}${datum('Penugasan terakhir', date(referral.assigned_at, true))}${datum('Referral tercatat', date(referral.recorded_at, true))}</dl><p class="helper">Asal referral tetap tersimpan meskipun telesales berhenti. Penanggung jawab aktif tetap terikat pada pelanggan ini.</p></section>`;
+}
+function referrals() {
+  if (!can('manage_referrals')) return '';
+  const items = state.data.items || [];
+  return `<div class="referral-intro"><div class="referral-intro-icon">${icon('users')}</div><div><h2>Kode pribadi untuk setiap telesales</h2><p>Pelanggan memasukkan kode saat mendaftar dan terhubung dengan telesales tersebut. Email dan kode tidak dapat diganti atau digunakan kembali oleh orang lain.</p></div></div><section class="panel"><form id="telesales-search" class="toolbar referral-toolbar"><label class="search">${icon('search')}<input name="search" aria-label="Cari telesales" placeholder="Cari nama, email, atau kode referral…" maxlength="100" value="${esc(state.search)}"></label><label class="filter-field"><span>Status telesales</span><select name="status" class="filter"><option value="all">Semua status</option><option value="active" ${state.status === 'active' ? 'selected' : ''}>Aktif</option><option value="resigned" ${state.status === 'resigned' ? 'selected' : ''}>Sudah berhenti</option></select></label><button class="button" type="submit">Terapkan</button></form>${items.length ? `<p class="table-swipe-hint">Geser tabel ke samping untuk melihat kolom lainnya.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Daftar telesales dan kode referral"><table class="referral-table"><thead><tr><th>Telesales</th><th>Kode referral</th><th>Ditangani</th><th>Asal referral</th><th>Status</th><th>Kelola</th></tr></thead><tbody>${items.map(item => `<tr><td><div class="table-name"><span class="initials">${esc(initials(item.name))}</span><div><strong>${esc(item.name)}</strong><small>${esc(item.email)}</small></div></div></td><td><code class="referral-code">${esc(item.code)}</code></td><td><strong class="metric-number">${usageCount(item.assigned_count)}</strong></td><td>${usageCount(item.referral_count)}</td><td>${badge(item.active ? 'active' : 'expired', {active: 'Aktif', expired: 'Sudah berhenti'})}${item.resigned_at ? `<span class="cell-secondary">${esc(date(item.resigned_at))}</span>` : ''}</td><td>${item.active ? `<div class="referral-actions"><button class="button tiny" data-action="edit-telesales" data-id="${esc(item.id)}">Ubah nama</button><button class="button tiny danger" data-action="resign-telesales" data-id="${esc(item.id)}">Tandai berhenti</button></div>` : '<span class="muted">Riwayat disimpan</span>'}</td></tr>`).join('')}</tbody></table></div>` : empty('Belum ada telesales yang cocok', state.search || state.status !== 'all' ? 'Ubah pencarian atau filter untuk melihat data lain.' : 'Tambahkan telesales untuk membuat kode referral pertamanya.', 'users')}${pagination()}<footer class="panel-footer">Pelanggan saat ini termasuk penugasan pengganti. Referral sejak awal menghitung akun yang mendaftar dengan kode tersebut; riwayat asal tidak berubah.</footer></section><div class="notice referral-access-note"><strong>Akses CRM diberikan terpisah.</strong> Menambah telesales di sini tidak membuat akun atau memberi akses CRM.${can('manage_members') ? ' Kelola email dan hak akses melalui menu Tim & akses.' : ' Pemilik CRM yang mengatur akses melalui Tim & akses.'}</div>`;
+}
+function openTelesales(existing = null) {
+  if (!can('manage_referrals')) return;
+  if (existing && !existing.active) return;
+  setModal({type: 'telesales', existing: existing ? {...existing} : null,
+    values: {name: existing?.name || '', email: existing?.email || '', code: existing?.code || ''},
+    operationId: uuid(), busy: false, uncertain: false, error: '', payload: null});
+}
+function telesalesModal(m) {
+  if (!can('manage_referrals')) return '';
+  const locked = m.busy || m.uncertain;
+  return modalFrame(m.existing ? 'Ubah nama telesales' : 'Tambah telesales', 'Kode referral digunakan saat pelanggan mendaftar.', `<form id="telesales-form" class="stack"><label class="field">Nama telesales<input name="name" value="${esc(m.values.name)}" maxlength="120" required autocomplete="off" ${locked ? 'readonly' : ''}></label><label class="field">Email telesales<input name="email" type="email" value="${esc(m.values.email)}" maxlength="254" required autocomplete="off" ${locked || m.existing ? 'readonly' : ''}></label><label class="field">Kode referral<input class="referral-code-input" name="code" value="${esc(m.values.code)}" minlength="4" maxlength="24" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Contoh: VORA-RANI" ${locked || m.existing ? 'readonly' : ''}><small>4–24 karakter: huruf, angka, atau tanda hubung. Huruf disimpan sebagai huruf besar.</small></label><div class="notice">Email dan kode tidak dapat diganti setelah disimpan. Kode tetap menjadi milik telesales ini meskipun sudah berhenti. Akses CRM tidak otomatis diberikan.</div>${m.error ? `<div class="error" role="alert">${esc(m.error)}</div>` : ''}${m.uncertain ? '<div class="notice warning">Hasil belum pasti. Formulir dikunci agar pemeriksaan mengulang permintaan yang sama tanpa duplikasi.</div>' : ''}</form>`, `<button class="button" data-action="close-modal" ${locked ? 'disabled' : ''}>Batal</button>${m.conflict ? '<button class="button primary" data-action="referral-reload">Muat ulang daftar</button>' : `<button class="button primary" form="telesales-form" type="submit" ${m.busy ? 'disabled' : ''}>${m.busy ? 'Menyimpan…' : m.uncertain ? 'Periksa & simpan' : 'Simpan telesales'}</button>`}`);
+}
+async function saveTelesales(form) {
+  const m = state.modal;
+  if (!can('manage_referrals') || m?.type !== 'telesales' || m.busy || m.conflict) return;
+  if (!m.uncertain) {
+    m.values = Object.fromEntries(new FormData(form));
+    try { m.payload = telesalesPayload(m.values, m.operationId, m.existing); }
+    catch (error) { m.error = error.message; renderModal(); return; }
+  }
+  await saveReferralMutation(m, () => api.saveTelesales(m.payload), 'Telesales dan kode referral tersimpan.');
+}
+async function saveReferralMutation(m, request, message) {
+  const epoch = state.epoch;
+  m.busy = true; m.error = ''; renderModal();
+  try {
+    const result = await request();
+    if (epoch !== state.epoch || state.modal !== m) return;
+    closeModal(); toast(result?.replayed ? 'Permintaan ini sudah tersimpan. Tidak ada perubahan ganda.' : message);
+    void loadPage();
+  } catch (error) {
+    if (epoch !== state.epoch || state.modal !== m) return;
+    if (denyAccess(error)) return;
+    m.error = referralError(error);
+    m.conflict = isRenewalConflict(error) || error?.code === 'P0002';
+    m.uncertain = !m.conflict && !definiteError(error);
+    if (!m.uncertain) {m.operationId = uuid(); m.payload = null;}
+  } finally {
+    if (epoch === state.epoch && state.modal === m) {m.busy = false; renderModal();}
+  }
+}
+
+function openResignTelesales(item) {
+  if (!can('manage_referrals') || !item?.active) return;
+  setModal({type: 'resign-telesales', existing: {...item}, values: {confirmation: '', note: ''}, operationId: uuid(), busy: false, uncertain: false, error: '', payload: null});
+}
+function resignTelesalesModal(m) {
+  if (!can('manage_referrals')) return '';
+  const locked = m.busy || m.uncertain;
+  return modalFrame('Tandai telesales berhenti', m.existing.name, `<form id="resign-telesales-form" class="stack"><div class="notice warning"><strong>Kode ${esc(m.existing.code)} akan dinonaktifkan.</strong><p>Pelanggan yang terikat akan kembali dikelola pemilik hingga diberi penanggung jawab baru. Catatan referral dan follow-up tetap tersimpan.</p><p>Akses CRM dengan peran Telesales untuk email ini juga dinonaktifkan. Kode ini tidak dapat digunakan lagi.</p></div><label class="field">Catatan (opsional)<textarea name="note" maxlength="2000" ${locked ? 'readonly' : ''}>${esc(m.values.note)}</textarea></label><label class="field">Ketik ${esc(m.existing.code)} untuk mengonfirmasi<input name="confirmation" value="${esc(m.values.confirmation)}" autocomplete="off" spellcheck="false" required ${locked ? 'readonly' : ''}></label>${m.error ? `<div class="error" role="alert">${esc(m.error)}</div>` : ''}${m.uncertain ? '<div class="notice warning">Hasil belum pasti. Periksa ulang dengan permintaan yang sama; jangan menandai ulang dari tab lain.</div>' : ''}</form>`, `<button class="button" data-action="close-modal" ${locked ? 'disabled' : ''}>Batal</button>${m.conflict ? '<button class="button primary" data-action="referral-reload">Muat ulang daftar</button>' : `<button class="button danger" form="resign-telesales-form" type="submit" ${m.busy ? 'disabled' : ''}>${m.busy ? 'Menyimpan…' : m.uncertain ? 'Periksa & simpan' : 'Konfirmasi berhenti'}</button>`}`);
+}
+async function resignTelesales(form) {
+  const m = state.modal;
+  if (!can('manage_referrals') || m?.type !== 'resign-telesales' || m.busy || m.conflict) return;
+  if (!m.uncertain) {
+    m.values = Object.fromEntries(new FormData(form));
+    if (String(m.values.confirmation || '').trim().toUpperCase() !== m.existing.code) {m.error = 'Kode konfirmasi belum sesuai.'; renderModal(); return;}
+    const note = String(m.values.note || '').trim();
+    if (note.length > 2000) {m.error = 'Catatan maksimal 2.000 karakter.'; renderModal(); return;}
+    m.payload = {p_operation_id: m.operationId, p_id: m.existing.id, p_expected_updated_at: m.existing.updated_at,
+      p_replacement_id: null, p_note: note};
+  }
+  await saveReferralMutation(m, () => api.resignTelesales(m.payload), 'Telesales dinonaktifkan. Pelanggan kembali dikelola pemilik; riwayat tetap tersimpan.');
+}
+function openAssignTelesales() {
+  const customer = state.modal?.detail?.customer;
+  if (!can('manage_referrals') || !customer?.referral || customer.referral.current_telesales_id) return;
+  const m = {type: 'assign-telesales', customer, operationId: uuid(), busy: false, uncertain: false, error: '', payload: null,
+    values: {telesales: '', note: ''}, candidates: [], search: '', offset: 0, total: 0, candidatesLoading: false, candidatesError: '', candidateLoadId: 0};
+  setModal(m); void loadTelesalesCandidates(m);
+}
+async function loadTelesalesCandidates(m) {
+  if (!can('manage_referrals') || state.modal !== m || m.busy || m.uncertain) return;
+  const epoch = state.epoch, loadId = ++m.candidateLoadId;
+  m.candidatesLoading = true; m.candidatesError = ''; m.values.telesales = ''; renderModal();
+  try {
+    const result = await api.telesales({p_search: m.search, p_status: 'active', p_limit: 25, p_offset: m.offset});
+    if (epoch !== state.epoch || state.modal !== m || loadId !== m.candidateLoadId) return;
+    m.candidates = (result.items || []).filter(item => item.active); m.total = Number(result.total) || 0;
+  } catch (error) {
+    if (epoch !== state.epoch || state.modal !== m || loadId !== m.candidateLoadId) return;
+    if (denyAccess(error)) return;
+    m.candidates = []; m.candidatesError = referralError(error);
+  } finally {
+    if (epoch === state.epoch && state.modal === m && loadId === m.candidateLoadId) {m.candidatesLoading = false; renderModal();}
+  }
+}
+function assignTelesalesModal(m) {
+  if (!can('manage_referrals')) return '';
+  const locked = m.busy || m.uncertain;
+  return modalFrame('Pilih penanggung jawab', customerName(m.customer), `<p class="helper">Asal referral tetap ${esc(m.customer.referral.original_name || 'tercatat')} · ${esc(m.customer.referral.code)}. Penugasan baru hanya untuk pelanggan yang belum memiliki penanggung jawab aktif.</p><form id="telesales-candidate-search" class="referral-candidate-search"><label class="field">Cari telesales aktif<input name="search" value="${esc(m.search)}" maxlength="100" placeholder="Nama, email, atau kode…" ${locked || m.candidatesLoading ? 'readonly' : ''}></label><button type="submit" class="button" ${locked || m.candidatesLoading ? 'disabled' : ''}>Cari</button></form>${m.candidatesError ? `<div class="error">${esc(m.candidatesError)}</div>` : ''}<form id="assign-telesales-form" class="stack"><label class="field">Penanggung jawab baru<select name="telesales" required ${locked || m.candidatesLoading ? 'disabled' : ''}><option value="">${m.candidatesLoading ? 'Memuat telesales…' : 'Pilih telesales'}</option>${m.candidates.map(item => `<option value="${esc(item.id)}" ${item.id === m.values.telesales ? 'selected' : ''}>${esc(item.name)} · ${esc(item.code)}</option>`).join('')}</select></label>${!m.candidatesLoading && !m.candidatesError && !m.candidates.length ? '<div class="notice">Tidak ada telesales aktif yang cocok. Ubah pencarian atau tambahkan telesales terlebih dahulu.</div>' : ''}<div class="row between"><span class="helper">${m.total ? `${m.offset + 1}–${Math.min(m.offset + m.candidates.length, m.total)} dari ${m.total}` : '0'} telesales</span><div class="row"><button type="button" class="button tiny" data-action="telesales-candidate-previous" ${locked || m.candidatesLoading || m.offset === 0 ? 'disabled' : ''}>Sebelumnya</button><button type="button" class="button tiny" data-action="telesales-candidate-next" ${locked || m.candidatesLoading || m.offset + 25 >= m.total ? 'disabled' : ''}>Berikutnya</button></div></div><label class="field">Catatan penugasan (opsional)<textarea name="note" maxlength="2000" ${locked ? 'readonly' : ''}>${esc(m.values.note)}</textarea></label>${m.error ? `<div class="error" role="alert">${esc(m.error)}</div>` : ''}${m.uncertain ? '<div class="notice warning">Hasil belum pasti. Periksa ulang permintaan yang sama untuk menghindari penugasan ganda.</div>' : ''}</form>`, `<button class="button" data-action="close-modal" ${locked ? 'disabled' : ''}>Batal</button>${m.conflict ? '<button class="button primary" data-action="referral-reload">Muat ulang daftar</button>' : `<button class="button primary" form="assign-telesales-form" type="submit" ${m.busy || m.candidatesLoading || (!m.uncertain && !m.candidates.length) ? 'disabled' : ''}>${m.busy ? 'Menyimpan…' : m.uncertain ? 'Periksa & simpan' : 'Simpan penanggung jawab'}</button>`}`);
+}
+async function assignTelesales(form) {
+  const m = state.modal;
+  if (!can('manage_referrals') || m?.type !== 'assign-telesales' || m.busy || m.candidatesLoading || m.conflict) return;
+  if (!m.uncertain) {
+    m.values = Object.fromEntries(new FormData(form));
+    if (!m.candidates.some(item => item.active && item.id === m.values.telesales)) {m.error = 'Pilih telesales aktif dari daftar.'; renderModal(); return;}
+    const note = String(m.values.note || '').trim();
+    if (note.length > 2000) {m.error = 'Catatan maksimal 2.000 karakter.'; renderModal(); return;}
+    m.payload = {p_operation_id: m.operationId, p_merchant_id: m.customer.merchant_id, p_telesales_id: m.values.telesales,
+      p_expected_assigned_at: m.customer.referral.assigned_at, p_note: note};
+  }
+  await saveReferralMutation(m, () => api.assignTelesales(m.payload), 'Penanggung jawab baru tersimpan. Asal referral tetap dipertahankan.');
+}
+
 function team() {
   const items = state.data.items || [];
   return `<div class="notice page-error">Tambahkan email tim dan tentukan perannya. Anggota baru dapat memilih <strong>Aktifkan akun tim</strong> di halaman masuk CRM, lalu memverifikasi emailnya. Pemilik tetap menjadi satu-satunya pihak yang mengelola akses.</div><section class="panel"><header class="panel-header"><div><h2>Anggota CRM</h2><p>Izin hanya berlaku untuk ruang kerja CRM.</p></div><span class="badge-count">${items.length} anggota</span></header>${items.length ? `<div class="table-scroll"><table><thead><tr><th>Anggota</th><th>Akses</th><th>Status</th><th>Akun</th><th>Kelola</th></tr></thead><tbody>${items.map(m => `<tr><td><div class="table-name"><span class="initials">${esc(initials(m.email))}</span><div><strong>${esc(m.email)}</strong><small>Ditambahkan ${esc(date(m.created_at))}</small></div></div></td><td>${esc(ROLES[m.role] || m.role)}</td><td>${badge(m.active ? 'active' : 'expired', {
@@ -487,14 +616,19 @@ function audit() {
     'member.bound': 'Akun tim diaktifkan',
     'demo.created': 'Akun demo dibuat',
     'demo.ready': 'Akun demo siap',
-    'demo.requested': 'Akun demo diminta'
+    'demo.requested': 'Akun demo diminta',
+    'telesales.created': 'Telesales ditambahkan',
+    'telesales.updated': 'Telesales diperbarui',
+    'telesales.resigned': 'Telesales dinonaktifkan',
+    'referral.assigned': 'Penanggung jawab ditetapkan',
+    'referral.reassigned': 'Penanggung jawab diganti'
   };
   return `<section class="panel"><header class="panel-header"><div><h2>Aktivitas tim</h2><p>Catatan waktu dan pelaku setiap perubahan.</p></div></header>${state.data.items?.length ? `<div class="table-scroll"><table><thead><tr><th>Waktu</th><th>Aktivitas</th><th>Oleh</th><th>Detail</th></tr></thead><tbody>${state.data.items.map(a => `<tr><td>${esc(date(a.created_at, true))}</td><td>${esc(labels[a.action] || a.action)}</td><td>${esc(a.actor_email || 'Sistem')}</td><td class="audit-details">${esc(auditSummary(a.details))}</td></tr>`).join('')}</tbody></table></div>` : empty('Belum ada aktivitas', 'Perubahan yang dilakukan tim akan tercatat di sini.', 'audit')}${pagination()}</section>`;
 }
 function auditSummary(d) {
   if (!d) return '—';
-  const r = d.renewal || d.followup || d.member || d;
-  return [r.email, r.outlet_name, r.months ? `${r.months} bulan` : null, r.amount_idr ? money(r.amount_idr) : null, r.payment_reference, r.outcome ? OUTCOME[r.outcome] : null, r.role ? ROLES[r.role] : null, r.note].filter(Boolean).join(' · ') || JSON.stringify(d);
+  const r = d.renewal || d.followup || d.member || d.telesales || d.after || d;
+  return [r.name, r.email, r.code, r.outlet_name, r.months ? `${r.months} bulan` : null, r.amount_idr ? money(r.amount_idr) : null, r.payment_reference, r.outcome ? OUTCOME[r.outcome] : null, r.role ? ROLES[r.role] : null, r.note].filter(Boolean).join(' · ') || JSON.stringify(d);
 }
 function setModal(value) {
   if (!state.modal) modalReturnFocus = document.activeElement;
@@ -523,6 +657,9 @@ function renderModal() {
   if (m.type === 'renew') modalRoot.innerHTML = renewModal(m);
   if (m.type === 'followup') modalRoot.innerHTML = followupModal(m);
   if (m.type === 'member') modalRoot.innerHTML = memberModal(m);
+  if (m.type === 'telesales') modalRoot.innerHTML = telesalesModal(m);
+  if (m.type === 'resign-telesales') modalRoot.innerHTML = resignTelesalesModal(m);
+  if (m.type === 'assign-telesales') modalRoot.innerHTML = assignTelesalesModal(m);
   if (m.type === 'receipt') modalRoot.innerHTML = receiptModal(m);
   requestAnimationFrame(() => {
     if (!modalRoot.contains(document.activeElement)) modalRoot.querySelector('[role="dialog"]')?.focus();
@@ -577,7 +714,7 @@ function detailModal(m) {
   if (!m.detail) return modalFrame('Detail pengguna', '', m.error ? `<div class="error">${esc(m.error)}</div><button class="button" data-action="retry-detail">Coba lagi</button>` : loading(), ' ', true);
   const c = m.detail.customer,
     url = whatsapp(c.phone);
-  return modalFrame(customerName(c), c.email || '', `<div class="row wrap">${badge(c.status)}<span class="small muted">${esc(remaining(c.days_remaining, c.status))}</span><span class="spacer"></span>${url ? `<a class="button tiny" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('chat')} WhatsApp</a>` : ''}</div><dl class="detail-grid">${datum('Nomor HP', c.phone)}${datum('Terdaftar', date(c.created_at, true))}${datum('Login akun terakhir', date(c.last_sign_in_at, true))}${datum('ID pengguna', c.merchant_id)}${datum('Email diverifikasi', date(c.email_confirmed_at, true))}${datum('Trial dimulai', date(c.first_confirmed_at, true))}${datum('Trial awal berakhir', date(c.trial_end_date, true))}${datum('Masa aktif hingga', date(customerExpiry(c), true))}${datum('Jumlah outlet', `${c.outlet_count || c.outlets?.length || 0} outlet`)}</dl><section class="detail-section"><h3>Penggunaan seluruh outlet</h3>${usageDetails(c.usage)}<p class="helper usage-login-note">Login akun terakhir menunjukkan autentikasi akun, bukan waktu terakhir kasir digunakan.</p>${usageWindowNote(m.detail.usage_meta)}</section><section class="detail-section"><div class="row between"><h3>Outlet & langganan</h3></div>${c.outlets?.length ? c.outlets.map(o => `<article class="outlet-card"><div class="row"><div><strong>${esc(o.name || 'Outlet')}</strong><p>${esc(planName(o.subscription_plan))} · ${esc(remaining(o.days_remaining, o.status))}</p></div>${can('renew') ? `<button class="button tiny primary" data-action="renew" data-id="${esc(o.id)}">Perpanjang</button>` : ''}</div><p>Aktif hingga ${esc(date(o.subscription_end_date, true))}</p>${o.address ? `<p>${esc(o.address)}</p>` : ''}${o.type ? `<p>${esc(o.type)}</p>` : ''}${o.email ? `<p>Email outlet: ${esc(o.email)}</p>` : ''}${o.phone ? `<p>Kontak outlet: ${esc(o.phone)}</p>` : ''}${usageDetails(o.usage, true)}</article>`).join('') : empty('Belum ada outlet', 'Pengguna belum menyelesaikan pembuatan outlet.', 'store')}</section><section class="detail-section"><div class="row between"><h3>Catatan follow-up</h3>${can('followup') ? '<button class="button tiny" data-action="followup">+ Catat follow-up</button>' : ''}</div>${m.detail.followups?.length ? `<div class="timeline">${m.detail.followups.map(f => `<div class="timeline-item">${badge(f.outcome, OUTCOME)}<p>${esc(f.note)}</p><small>${esc(date(f.created_at, true))} · ${esc(f.actor_email || 'Tim CRM')}</small>${f.next_followup_at ? `<p class="muted">Berikutnya: ${esc(date(f.next_followup_at, true))}</p>` : ''}</div>`).join('')}</div>` : empty('Belum ada percakapan tercatat', 'Catat hasil komunikasi agar tindak lanjut tetap terarah.', 'chat')}${m.detail.followups_total > 100 ? '<p class="helper">Menampilkan 100 catatan terbaru.</p>' : ''}</section><section class="detail-section"><h3>Riwayat perpanjangan</h3>${m.detail.renewals?.length ? `<div class="timeline">${m.detail.renewals.map(r => `<div class="timeline-item"><strong>${esc(r.outlet_name || 'Outlet')} · ${esc(r.months)} bulan</strong><p>${esc(money(r.amount_idr))} · ${esc(r.payment_reference)}</p><small>Aktif hingga ${esc(date(r.new_subscription_end_date))}<br>${esc(date(r.created_at, true))} · ${esc(r.actor_email || 'Tim CRM')}</small></div>`).join('')}</div>` : empty('Belum ada perpanjangan', 'Perpanjangan manual yang dicatat di CRM akan tampil di sini.', 'clock')}${m.detail.renewals_total > 50 ? '<p class="helper">Menampilkan 50 perpanjangan terbaru.</p>' : ''}</section>`, can('followup') ? '<button class="button primary" data-action="followup">Catat follow-up</button>' : '<button class="button" data-action="close-modal">Tutup</button>', true);
+  return modalFrame(customerName(c), c.email || '', `<div class="row wrap">${badge(c.status)}<span class="small muted">${esc(remaining(c.days_remaining, c.status))}</span><span class="spacer"></span>${url ? `<a class="button tiny" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('chat')} WhatsApp</a>` : ''}</div><dl class="detail-grid">${datum('Nomor HP', c.phone)}${datum('Terdaftar', date(c.created_at, true))}${datum('Login akun terakhir', date(c.last_sign_in_at, true))}${datum('ID pengguna', c.merchant_id)}${datum('Email diverifikasi', date(c.email_confirmed_at, true))}${datum('Trial dimulai', date(c.first_confirmed_at, true))}${datum('Trial awal berakhir', date(c.trial_end_date, true))}${datum('Masa aktif hingga', date(customerExpiry(c), true))}${datum('Jumlah outlet', `${c.outlet_count || c.outlets?.length || 0} outlet`)}</dl>${referralDetails(c.referral)}<section class="detail-section"><h3>Penggunaan seluruh outlet</h3>${usageDetails(c.usage)}<p class="helper usage-login-note">Login akun terakhir menunjukkan autentikasi akun, bukan waktu terakhir kasir digunakan.</p>${usageWindowNote(m.detail.usage_meta)}</section><section class="detail-section"><div class="row between"><h3>Outlet & langganan</h3></div>${c.outlets?.length ? c.outlets.map(o => `<article class="outlet-card"><div class="row"><div><strong>${esc(o.name || 'Outlet')}</strong><p>${esc(planName(o.subscription_plan))} · ${esc(remaining(o.days_remaining, o.status))}</p></div>${can('renew') ? `<button class="button tiny primary" data-action="renew" data-id="${esc(o.id)}">Perpanjang</button>` : ''}</div><p>Aktif hingga ${esc(date(o.subscription_end_date, true))}</p>${o.address ? `<p>${esc(o.address)}</p>` : ''}${o.type ? `<p>${esc(o.type)}</p>` : ''}${o.email ? `<p>Email outlet: ${esc(o.email)}</p>` : ''}${o.phone ? `<p>Kontak outlet: ${esc(o.phone)}</p>` : ''}${usageDetails(o.usage, true)}</article>`).join('') : empty('Belum ada outlet', 'Pengguna belum menyelesaikan pembuatan outlet.', 'store')}</section><section class="detail-section"><div class="row between"><h3>Catatan follow-up</h3>${can('followup') ? '<button class="button tiny" data-action="followup">+ Catat follow-up</button>' : ''}</div>${m.detail.followups?.length ? `<div class="timeline">${m.detail.followups.map(f => `<div class="timeline-item">${badge(f.outcome, OUTCOME)}<p>${esc(f.note)}</p><small>${esc(date(f.created_at, true))} · ${esc(f.actor_email || 'Tim CRM')}</small>${f.next_followup_at ? `<p class="muted">Berikutnya: ${esc(date(f.next_followup_at, true))}</p>` : ''}</div>`).join('')}</div>` : empty('Belum ada percakapan tercatat', 'Catat hasil komunikasi agar tindak lanjut tetap terarah.', 'chat')}${m.detail.followups_total > 100 ? '<p class="helper">Menampilkan 100 catatan terbaru.</p>' : ''}</section><section class="detail-section"><h3>Riwayat perpanjangan</h3>${m.detail.renewals?.length ? `<div class="timeline">${m.detail.renewals.map(r => `<div class="timeline-item"><strong>${esc(r.outlet_name || 'Outlet')} · ${esc(r.months)} bulan</strong><p>${esc(money(r.amount_idr))} · ${esc(r.payment_reference)}</p><small>Aktif hingga ${esc(date(r.new_subscription_end_date))}<br>${esc(date(r.created_at, true))} · ${esc(r.actor_email || 'Tim CRM')}</small></div>`).join('')}</div>` : empty('Belum ada perpanjangan', 'Perpanjangan manual yang dicatat di CRM akan tampil di sini.', 'clock')}${m.detail.renewals_total > 50 ? '<p class="helper">Menampilkan 50 perpanjangan terbaru.</p>' : ''}</section>`, can('followup') ? '<button class="button primary" data-action="followup">Catat follow-up</button>' : '<button class="button" data-action="close-modal">Tutup</button>', true);
 }
 function findOutlet(id) {
   let customers = state.data?.items || [];
@@ -887,7 +1024,7 @@ async function action(button) {
   if (a === 'retry-detail') return openDetail(state.modal.id);
   if (a === 'close-modal') {
     if (state.modal?.busy) return;
-    if (state.modal?.uncertain) return toast('Periksa hasil transaksi dengan tombol coba kembali sebelum menutup.');
+    if (state.modal?.uncertain) return toast('Periksa hasil penyimpanan dengan tombol coba kembali sebelum menutup.');
     closeModal();
     return;
   }
@@ -905,6 +1042,25 @@ async function action(button) {
   if (a === 'renew-reload') {
     closeModal();
     return loadPage();
+  }
+  if (a === 'referral-reload' && can('manage_referrals') && state.modal?.conflict && !state.modal.busy) {closeModal(); return loadPage();}
+  if (a === 'resign-telesales' && can('manage_referrals')) {
+    const item = state.data?.items?.find(item => item.id === button.dataset.id);
+    if (item?.active) return openResignTelesales(item);
+    return;
+  }
+  if (a === 'assign-telesales') return openAssignTelesales();
+  if (['telesales-candidate-next', 'telesales-candidate-previous'].includes(a)) {
+    const m = state.modal;
+    if (!can('manage_referrals') || m?.type !== 'assign-telesales' || m.busy || m.uncertain || m.candidatesLoading) return;
+    m.offset = Math.max(0, m.offset + (a === 'telesales-candidate-next' ? 25 : -25));
+    return loadTelesalesCandidates(m);
+  }
+  if (a === 'add-telesales' && can('manage_referrals')) return openTelesales();
+  if (a === 'edit-telesales' && can('manage_referrals')) {
+    const item = state.data?.items?.find(item => item.id === button.dataset.id);
+    if (item?.active) return openTelesales(item);
+    return;
   }
   if (a === 'add-member') {
     if (can('manage_members')) setModal({
@@ -973,8 +1129,23 @@ document.addEventListener('submit', event => {
   }
   if (form.id === 'followup-form') return void saveFollowup(form);
   if (form.id === 'member-form') return void saveMember(form);
+  if (form.id === 'telesales-form') return void saveTelesales(form);
+  if (form.id === 'resign-telesales-form') return void resignTelesales(form);
+  if (form.id === 'assign-telesales-form') return void assignTelesales(form);
+  if (form.id === 'telesales-candidate-search') {
+    const m = state.modal;
+    if (!can('manage_referrals') || m?.type !== 'assign-telesales' || m.busy || m.uncertain || m.candidatesLoading) return;
+    m.search = String(new FormData(form).get('search') || '').trim(); m.offset = 0;
+    return void loadTelesalesCandidates(m);
+  }
+  if (form.id === 'telesales-search') {
+    const values = Object.fromEntries(new FormData(form));
+    state.search = String(values.search || '').trim(); state.status = values.status || 'all'; state.offset = 0;
+    return void loadPage();
+  }
 });
 document.addEventListener('input', event => {
+  if (can('manage_referrals') && state.modal?.type === 'assign-telesales' && !state.modal.busy && !state.modal.uncertain && event.target.name === 'note') state.modal.values.note = event.target.value;
   if (!can('create_demo') || state.demo.busy || state.demo.submitted) return;
   if (event.target.id === 'demo-email-local') state.demo.localPart = event.target.value;
   if (event.target.id === 'demo-outlet-name') state.demo.outletName = event.target.value;

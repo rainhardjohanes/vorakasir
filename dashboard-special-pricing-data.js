@@ -48,6 +48,7 @@ export function validatePriceCatalog(data, outlet) {
 export async function loadSpecialPricing(client, user, outlet, signal) {
   await verifyOwner(client, user, outlet, signal);
   const catalog = validatePriceCatalog(await result(client.rpc('vora_price_catalog', { p_outlet_id: outlet.id }), signal), outlet);
+  if (catalog.special_pricing_enabled !== true) { const error = new Error('Harga spesial tidak tersedia untuk akun ini. Pengaturan lain tetap dapat digunakan.'); error.code = 'FEATURE_DISABLED'; throw error; }
   const customers = []; let cursor; const seen = new Set();
   for (;;) {
     let query = client.from('customers').select('id,outlet_id,name,phone,deleted_at').eq('outlet_id', outlet.id).is('deleted_at', null).order('id', { ascending: true }).limit(500);

@@ -33,13 +33,30 @@ async function rows(client,table,fields,outlet,signal,key='id',limit=20000,softD
   }
 }
 async function settingsRow(client,outlet,signal){const row=await result(client.from('settings').select(SETTINGS_FIELDS).eq('outlet_id',outlet.id).maybeSingle(),signal);return row?ownRow(row,outlet):null;}
+// This is an optional server-granted feature. A missing RPC/network failure must
+// hide private pricing without blocking the ordinary catalog or settings pages.
+export async function loadClientFeatures(client, signal) {
+  abort(signal);
+  try {
+    const data = await result(client.rpc('vora_client_features'), signal);
+    const valid = !!data && !Array.isArray(data) && typeof data === 'object';
+    return { vpos: valid && data.vpos === true, special_pricing: valid && data.special_pricing === true };
+  } catch (error) {
+    abort(signal); if (error?.name === 'AbortError') throw error;
+    return { vpos: false, special_pricing: false };
+  }
+}
+export function hasSpecialPricing(data, outlet) {
+  return !!outlet?.merchant_id && outlet.is_deleted === false && data?.outletId === outlet.id &&
+    data?.featureOwnerId === outlet.merchant_id && data?.features?.special_pricing === true;
+}
 export async function loadOperations(client,user,outlet,signal){
   await verifyOwner(client,user,outlet,signal);
-  const [products,categories,staff,settings,extras]=await Promise.all([
+  const [products,categories,staff,settings,extras,features]=await Promise.all([
     rows(client,'products',PRODUCT_FIELDS,outlet,signal), rows(client,'categories','name,outlet_id,sort_order,deleted_at',outlet,signal,'name'),
-    rows(client,'staff',STAFF_FIELDS,outlet,signal),settingsRow(client,outlet,signal),rows(client,'extras_library','id,outlet_id,name,options',outlet,signal,'id',20000,false),
+    rows(client,'staff',STAFF_FIELDS,outlet,signal),settingsRow(client,outlet,signal),rows(client,'extras_library','id,outlet_id,name,options',outlet,signal,'id',20000,false),loadClientFeatures(client,signal),
   ]);
-  return {outletId:outlet.id,products,categories,staff,settings:settings||{outlet_id:outlet.id},extras,loadedAt:new Date().toISOString()};
+  return {outletId:outlet.id,products,categories,staff,settings:settings||{outlet_id:outlet.id},extras,features,featureOwnerId:scope(user,outlet),loadedAt:new Date().toISOString()};
 }
 function text(value,label,max=200){const str=String(value??'').trim();if(!str||str.length>max||/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(str))throw new Error(`${label} wajib diisi (maksimal ${max} karakter).`);return str;}
 function number(value,label,max=1000000000000){if(value===''||value==null||!Number.isFinite(Number(value))||Number(value)<0||Number(value)>max)throw new Error(`${label} harus berupa angka 0–${max}.`);return Number(value);}

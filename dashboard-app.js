@@ -1,6 +1,7 @@
 import { loadOutletFeatures, hasCommissionPilot } from '/dashboard-operations-data.js';
 import { loadCommissionReport } from '/dashboard-commissions-data.js';
-import { renderCommissionReport, commissionReportRows } from '/dashboard-commissions.js';
+import { renderCommissionReport, commissionReportRows, bindCommissionReport, readCommissionReportFilters } from '/dashboard-commissions.js';
+import { createCommissionWorkbook, COMMISSION_XLSX_MIME } from '/dashboard-commission-workbook.js';
 import { config } from '/dashboard-config.js';
 import { loadOutlets, loadReport, requestScope, makeCsv, outletDisplayName } from '/dashboard-data.js';
 import { identityGuard, validatePublicConfig, boundedFetch } from '/dashboard-session.js';
@@ -159,10 +160,10 @@ async function render() {
     state.commissionPilotEnabled=operationRoutes.has(current)?hasCommissionPilot(state.data,selected):features?.pilot_enabled===true;
     state.loading=false;
     const tab=new URLSearchParams(location.hash.split('?')[1]||'').get('tab');
-    const content=current==='commission-report'?renderCommissionReport(state.report):operationRoutes.has(current)?renderOperations(current,{tab,data:state.data,outlet:selected}):renderReport(current,{report:state.report,outlet:selected,range:state.range,commissionPilotEnabled:state.commissionPilotEnabled});
+    const content=current==='commission-report'?renderCommissionReport(state.report,{outlet:selected}):operationRoutes.has(current)?renderOperations(current,{tab,data:state.data,outlet:selected}):renderReport(current,{report:state.report,outlet:selected,range:state.range,commissionPilotEnabled:state.commissionPilotEnabled});
     app.innerHTML=shell(current,content);syncMenuAccess();
     const api=commonApi(sequence,scope.signal);
-    cleanupPage=current==='commission-report'?null:operationRoutes.has(current)?bindOperations(document.querySelector('#page-content'),api):bindReport(document.querySelector('#page-content'),api);
+    cleanupPage=current==='commission-report'?bindCommissionReport(document.querySelector('#page-content'),api):operationRoutes.has(current)?bindOperations(document.querySelector('#page-content'),api):bindReport(document.querySelector('#page-content'),api);
   }catch(error){if(sequence!==renderSequence||!scope.current()||!validIdentity())return;state.loading=false;state.error=safeError(error);app.innerHTML=shell(current,errorView(state.error));syncMenuAccess();}
 }
 async function logout({broadcast=true}={}) {
@@ -184,6 +185,7 @@ async function logout({broadcast=true}={}) {
 function exportReport() {
   if(!state.report||state.loading||state.error)return;
   const current=route(), report=state.report,selected=outlet();
+  if(current==='commission-report')return exportCommissionReport(report,selected);
   const el=modal({title:'Ekspor laporan',description:`${outletDisplayName(selected)} · ${state.range.start} – ${state.range.end}`,content:current==='commission-report'?'<p>CSV memuat seluruh rincian komisi pada periode ini. Cetak / PDF mengikuti ringkasan dan maksimal 500 catatan yang terlihat di layar.</p>':'<p>Unduh seluruh data laporan pada periode ini, atau gunakan Cetak / Simpan PDF pada browser.</p>',footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><button class="btn btn-primary" id="export-csv">Unduh CSV</button>'});
   el.querySelector('#export-csv').addEventListener('click',()=>{
     const rows=[['VORA POS',outletDisplayName(selected)],['Periode',state.range.start,state.range.end],[],...(current==='commission-report'?commissionReportRows(report):reportExportRows(current,report))];
@@ -191,6 +193,23 @@ function exportReport() {
     closeModal();toast('Unduhan CSV dimulai. Periksa folder unduhan browser Anda.');
   });
   el.querySelector('#export-print').addEventListener('click',()=>{closeModal();window.print();});
+}
+function exportCommissionReport(report,selected) {
+  const host=document.querySelector('#page-content'),filters=readCommissionReportFilters(host),surface=host?.querySelector('[data-commission-report]');
+  const options={outlet:selected,filters,generatedAt:new Date().toISOString(),timeZone:surface?.dataset.timeZone};
+  const sequence=renderSequence,validIdentity=identity.capture();
+  const el=modal({title:'Ekspor komisi karyawan',description:`${outletDisplayName(selected)} · ${report.date_from} – ${report.date_until}`,content:`<p>Excel berisi ringkasan lima kolom dan seluruh rincian komisi, sesuai periode dan pencarian saat ini.</p><p>Filter: <strong>${h(filters.search||'Semua karyawan dan cabang')}</strong></p><p id="commission-export-status" role="status">Menyiapkan file Excel…</p>`,footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><button class="btn btn-secondary" id="export-csv">Rincian CSV</button><span id="commission-xlsx-download"></span>'});
+  const signal=modalCleanup.signal,valid=()=>!signal.aborted&&el.isConnected&&validIdentity()&&sequence===renderSequence&&state.report===report&&state.outletId===selected.id;
+  el.querySelector('#export-csv').addEventListener('click',()=>{if(!valid())return;const rows=[['VORA POS',outletDisplayName(selected)],['Periode',report.date_from,report.date_until],['Filter',filters.search||'Semua'],[],...commissionReportRows(report,options)];downloadCsvFile(makeCsv(rows),`VORA-komisi-${report.date_from}-${report.date_until}.csv`);closeModal();toast('Unduhan rincian CSV dimulai.');},{signal});
+  el.querySelector('#export-print').addEventListener('click',()=>{if(!valid())return;closeModal();window.print();},{signal});
+  void createCommissionWorkbook({report,...options}).then(bytes=>{
+    if(!valid())return;
+    const url=URL.createObjectURL(new Blob([bytes],{type:COMMISSION_XLSX_MIME}));let downloaded=false;
+    signal.addEventListener('abort',()=>{if(downloaded)setTimeout(()=>URL.revokeObjectURL(url),60000);else URL.revokeObjectURL(url);},{once:true});
+    const link=document.createElement('a');link.className='btn btn-primary';link.href=url;link.download=`VORA-Komisi-Karyawan-${report.date_from}-${report.date_until}.xlsx`;link.textContent='Unduh Excel';
+    link.addEventListener('click',event=>{if(!valid()){event.preventDefault();return;}downloaded=true;el.querySelector('#commission-export-status').textContent='Unduhan Excel dimulai. File mengikuti periode dan filter terpilih.';},{signal});
+    el.querySelector('#commission-xlsx-download').append(link);el.querySelector('#commission-export-status').textContent='File Excel siap. Klik Unduh Excel untuk menyimpannya.';link.focus();
+  }).catch(error=>{if(valid())el.querySelector('#commission-export-status').textContent=error instanceof TypeError?error.message:'Excel belum dapat disiapkan. Tutup dialog dan coba lagi.';});
 }
 function periodDialog() {
   const el=modal({title:'Periode laporan',description:'Pilih tanggal awal dan akhir. Maksimal 93 hari, mengikuti tanggal bisnis pada transaksi.',content:'<div data-range-picker></div>',footer:'<div class="range-summary" data-range-summary aria-live="polite"></div><div class="range-footer-actions"><button class="btn btn-secondary" data-close-modal>Batal</button><button class="btn btn-primary" type="button" data-range-apply>Terapkan</button></div>'});

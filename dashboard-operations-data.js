@@ -46,6 +46,27 @@ export async function loadClientFeatures(client, signal) {
     return { vpos: false, special_pricing: false };
   }
 }
+export async function loadOutletFeatures(client, outlet, signal) {
+  try {
+    const data = await result(client.rpc('vora_outlet_entitlements', {p_outlet_id:outlet.id}), signal);
+    if (!data || data.outlet_id !== outlet.id || !['starter','premium'].includes(data.tier) || !Number.isSafeInteger(data.version)) return {special_pricing:false,staff_commissions:false};
+    return {special_pricing:data.features?.special_pricing===true,staff_commissions:data.pilot_enabled===true&&data.features?.staff_commissions===true,pilot_enabled:data.pilot_enabled===true,tier:data.tier,source:data.source,version:data.version};
+  } catch (error) {
+    abort(signal); if(error?.name==='AbortError')throw error;
+    // Compatibility with the separately deployed private-pricing server only.
+    // Permission/network failures never fall back to a broader feature grant.
+    if(error?.code==='PGRST202')return {...await loadClientFeatures(client,signal),staff_commissions:false};
+    return {special_pricing:false,staff_commissions:false};
+  }
+}
+// A pilot may inspect historical rules/reports after its paid feature expires.
+// This visibility flag is server-issued and remains bound to the selected owner/outlet.
+export function hasCommissionPilot(data, outlet) {
+  return !!outlet?.merchant_id && outlet.is_deleted===false && data?.outletId===outlet.id && data?.featureOwnerId===outlet.merchant_id && data?.features?.pilot_enabled===true;
+}
+export function hasStaffCommissions(data, outlet) {
+  return !!outlet?.merchant_id && outlet.is_deleted===false && data?.outletId===outlet.id && data?.featureOwnerId===outlet.merchant_id && data?.features?.pilot_enabled===true && data?.features?.staff_commissions===true;
+}
 export function hasSpecialPricing(data, outlet) {
   return !!outlet?.merchant_id && outlet.is_deleted === false && data?.outletId === outlet.id &&
     data?.featureOwnerId === outlet.merchant_id && data?.features?.special_pricing === true;
@@ -54,7 +75,7 @@ export async function loadOperations(client,user,outlet,signal){
   await verifyOwner(client,user,outlet,signal);
   const [products,categories,staff,settings,extras,features]=await Promise.all([
     rows(client,'products',PRODUCT_FIELDS,outlet,signal), rows(client,'categories','name,outlet_id,sort_order,deleted_at',outlet,signal,'name'),
-    rows(client,'staff',STAFF_FIELDS,outlet,signal),settingsRow(client,outlet,signal),rows(client,'extras_library','id,outlet_id,name,options',outlet,signal,'id',20000,false),loadClientFeatures(client,signal),
+    rows(client,'staff',STAFF_FIELDS,outlet,signal),settingsRow(client,outlet,signal),rows(client,'extras_library','id,outlet_id,name,options',outlet,signal,'id',20000,false),loadOutletFeatures(client,outlet,signal),
   ]);
   return {outletId:outlet.id,products,categories,staff,settings:settings||{outlet_id:outlet.id},extras,features,featureOwnerId:scope(user,outlet),loadedAt:new Date().toISOString()};
 }

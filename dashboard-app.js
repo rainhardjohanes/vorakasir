@@ -1,3 +1,6 @@
+import { loadOutletFeatures, hasCommissionPilot } from '/dashboard-operations-data.js';
+import { loadCommissionReport } from '/dashboard-commissions-data.js';
+import { renderCommissionReport, commissionReportRows } from '/dashboard-commissions.js';
 import { config } from '/dashboard-config.js';
 import { loadOutlets, loadReport, requestScope, makeCsv, outletDisplayName } from '/dashboard-data.js';
 import { identityGuard, validatePublicConfig, boundedFetch } from '/dashboard-session.js';
@@ -30,6 +33,7 @@ const titles = {
   profit:['Laba & rugi','Pendapatan, HPP, dan biaya usaha dalam satu laporan.'],
   'product-report':['Penjualan per produk','Kenali produk yang paling banyak dipilih pelanggan.'],
   payments:['Metode pembayaran','Penerimaan tunai dan nontunai outlet Anda.'],
+  'commission-report':['Komisi staf','Komisi transaksi lunas dan pengurang refund berdasarkan staf penerima.'],
   'staff-report':['Kinerja kasir','Ringkasan transaksi berdasarkan nama kasir pada struk.'],
   refunds:['Refund & pembatalan','Pengembalian dana pada periode penjualan terpilih.'],
   expenses:['Biaya usaha','Biaya operasional yang tercatat dari aplikasi kasir.'],
@@ -38,7 +42,7 @@ const titles = {
 };
 const day = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 function rangePreset(value) { const end=new Date(),start=new Date(end); if(value==='month')start.setDate(1);if(value==='week')start.setDate(start.getDate()-6); return { start:day(start),end:day(end) }; }
-const state = { user:null,outlets:[],outletId:'',ready:false,loading:true,error:'',report:null,data:null,range:rangePreset('month') };
+const state = { user:null,outlets:[],outletId:'',ready:false,loading:true,error:'',report:null,data:null,commissionPilotEnabled:false,range:rangePreset('month') };
 let cleanupPage, renderSequence=0, authBusy=false, logoutBusy=false, toastTimer, modalCleanup, focusBeforeModal;
 let subscriptionRefreshRequest=null;
 let restoringSession=true, restoredUserId=null, logoutEventSeen=false, pendingAuthUserId=null, logoutStorageError=null;
@@ -83,7 +87,7 @@ function shell(current,content) {
 }
 function loading(message='Memuat data outlet…') { return `<div class="loading-state" role="status"><span class="vora-spinner" aria-hidden="true"></span><strong>${h(message)}</strong><p>Mohon tunggu sebentar.</p></div>`; }
 function errorView(message) { return `<div class="card error-state" role="alert"><h2>Data belum tersedia</h2><p>${h(message)}</p><button class="btn btn-primary" data-action="refresh">Coba lagi</button><button class="btn btn-secondary" data-action="logout">Keluar akun</button></div>`; }
-function resetData() { subscriptionRefreshRequest=null;outletsScope.cancel();pageScope.cancel();state.outlets=[];state.outletId='';state.report=null;state.data=null;state.ready=false;state.error='';cleanupPage?.();cleanupPage=null;closeModal(); }
+function resetData() { subscriptionRefreshRequest=null;outletsScope.cancel();pageScope.cancel();state.outlets=[];state.outletId='';state.report=null;state.data=null;state.commissionPilotEnabled=false;state.ready=false;state.error='';cleanupPage?.();cleanupPage=null;closeModal(); }
 async function adoptSession(session, preferredOutlet) {
   const user=session?.user||null;
   if(identity.id!==user?.id){identity.set(user?.id||null);resetData();}
@@ -141,21 +145,24 @@ async function render() {
   if(!state.outlets.length){document.body.classList.add('auth-mode');app.innerHTML=renderAuth('business',{user:state.user});cleanupPage=bindAuth(app,commonApi(sequence));return;}
   if(authRoutes.has(current))current='overview';
   document.body.classList.remove('auth-mode');document.title=`${titles[current][0]} · VORA Backoffice`;
-  const scope=pageScope.begin(),validIdentity=identity.capture(),selected=outlet();state.loading=true;state.report=null;state.data=null;state.error='';
+  const scope=pageScope.begin(),validIdentity=identity.capture(),selected=outlet();state.loading=true;state.report=null;state.data=null;state.commissionPilotEnabled=false;state.error='';
   app.innerHTML=shell(current,loading());syncMenuAccess();window.scrollTo(0,0);
   try{
-    const value=operationRoutes.has(current)?await loadOperations(client,state.user,selected,scope.signal):await loadReport(client,state.user.id,selected,state.range,scope.signal);
+    const features=['reports','commission-report'].includes(current)?await loadOutletFeatures(client,selected,scope.signal):null;
+    if(current==='commission-report'&&features?.pilot_enabled!==true)throw new Error('Halaman belum tersedia untuk outlet ini.');
+    const value=current==='commission-report'?await loadCommissionReport(client,state.user,selected,state.range,scope.signal):operationRoutes.has(current)?await loadOperations(client,state.user,selected,scope.signal):await loadReport(client,state.user.id,selected,state.range,scope.signal);
     if(sequence!==renderSequence||!scope.current()||!validIdentity())return;
     if(operationRoutes.has(current)){
       if(value.outletId!==selected.id||value.settings?.outlet_id!==selected.id)throw new Error('Data lintas outlet ditolak.');
       state.data=value;selected.businessName=value.settings.profile_data?.businessName;
     }else state.report=value;
+    state.commissionPilotEnabled=operationRoutes.has(current)?hasCommissionPilot(state.data,selected):features?.pilot_enabled===true;
     state.loading=false;
     const tab=new URLSearchParams(location.hash.split('?')[1]||'').get('tab');
-    const content=operationRoutes.has(current)?renderOperations(current,{tab,data:state.data,outlet:selected}):renderReport(current,{report:state.report,outlet:selected,range:state.range});
+    const content=current==='commission-report'?renderCommissionReport(state.report):operationRoutes.has(current)?renderOperations(current,{tab,data:state.data,outlet:selected}):renderReport(current,{report:state.report,outlet:selected,range:state.range,commissionPilotEnabled:state.commissionPilotEnabled});
     app.innerHTML=shell(current,content);syncMenuAccess();
     const api=commonApi(sequence,scope.signal);
-    cleanupPage=operationRoutes.has(current)?bindOperations(document.querySelector('#page-content'),api):bindReport(document.querySelector('#page-content'),api);
+    cleanupPage=current==='commission-report'?null:operationRoutes.has(current)?bindOperations(document.querySelector('#page-content'),api):bindReport(document.querySelector('#page-content'),api);
   }catch(error){if(sequence!==renderSequence||!scope.current()||!validIdentity())return;state.loading=false;state.error=safeError(error);app.innerHTML=shell(current,errorView(state.error));syncMenuAccess();}
 }
 async function logout({broadcast=true}={}) {
@@ -177,9 +184,9 @@ async function logout({broadcast=true}={}) {
 function exportReport() {
   if(!state.report||state.loading||state.error)return;
   const current=route(), report=state.report,selected=outlet();
-  const el=modal({title:'Ekspor laporan',description:`${outletDisplayName(selected)} · ${state.range.start} – ${state.range.end}`,content:'<p>Unduh seluruh data laporan pada periode ini, atau gunakan Cetak / Simpan PDF pada browser.</p>',footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><button class="btn btn-primary" id="export-csv">Unduh CSV</button>'});
+  const el=modal({title:'Ekspor laporan',description:`${outletDisplayName(selected)} · ${state.range.start} – ${state.range.end}`,content:current==='commission-report'?'<p>CSV memuat seluruh rincian komisi pada periode ini. Cetak / PDF mengikuti ringkasan dan maksimal 500 catatan yang terlihat di layar.</p>':'<p>Unduh seluruh data laporan pada periode ini, atau gunakan Cetak / Simpan PDF pada browser.</p>',footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><button class="btn btn-primary" id="export-csv">Unduh CSV</button>'});
   el.querySelector('#export-csv').addEventListener('click',()=>{
-    const rows=[['VORA POS',outletDisplayName(selected)],['Periode',state.range.start,state.range.end],[],...reportExportRows(current,report)];
+    const rows=[['VORA POS',outletDisplayName(selected)],['Periode',state.range.start,state.range.end],[],...(current==='commission-report'?commissionReportRows(report):reportExportRows(current,report))];
     downloadCsvFile(makeCsv(rows),`VORA-${current}-${state.range.start}-${state.range.end}.csv`);
     closeModal();toast('Unduhan CSV dimulai. Periksa folder unduhan browser Anda.');
   });
@@ -214,7 +221,7 @@ function action(name) {
   }
   if(name==='profile')return modal({title:'Akun pemilik bisnis',description:state.user?.email||'',content:`<p>Outlet aktif: <strong>${h(outletDisplayName(outlet()))}</strong></p><p>Keluar hanya mengakhiri sesi browser ini. Sesi aplikasi kasir tetap berjalan.</p>`,footer:'<button class="btn btn-secondary" data-close-modal>Tutup</button><button class="btn btn-primary" data-action="logout">Keluar akun</button>'});
   if(name==='search'){
-    const el=modal({title:'Cari menu dashboard',content:`<label class="field">Nama menu<input class="input" id="menu-search" placeholder="Cari laporan, produk, pengaturan…"></label><div class="search-results">${Object.entries(titles).map(([key,[title]])=>`<a class="search-result" data-route="${key}" href="#${key}">${h(title)}</a>`).join('')}</div>`});
+    const el=modal({title:'Cari menu dashboard',content:`<label class="field">Nama menu<input class="input" id="menu-search" placeholder="Cari laporan, produk, pengaturan…"></label><div class="search-results">${Object.entries(titles).filter(([key])=>key!=='commission-report'||state.commissionPilotEnabled).map(([key,[title]])=>`<a class="search-result" data-route="${key}" href="#${key}">${h(title)}</a>`).join('')}</div>`});
     el.querySelector('input').addEventListener('input',e=>el.querySelectorAll('.search-result').forEach(a=>a.hidden=!a.textContent.toLowerCase().includes(e.target.value.toLowerCase())));
   }
 }

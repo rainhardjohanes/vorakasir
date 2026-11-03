@@ -103,16 +103,17 @@ function overview(report) {
   return `${metrics(report)}<div class="r-analytics">${section('Tren penerimaan', 'Angka harian berdasarkan tanggal usaha pada struk', `<div class="r-chart-total"><strong>${h(money(report.finance.netReceipts))}</strong><span>Setelah refund, termasuk pajak dan layanan</span></div><div data-report-chart>${chart(report)}</div><div class="r-chart-caption">${peak && report.sales.length ? `Penerimaan tertinggi: ${h(date(peak.date))} · ${h(money(peak.net))}` : 'Menunggu transaksi pertama pada periode ini.'}</div>${dailyDetails(report)}`, '<div class="r-chart-controls" aria-label="Tampilan grafik"><button type="button" data-report-chart-metric="net" aria-pressed="true">Penerimaan</button><button type="button" data-report-chart-metric="count" aria-pressed="false">Transaksi</button></div>')}${section('Metode pembayaran', 'Komposisi penerimaan setelah refund', paymentChart(report), link('payments', 'Rincian'))}</div><div class="r-insight"><span>${icon('chart')}</span><div><strong>${report.finance.complete ? 'Pahami laba dari transaksi yang tercatat' : 'Ada angka historis yang perlu ditinjau'}</strong><p>${report.finance.complete ? 'Rincian HPP, biaya pembayaran, dan biaya usaha tersedia di laporan laba rugi.' : 'Laporan laba rugi menunjukkan komponen yang tersedia dan catatan rekonsiliasi.'}</p></div>${link('profit', 'Lihat laba rugi')}</div><div class="r-bottom-grid">${section('Produk terlaris', 'Kuantitas neto setelah pengembalian item', table(['Produk', 'Terjual', 'Nilai item'], productRows), link('product-report', 'Lihat semua'))}${section('Jenis pesanan', 'Penerimaan bersih berdasarkan jenis pesanan', bars(report.orderTypes))}</div>${section('Transaksi terbaru', 'Pilih nomor struk untuk membuka rincian', table(salesDefinition(report).headers, report.sales.slice(0, 5).map(salesDefinition(report).row)), link('sales', 'Semua transaksi'))}`;
 }
 
-function hub(report) {
+function hub(report,commissionPilotEnabled=false) {
   const cards = [
     ['sales', 'receipt', 'Penjualan', 'Telusuri transaksi, rincian struk, dan penerimaan outlet.', `${number(report.sales.length)} transaksi`],
     ['product-report', 'product', 'Performa produk', 'Kenali produk terlaris dan nilai item yang masih terjual.', `${number(report.products.length)} produk tercatat`],
     ['payments', 'payment', 'Metode pembayaran', 'Lihat komposisi penerimaan, refund, dan biaya pembayaran.', `${number(report.methods.length)} metode pembayaran`],
+    ['commission-report', 'staff', 'Komisi staf', 'Komisi penerima pada transaksi lunas, termasuk pengurang refund.', 'Laporan terpisah dari kinerja kasir'],
     ['staff-report', 'staff', 'Performa staf', 'Tinjau transaksi dan penerimaan berdasarkan nama kasir.', `${number(report.cashiers.length)} nama kasir`],
     ['refunds', 'refund', 'Pengembalian dana', 'Periksa pengembalian dana untuk struk pada periode pilihan.', `${number(report.refunds.length)} struk dengan refund`],
     ['expenses', 'expense', 'Biaya usaha', 'Pantau biaya operasional dan catatan pembatalannya.', `${number(report.expense.expenses.length)} catatan biaya`],
   ];
-  return `<section class="r-banner"><div><small>LAPORAN KEUANGAN</small><h2>Laporan laba rugi</h2><p>Pendapatan, harga pokok, dan biaya usaha dalam satu laporan.</p></div>${link('profit', 'Lihat laba rugi')}</section><div class="r-hub-grid">${cards.map(([view, symbol, title, description, caption]) => `<a class="r-card r-report-card" href="#${view}" data-report-route="${view}"><span>${icon(symbol)}</span><h2>${title}</h2><p>${description}</p><strong>${h(caption)} ${icon('arrow')}</strong></a>`).join('')}</div>`;
+  return `<section class="r-banner"><div><small>LAPORAN KEUANGAN</small><h2>Laporan laba rugi</h2><p>Pendapatan, harga pokok, dan biaya usaha dalam satu laporan.</p></div>${link('profit', 'Lihat laba rugi')}</section><div class="r-hub-grid">${cards.filter(([view])=>view!=='commission-report'||commissionPilotEnabled===true).map(([view, symbol, title, description, caption]) => `<a class="r-card r-report-card" href="#${view}" data-report-route="${view}"><span>${icon(symbol)}</span><h2>${title}</h2><p>${description}</p><strong>${h(caption)} ${icon('arrow')}</strong></a>`).join('')}</div>`;
 }
 
 function profitLines(report) {
@@ -203,10 +204,10 @@ function detailView(view, report) {
   return '';
 }
 
-export function renderReport(view, { report, outlet, range } = {}) {
+export function renderReport(view, { report, outlet, range, commissionPilotEnabled=false } = {}) {
   if (!report) return `<div class="reports-surface">${empty('Laporan belum dimuat. Pilih outlet dan periode untuk melihat data.')}</div>`;
   const actualRange = range || report.range;
-  const body = view === 'overview' ? overview(report) : view === 'reports' ? hub(report) : view === 'profit' ? profit(report, outlet, actualRange) : detailView(view, report);
+  const body = view === 'overview' ? overview(report) : view === 'reports' ? hub(report,commissionPilotEnabled) : view === 'profit' ? profit(report, outlet, actualRange) : detailView(view, report);
   return `<div class="reports-surface" data-report-view="${h(view)}">${warnings(report)}<div class="r-screen-report">${view === 'overview' ? '' : tabs(view)}${body || empty('Halaman laporan tidak tersedia.')}</div><div class="r-print-report" aria-hidden="true"></div></div>`;
 }
 

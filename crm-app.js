@@ -1,3 +1,4 @@
+import {canManageTier,validateEntitlement,tierPayload,tierError,tierBody} from '/crm-tiers.js';
 import { createAuth } from '/crm-auth.js';
 import { createApi } from '/crm-data.js';
 import { STATUS, USAGE_STAGES, USAGE_HELP, USAGE_SORTS, usageCount, saleDate, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, isRenewalConflict, allowedPages, humanError, DEMO_CATEGORIES, DEMO_STATUS, demoAccountPayload, demoRecovery, demoError, telesalesPayload, referralError } from '/crm-model.js';
@@ -611,6 +612,7 @@ function audit() {
   const labels = {
     'followup.created': 'Follow-up dicatat',
     'renewal.created': 'Langganan diperpanjang',
+    'outlet.tier_changed': 'Paket fitur outlet diubah',
     'member.created': 'Akses tim ditambahkan',
     'member.updated': 'Akses tim diubah',
     'member.bound': 'Akun tim diaktifkan',
@@ -628,7 +630,7 @@ function audit() {
 function auditSummary(d) {
   if (!d) return '—';
   const r = d.renewal || d.followup || d.member || d.telesales || d.after || d;
-  return [r.name, r.email, r.code, r.outlet_name, r.months ? `${r.months} bulan` : null, r.amount_idr ? money(r.amount_idr) : null, r.payment_reference, r.outcome ? OUTCOME[r.outcome] : null, r.role ? ROLES[r.role] : null, r.note].filter(Boolean).join(' · ') || JSON.stringify(d);
+  return [r.name, r.email, r.code, r.outlet_name, r.tier ? `Paket ${r.tier === 'premium' ? 'Premium' : 'Starter'}` : null, r.previous_tier ? `Sebelumnya ${r.previous_tier === 'premium' ? 'Premium' : 'Starter'}` : null, r.version ? `Versi ${r.version}` : null, r.months ? `${r.months} bulan` : null, r.amount_idr ? money(r.amount_idr) : null, r.payment_reference, r.outcome ? OUTCOME[r.outcome] : null, r.role ? ROLES[r.role] : null, r.note].filter(Boolean).join(' · ') || JSON.stringify(d);
 }
 function setModal(value) {
   if (!state.modal) modalReturnFocus = document.activeElement;
@@ -655,6 +657,7 @@ function renderModal() {
   document.body.classList.add('has-modal');
   if (m.type === 'detail') modalRoot.innerHTML = detailModal(m);
   if (m.type === 'renew') modalRoot.innerHTML = renewModal(m);
+  if (m.type === 'tier') modalRoot.innerHTML = tierModal(m);
   if (m.type === 'followup') modalRoot.innerHTML = followupModal(m);
   if (m.type === 'member') modalRoot.innerHTML = memberModal(m);
   if (m.type === 'telesales') modalRoot.innerHTML = telesalesModal(m);
@@ -714,7 +717,7 @@ function detailModal(m) {
   if (!m.detail) return modalFrame('Detail pengguna', '', m.error ? `<div class="error">${esc(m.error)}</div><button class="button" data-action="retry-detail">Coba lagi</button>` : loading(), ' ', true);
   const c = m.detail.customer,
     url = whatsapp(c.phone);
-  return modalFrame(customerName(c), c.email || '', `<div class="row wrap">${badge(c.status)}<span class="small muted">${esc(remaining(c.days_remaining, c.status))}</span><span class="spacer"></span>${url ? `<a class="button tiny" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('chat')} WhatsApp</a>` : ''}</div><dl class="detail-grid">${datum('Nomor HP', c.phone)}${datum('Terdaftar', date(c.created_at, true))}${datum('Login akun terakhir', date(c.last_sign_in_at, true))}${datum('ID pengguna', c.merchant_id)}${datum('Email diverifikasi', date(c.email_confirmed_at, true))}${datum('Trial dimulai', date(c.first_confirmed_at, true))}${datum('Trial awal berakhir', date(c.trial_end_date, true))}${datum('Masa aktif hingga', date(customerExpiry(c), true))}${datum('Jumlah outlet', `${c.outlet_count || c.outlets?.length || 0} outlet`)}</dl>${referralDetails(c.referral)}<section class="detail-section"><h3>Penggunaan seluruh outlet</h3>${usageDetails(c.usage)}<p class="helper usage-login-note">Login akun terakhir menunjukkan autentikasi akun, bukan waktu terakhir kasir digunakan.</p>${usageWindowNote(m.detail.usage_meta)}</section><section class="detail-section"><div class="row between"><h3>Outlet & langganan</h3></div>${c.outlets?.length ? c.outlets.map(o => `<article class="outlet-card"><div class="row"><div><strong>${esc(o.name || 'Outlet')}</strong><p>${esc(planName(o.subscription_plan))} · ${esc(remaining(o.days_remaining, o.status))}</p></div>${can('renew') ? `<button class="button tiny primary" data-action="renew" data-id="${esc(o.id)}">Perpanjang</button>` : ''}</div><p>Aktif hingga ${esc(date(o.subscription_end_date, true))}</p>${o.address ? `<p>${esc(o.address)}</p>` : ''}${o.type ? `<p>${esc(o.type)}</p>` : ''}${o.email ? `<p>Email outlet: ${esc(o.email)}</p>` : ''}${o.phone ? `<p>Kontak outlet: ${esc(o.phone)}</p>` : ''}${usageDetails(o.usage, true)}</article>`).join('') : empty('Belum ada outlet', 'Pengguna belum menyelesaikan pembuatan outlet.', 'store')}</section><section class="detail-section"><div class="row between"><h3>Catatan follow-up</h3>${can('followup') ? '<button class="button tiny" data-action="followup">+ Catat follow-up</button>' : ''}</div>${m.detail.followups?.length ? `<div class="timeline">${m.detail.followups.map(f => `<div class="timeline-item">${badge(f.outcome, OUTCOME)}<p>${esc(f.note)}</p><small>${esc(date(f.created_at, true))} · ${esc(f.actor_email || 'Tim CRM')}</small>${f.next_followup_at ? `<p class="muted">Berikutnya: ${esc(date(f.next_followup_at, true))}</p>` : ''}</div>`).join('')}</div>` : empty('Belum ada percakapan tercatat', 'Catat hasil komunikasi agar tindak lanjut tetap terarah.', 'chat')}${m.detail.followups_total > 100 ? '<p class="helper">Menampilkan 100 catatan terbaru.</p>' : ''}</section><section class="detail-section"><h3>Riwayat perpanjangan</h3>${m.detail.renewals?.length ? `<div class="timeline">${m.detail.renewals.map(r => `<div class="timeline-item"><strong>${esc(r.outlet_name || 'Outlet')} · ${esc(r.months)} bulan</strong><p>${esc(money(r.amount_idr))} · ${esc(r.payment_reference)}</p><small>Aktif hingga ${esc(date(r.new_subscription_end_date))}<br>${esc(date(r.created_at, true))} · ${esc(r.actor_email || 'Tim CRM')}</small></div>`).join('')}</div>` : empty('Belum ada perpanjangan', 'Perpanjangan manual yang dicatat di CRM akan tampil di sini.', 'clock')}${m.detail.renewals_total > 50 ? '<p class="helper">Menampilkan 50 perpanjangan terbaru.</p>' : ''}</section>`, can('followup') ? '<button class="button primary" data-action="followup">Catat follow-up</button>' : '<button class="button" data-action="close-modal">Tutup</button>', true);
+  return modalFrame(customerName(c), c.email || '', `<div class="row wrap">${badge(c.status)}<span class="small muted">${esc(remaining(c.days_remaining, c.status))}</span><span class="spacer"></span>${url ? `<a class="button tiny" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('chat')} WhatsApp</a>` : ''}</div><dl class="detail-grid">${datum('Nomor HP', c.phone)}${datum('Terdaftar', date(c.created_at, true))}${datum('Login akun terakhir', date(c.last_sign_in_at, true))}${datum('ID pengguna', c.merchant_id)}${datum('Email diverifikasi', date(c.email_confirmed_at, true))}${datum('Trial dimulai', date(c.first_confirmed_at, true))}${datum('Trial awal berakhir', date(c.trial_end_date, true))}${datum('Masa aktif hingga', date(customerExpiry(c), true))}${datum('Jumlah outlet', `${c.outlet_count || c.outlets?.length || 0} outlet`)}</dl>${referralDetails(c.referral)}<section class="detail-section"><h3>Penggunaan seluruh outlet</h3>${usageDetails(c.usage)}<p class="helper usage-login-note">Login akun terakhir menunjukkan autentikasi akun, bukan waktu terakhir kasir digunakan.</p>${usageWindowNote(m.detail.usage_meta)}</section><section class="detail-section"><div class="row between"><h3>Outlet & langganan</h3></div>${c.outlets?.length ? c.outlets.map(o => `<article class="outlet-card"><div class="row"><div><strong>${esc(o.name || 'Outlet')}</strong><p>${esc(planName(o.subscription_plan))} · ${esc(remaining(o.days_remaining, o.status))}</p></div>${canManageTier(state.session)?`<button class="button tiny" data-action="outlet-tier" data-id="${esc(o.id)}">Paket fitur</button>`:''}${can('renew') ? `<button class="button tiny primary" data-action="renew" data-id="${esc(o.id)}">Perpanjang</button>` : ''}</div><p>Aktif hingga ${esc(date(o.subscription_end_date, true))}</p>${o.address ? `<p>${esc(o.address)}</p>` : ''}${o.type ? `<p>${esc(o.type)}</p>` : ''}${o.email ? `<p>Email outlet: ${esc(o.email)}</p>` : ''}${o.phone ? `<p>Kontak outlet: ${esc(o.phone)}</p>` : ''}${usageDetails(o.usage, true)}</article>`).join('') : empty('Belum ada outlet', 'Pengguna belum menyelesaikan pembuatan outlet.', 'store')}</section><section class="detail-section"><div class="row between"><h3>Catatan follow-up</h3>${can('followup') ? '<button class="button tiny" data-action="followup">+ Catat follow-up</button>' : ''}</div>${m.detail.followups?.length ? `<div class="timeline">${m.detail.followups.map(f => `<div class="timeline-item">${badge(f.outcome, OUTCOME)}<p>${esc(f.note)}</p><small>${esc(date(f.created_at, true))} · ${esc(f.actor_email || 'Tim CRM')}</small>${f.next_followup_at ? `<p class="muted">Berikutnya: ${esc(date(f.next_followup_at, true))}</p>` : ''}</div>`).join('')}</div>` : empty('Belum ada percakapan tercatat', 'Catat hasil komunikasi agar tindak lanjut tetap terarah.', 'chat')}${m.detail.followups_total > 100 ? '<p class="helper">Menampilkan 100 catatan terbaru.</p>' : ''}</section><section class="detail-section"><h3>Riwayat perpanjangan</h3>${m.detail.renewals?.length ? `<div class="timeline">${m.detail.renewals.map(r => `<div class="timeline-item"><strong>${esc(r.outlet_name || 'Outlet')} · ${esc(r.months)} bulan</strong><p>${esc(money(r.amount_idr))} · ${esc(r.payment_reference)}</p><small>Aktif hingga ${esc(date(r.new_subscription_end_date))}<br>${esc(date(r.created_at, true))} · ${esc(r.actor_email || 'Tim CRM')}</small></div>`).join('')}</div>` : empty('Belum ada perpanjangan', 'Perpanjangan manual yang dicatat di CRM akan tampil di sini.', 'clock')}${m.detail.renewals_total > 50 ? '<p class="helper">Menampilkan 50 perpanjangan terbaru.</p>' : ''}</section>`, can('followup') ? '<button class="button primary" data-action="followup">Catat follow-up</button>' : '<button class="button" data-action="close-modal">Tutup</button>', true);
 }
 function findOutlet(id) {
   let customers = state.data?.items || [];
@@ -724,6 +727,30 @@ function findOutlet(id) {
     merchant_id: c.merchant_id,
     owner_name: c.owner_name
   }))).find(o => o.id === id);
+}
+async function openTier(id) {
+  if(!canManageTier(state.session))return;
+  const outlet=findOutlet(id)|| (state.modal?.type==='tier'&&state.modal.outlet.id===id?state.modal.outlet:null);
+  if(!outlet)return toast('Muat ulang daftar outlet terlebih dahulu.');
+  const m={type:'tier',outlet:{...outlet},busy:true,entitlement:null,values:null,error:'',operationId:uuid()};
+  setModal(m);const epoch=state.epoch;
+  try {const value=validateEntitlement(await api.entitlement(id),id);if(state.modal!==m||epoch!==state.epoch)return;m.entitlement=value;m.values={tier:value.tier,note:''};}
+  catch(error){if(state.modal!==m||epoch!==state.epoch)return;if(denyAccess(error))return;m.error=tierError(error);}
+  finally{if(state.modal===m&&epoch===state.epoch){m.busy=false;renderModal();}}
+}
+function tierModal(m){
+  const action=(m.saved||m.entitlement?.pilot_enabled===false)?'<button class="button primary" data-action="close-modal">Selesai</button>':m.conflict||!m.entitlement?`<button class="button" data-action="tier-reload" ${m.busy?'disabled':''}>Muat ulang status</button>`:m.uncertain?`<button class="button primary" data-action="tier-retry" ${m.busy?'disabled':''}>${m.busy?'Memeriksa…':'Periksa kembali'}</button>`:`<button class="button" data-action="close-modal" ${m.busy?'disabled':''}>Batal</button><button class="button primary" type="submit" form="tier-form" ${m.busy?'disabled':''}>${m.busy?'Menyimpan…':'Simpan paket fitur'}</button>`;
+  return modalFrame('Paket fitur outlet',m.outlet.name,tierBody(m),action);
+}
+async function saveTier(form){
+  const m=state.modal;if(!m||m.type!=='tier'||m.busy||m.conflict||m.saved||!canManageTier(state.session))return;
+  const epoch=state.epoch;
+  try{if(!m.payload){m.values=Object.fromEntries(new FormData(form));m.payload=tierPayload({...m.values,outlet:m.outlet.id},m.entitlement,m.operationId);}}
+  catch(error){m.error=tierError(error);renderModal();return;}
+  m.busy=true;m.error='';renderModal();
+  try{const result=await api.setTier(m.payload);if(state.modal!==m||epoch!==state.epoch)return;const entitlement=validateEntitlement(result?.entitlement,m.outlet.id);if(entitlement.tier!==m.payload.p_tier||entitlement.version!==m.payload.p_expected_version+1||typeof result.replayed!=='boolean')throw new TypeError('Konfirmasi paket fitur belum cocok. Periksa kembali permintaan yang sama.');m.entitlement=entitlement;m.saved=true;m.uncertain=false;toast('Paket fitur outlet diperbarui. Masa aktif tidak berubah.');}
+  catch(error){if(state.modal!==m||epoch!==state.epoch)return;if(denyAccess(error))return;m.conflict=error?.code==='PT409';m.uncertain=!m.conflict;m.error=tierError(error);}
+  finally{if(state.modal===m&&epoch===state.epoch){m.busy=false;renderModal();}}
 }
 function openRenew(id) {
   if (!can('renew')) return;
@@ -1028,6 +1055,9 @@ async function action(button) {
     closeModal();
     return;
   }
+  if (a === 'outlet-tier') return openTier(button.dataset.id);
+  if (a === 'tier-reload') return openTier(state.modal.outlet.id);
+  if (a === 'tier-retry') return saveTier();
   if (a === 'renew') return openRenew(button.dataset.id);
   if (a === 'followup') return openFollowup();
   if (a === 'save-renewal') return saveRenewal();
@@ -1127,6 +1157,7 @@ document.addEventListener('submit', event => {
     renderModal();
     return;
   }
+  if (form.id === 'tier-form') return void saveTier(form);
   if (form.id === 'followup-form') return void saveFollowup(form);
   if (form.id === 'member-form') return void saveMember(form);
   if (form.id === 'telesales-form') return void saveTelesales(form);

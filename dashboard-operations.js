@@ -1,7 +1,8 @@
-import { loadOperations, saveProduct, deleteProduct, addCategory, saveStaff, deleteStaff, patchSettings, savePayment, uploadLogo, PAYMENT_TYPES, newId, prepareImport, prepareImportRows, runImport, hasSpecialPricing } from '/dashboard-operations-data.js';
+import { loadOperations, saveProduct, deleteProduct, addCategory, saveStaff, deleteStaff, patchSettings, savePayment, uploadLogo, PAYMENT_TYPES, newId, prepareImport, prepareImportRows, runImport, hasSpecialPricing, hasCommissionPilot } from '/dashboard-operations-data.js';
 import { outletDisplayName } from '/dashboard-data.js';
 import { createProductWorkbook, readProductWorkbook } from '/dashboard-product-workbook.js';
 import { specialPricingShell, mountSpecialPricing } from '/dashboard-special-pricing.js';
+import { commissionShell, mountCommissions } from '/dashboard-commissions.js';
 export { loadOperations };
 /** Start a user-initiated CSV download while keeping its DOM target alive for WebKit. */
 export function downloadCsvFile(content, filename) {
@@ -55,9 +56,10 @@ const pill = (text, variant = '') => `<span class="ops-pill ${variant}">${escape
 const heading = (eyebrow, _title, _text, actions = '') => `<div class="ops-heading"><span class="ops-eyebrow">${eyebrow}</span><div class="ops-heading-actions">${actions}</div></div>`;
 const button = (text, action, style = 'secondary', glyph = '') => `<button type="button" class="btn btn-${style}" data-ops="${action}">${glyph ? icon(glyph) : ''}${text}</button>`;
 
-const tabs=[['business','Bisnis & outlet','store'],['pricing','Harga spesial','percent'],['tax','Pajak & layanan','percent'],['payments','Pembayaran','wallet'],['users','Pengguna & akses','users'],['receipt','Tampilan struk','receipt']];
+const tabs=[['business','Bisnis & outlet','store'],['pricing','Harga spesial','percent'],['commissions','Komisi staf','users'],['tax','Pajak & layanan','percent'],['payments','Pembayaran','wallet'],['users','Pengguna & akses','users'],['receipt','Tampilan struk','receipt']];
 const pricingAllowed=()=>hasSpecialPricing(state.data,state.outlet);
-const availableTabs=()=>tabs.filter(([key])=>key!=='pricing'||pricingAllowed());
+const commissionPilotAllowed=()=>hasCommissionPilot(state.data,state.outlet);
+const availableTabs=()=>tabs.filter(([key])=>(key!=='pricing'||pricingAllowed())&&(key!=='commissions'||commissionPilotAllowed()));
 const roles={owner:'Owner',admin:'Manager / Admin',manager:'Manager',cashier:'Kasir',staff:'Staf · hanya absen'};
 const state={scope:'',page:0,tab:'all',category:'all',search:'',settings:'business',data:null,outlet:null,receipt:null,paper:'58'};
 const input=(label,name,value,type='text',extra='')=>`<label class="field ops-field"><span>${label}</span><input class="input" name="${name}" type="${type}" value="${escape(value??'')}" ${extra}></label>`;
@@ -78,17 +80,17 @@ function users(){return `${title('Pengguna & hak akses','Kelola staf outlet dan 
 const receiptGroups=[['Identitas bisnis',[['showLogo','Logo profil (pratinjau)'],['showWifi','Informasi Wi-Fi']]],['Informasi transaksi',[['showReceiptNumber','Nomor struk'],['showOrderNumber','Nomor order / meja'],['showCustomer','Nama pelanggan'],['showServer','Staf pemesan'],['showCashier','Kasir pembayaran']]],['Pembayaran',[['showPaymentMethod','Metode pembayaran']]]];
 function receiptPreview(){const p=profile(),r=state.receipt||receiptDefaults;const pair=(l,v)=>`<div><span>${l}</span><span>${v}</span></div>`;return `<div class="ops-paper" data-paper="${state.paper}">${r.showLogo&&p.logoUri?'<small>Logo profil tersimpan · gambar tidak dicetak thermal teks</small>':''}<strong class="ops-receipt-brand">${escape(businessName())}</strong><small>${escape(p.address||state.outlet.address||'')}</small><small>${escape(p.phone||'')}</small><hr>${r.showReceiptNumber?pair('No. struk','CONTOH-001'):''}${pair('Tanggal','Contoh transaksi')}${r.showOrderNumber?pair('Pesanan','Meja 01'):''}${r.showCashier?pair('Kasir','Nama kasir'):''}${r.showServer?pair('Pemesan','Nama staf'):''}${r.showCustomer?pair('Pelanggan','Nama pelanggan'):''}<hr><strong>Produk contoh</strong>${pair('2 × 25.000','50.000')}<span class="ops-paper-note">+ Ekstra contoh</span><hr>${pair('Subtotal','50.000')}${pair('Pajak (ilustrasi)','5.000')}<div class="ops-receipt-total"><strong>Total</strong><strong>Rp 55.000</strong></div>${r.showPaymentMethod?pair('Pembayaran','Tunai'):''}<hr><p>${escape(r.footer||receiptDefaults.footer).replaceAll('\n','<br>')}</p>${r.showWifi&&p.wifiPassword?`<small>Wi-Fi: ${escape(p.wifiPassword)}</small>`:''}<small class="ops-paper-demo">CONTOH TAMPILAN · BUKAN TRANSAKSI</small></div>`;}
 function receipts(){return `${title('Tampilan struk','Atur informasi yang didukung APK. Pratinjau memakai transaksi ilustrasi.')}<form data-ops-settings-form="receipt"><div class="ops-receipt-editor"><div class="ops-receipt-controls"><div class="ops-receipt-width"><label class="field ops-field"><span>Ukuran pratinjau</span><select class="input" data-ops-paper>${['58','76','80'].map(v=>`<option ${state.paper===v?'selected':''} value="${v}">${v==='58'?'57 / 58':v} mm</option>`).join('')}</select><small>Ukuran printer tetap diatur pada perangkat kasir.</small></label><button type="button" class="ops-text-button ops-preview-jump" data-ops="receipt-preview">${icon('receipt')}Lihat pratinjau</button></div><div class="ops-receipt-options">${receiptGroups.map(([name,fields],i)=>`<details class="ops-receipt-group" ${i===0?'open':''}><summary><span><strong>${name}</strong></span>${icon('chevron')}</summary><div>${fields.map(([key,label])=>`<div class="ops-receipt-option"><span>${label}</span>${toggle(key,state.receipt[key],label,`data-ops-receipt="${key}"`)}</div>`).join('')}</div></details>`).join('')}<details class="ops-receipt-group"><summary><strong>Bagian akhir</strong>${icon('chevron')}</summary><div><label class="field ops-field ops-footer-message"><span>Pesan penutup</span><textarea class="input" rows="4" maxlength="500" data-ops-receipt="footer">${escape(state.receipt.footer||'')}</textarea></label></div></details></div><div class="ops-receipt-required">${icon('shield')}Nama bisnis, alamat, telepon, tanggal, item, jumlah, harga, ekstra/catatan, rincian pajak/diskon, dan total mengikuti formatter APK dan selalu tampil bila tersedia. Logo gambar belum dicetak pada mode thermal teks.</div></div><aside class="ops-receipt-live" data-ops-receipt-panel><div class="ops-receipt-live-heading"><span class="ops-eyebrow">PRATINJAU STRUK</span>${pill('Ilustrasi','neutral')}</div><div data-ops-receipt-preview>${receiptPreview()}</div><p>Nominal hanya contoh. Pengaturan mengubah tampilan, bukan nilai transaksi.</p></aside></div>${footer()}</form>`;}
-function settingsView(){const content={business,pricing:specialPricingShell,tax:taxes,payments,users,receipt:receipts}[state.settings]();return `<section class="ops-page" data-ops-view="settings">${heading('PENGATURAN OUTLET','','',pill(businessName(),'green'))}<div class="ops-settings-layout"><nav class="card ops-settings-nav" aria-label="Bagian pengaturan">${availableTabs().map(([key,name,i])=>`<button class="${state.settings===key?'active':''}" data-ops="settings-tab" data-tab="${key}" aria-pressed="${state.settings===key}">${icon(i)}<span>${name}</span>${icon('chevron')}</button>`).join('')}</nav><section class="card ops-settings-content">${content}</section></div></section>`;}
+function settingsView(){const content={business,pricing:specialPricingShell,commissions:commissionShell,tax:taxes,payments,users,receipt:receipts}[state.settings]();return `<section class="ops-page" data-ops-view="settings">${heading('PENGATURAN OUTLET','','',pill(businessName(),'green')+(commissionPilotAllowed()&&state.data.features?.tier?pill(state.data.features.tier==='premium'?'Premium'+(state.data.features.source==='trial'?' · Trial':''):'Starter','neutral'):''))}<div class="ops-settings-layout"><nav class="card ops-settings-nav" aria-label="Bagian pengaturan">${availableTabs().map(([key,name,i])=>`<button class="${state.settings===key?'active':''}" data-ops="settings-tab" data-tab="${key}" aria-pressed="${state.settings===key}">${icon(i)}<span>${name}</span>${icon('chevron')}</button>`).join('')}</nav><section class="card ops-settings-content">${content}</section></div></section>`;}
 export function renderOperations(view,{tab,data,outlet}={}){
   if(!data||!outlet||data.outletId!==outlet.id)return '<div class="ops-empty">Data outlet belum tersedia. Muat ulang halaman.</div>';
   if(state.scope!==outlet.id){state.scope=outlet.id;state.page=0;state.tab='all';state.category='all';state.search='';state.settings='business';}
   state.data=data;state.outlet=outlet;state.receipt={...receiptDefaults,...data.settings.receipt_data};
   if(availableTabs().some(([key])=>key===tab))state.settings=tab;
-  if(state.settings==='pricing'&&!pricingAllowed())state.settings='business';
+  if((state.settings==='pricing'&&!pricingAllowed())||(state.settings==='commissions'&&!commissionPilotAllowed()))state.settings='business';
   return view==='products'?productsView():view==='settings'?settingsView():'';
 }
 export function bindOperations(container,api){
-  const abortController=new AbortController();let modalController,busy=false,logoDraft=null,importAttempt=0,pricingCleanup;
+  const abortController=new AbortController();let modalController,busy=false,logoDraft=null,importAttempt=0,pricingCleanup,commissionCleanup;
   const readyDownloads=new Map();
   const current=()=>!abortController.signal.aborted&&!api.signal?.aborted&&api.isCurrent();
   const guard=()=>{if(!current())throw new DOMException('Halaman outlet berubah.','AbortError');};
@@ -105,7 +107,7 @@ export function bindOperations(container,api){
     catch(error){if(error?.name==='AbortError')return;if(saved)toast('Data sudah tersimpan, tetapi tampilan belum diperbarui. Tekan Perbarui.');else if(current())inlineError(panel,error);}
     finally{busy=false;status.remove();panel.removeAttribute('aria-busy');controls.forEach((el,i)=>el.disabled=previous[i]);}
   }
-  const bindPricing=()=>{pricingCleanup?.();pricingCleanup=null;const host=container.querySelector('[data-special-pricing]');if(host&&hasSpecialPricing(api.data,api.outlet))pricingCleanup=mountSpecialPricing(host,api);};
+  const bindPricing=()=>{commissionCleanup?.();commissionCleanup=null;const commissionHost=container.querySelector('[data-commissions]');if(commissionHost)commissionCleanup=mountCommissions(commissionHost,api);pricingCleanup?.();pricingCleanup=null;const host=container.querySelector('[data-special-pricing]');if(host&&hasSpecialPricing(api.data,api.outlet))pricingCleanup=mountSpecialPricing(host,api);};
   const rerender=view=>{if(current()){container.innerHTML=renderOperations(view,{tab:state.settings,data:api.data,outlet:api.outlet});bindPricing();}};
   const closeAction=event=>{if(event.target.closest('[data-ops="modal-close"]')&&!busy){importAttempt++;modalController?.abort();api.closeModal();}};
   function readyWorkbook(bytes,filename,panel,signal,active){
@@ -241,5 +243,5 @@ export function bindOperations(container,api){
     if(action==='receipt-preview')container.querySelector('[data-ops-receipt-panel]')?.scrollIntoView({behavior:'smooth',block:'start'});
   },{signal:abortController.signal});
   bindPricing();
-  return ()=>{importAttempt++;abortController.abort();modalController?.abort();pricingCleanup?.();logoDraft=null;};
+  return ()=>{importAttempt++;abortController.abort();modalController?.abort();pricingCleanup?.();commissionCleanup?.();logoDraft=null;};
 }

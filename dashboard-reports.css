@@ -19,3 +19,137 @@
 .cr-report-meta>div,.cr-card .r-card-head>div{min-width:0;overflow-wrap:anywhere}
 .cr-card .r-card-head{flex-wrap:wrap}
 @media(max-width:760px){.cr-filterbar label{flex-basis:100%;max-width:100%}.cr-total>div{min-width:0}.cr-total strong,.cr-total dd{overflow-wrap:anywhere}.cr-detail summary span{float:none;display:block;margin-top:6px}}
+
+/* Approved dashboard layout. Rendering continues to use the existing report model. */
+@media screen {
+  .reports-surface{--r-ink:#18291f;--r-muted:#42564a;--r-green:#17664c;--r-line:#e3eae5;font-weight:500}
+  .reports-surface .r-card{border-radius:10px;box-shadow:0 2px 5px #1c402604}
+  .reports-surface .r-card-head{padding:21px 24px 18px;border-bottom:1px solid #edf1ee;min-height:82px;align-items:center}
+  .reports-surface .r-card-head h2{font-size:16px;font-weight:750;line-height:1.4;letter-spacing:-.2px}
+  .reports-surface .r-card-head p{font-size:11px;font-weight:500;line-height:1.65;margin-top:4px}
+  .reports-surface .r-link{font-size:11px;font-weight:700;gap:4px;min-height:30px}
+  .reports-surface .r-link .icon{width:14px;height:14px}
+  .reports-surface .r-metrics{gap:0;background:#fff;border:1px solid var(--r-line);border-radius:10px;overflow:hidden;margin-bottom:22px}
+  .reports-surface .r-metric{padding:21px 23px;min-height:0;border:0;border-right:1px solid var(--r-line);border-radius:0;box-shadow:none;background:#fff;color:var(--r-ink);position:relative}
+  .reports-surface .r-metric:last-child{border-right:0}
+  .reports-surface .r-metric:after{content:"";position:absolute;bottom:0;left:23px;right:23px;height:3px;background:#d8e7df}
+  .reports-surface .r-metric-hero:after{background:#208262}
+  .reports-surface .r-metric-label{justify-content:space-between;gap:8px;color:#364d3d;font-size:12px;font-weight:650}
+  .reports-surface .r-metric-label>span{order:2;width:18px;height:18px;border-radius:0;background:transparent;color:#58836c}
+  .reports-surface .r-metric-label .icon{width:18px;height:18px}
+  .reports-surface .r-metric>strong{font-size:clamp(22px,2vw,29px);font-weight:750;letter-spacing:-.8px;color:#14271c;margin:13px 0 8px;line-height:1.3}
+  .reports-surface .r-metric p{font-size:10px;font-weight:500;line-height:1.6;color:#42564a}
+  .reports-surface .r-overview-chart{margin-bottom:22px;min-width:0}
+  .reports-surface .r-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;min-width:0}
+  .reports-surface .r-overview-grid>*{min-width:0}
+  .reports-surface .r-chart-total{padding:16px 24px 9px;gap:20px;align-items:center}
+  .reports-surface .r-chart-total strong{font-size:14px;letter-spacing:0;font-weight:750;white-space:nowrap}
+  .reports-surface .r-chart-total>span{display:flex;align-items:center;gap:7px;max-width:none;text-align:left;font-size:11px;font-weight:500;color:#42564a}
+  .reports-surface .r-chart-total i{display:inline-block;flex:none;width:7px;height:7px;background:#208262;border-radius:50%}
+  .reports-surface .r-chart-views{min-width:0}
+  .reports-surface .r-chart{width:100%;height:auto;padding:0 12px 10px;min-height:0;max-height:290px}
+  .reports-surface .r-chart-mobile{display:none}
+  .reports-surface .r-chart text{font-size:11px;fill:#42564a;font-weight:500}
+  .reports-surface .r-chart-grid{stroke:#e9eeea;stroke-dasharray:none}
+  .reports-surface .r-chart-caption{padding:12px 24px;font-size:10px;font-weight:500;border-top:0}
+  .reports-surface .r-chart-controls{border-color:#dce5de;background:#fff}
+  .reports-surface .r-chart-controls button{font-weight:650;border-radius:4px}
+  .reports-surface .r-chart-controls button[aria-pressed=true]{box-shadow:none;background:#e5f1e7}
+  .reports-surface .r-daily summary{padding:12px 24px;font-size:11px;font-weight:650}
+  .reports-surface .r-payment-layout{display:flex;align-items:center;gap:22px;padding:26px 24px;min-height:255px;min-width:0}
+  .reports-surface .r-payment-visual{padding:0;flex:none}
+  .reports-surface .r-donut{width:145px;height:145px}
+  .reports-surface .r-donut>div{inset:18px}
+  .reports-surface .r-donut small{font-size:10px;font-weight:550}
+  .reports-surface .r-donut strong{font-size:29px;font-weight:750;letter-spacing:-.5px}
+  .reports-surface .r-payment-legend{padding:0;gap:18px;flex:1;min-width:0}
+  .reports-surface .r-payment-legend>div{grid-template-columns:8px minmax(0,1fr) auto;gap:8px;font-size:12px;align-items:start}
+  .reports-surface .r-payment-legend i{width:7px;height:7px;margin-top:5px;border-radius:2px}
+  .reports-surface .r-payment-legend span>small{display:block;margin-top:4px;color:#42564a;font-size:10px;font-weight:500}
+  .reports-surface .r-payment-legend .r-payment-value{text-align:right;overflow-wrap:normal}
+  .reports-surface .r-payment-legend .r-payment-value strong{display:block;font-size:11px;white-space:nowrap;font-weight:700;grid-column:auto}
+  .reports-surface .r-product-ranks{display:grid;gap:16px;padding:20px 24px 25px}
+  .reports-surface .r-product-rank{display:flex;gap:11px;align-items:center}
+  .reports-surface .r-product-rank>.r-rank{display:block;width:20px;flex:none;color:#42564a;font-size:11px}
+  .reports-surface .r-product-rank>div{min-width:0;flex:1}
+  .reports-surface .r-product-rank-label{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;font-size:12px}
+  .reports-surface .r-product-rank-label strong{font-weight:650}
+  .reports-surface .r-product-rank-label>span:first-child{min-width:0;overflow-wrap:anywhere}
+  .reports-surface .r-product-rank-label>span:last-child{white-space:nowrap;text-align:right}
+  .reports-surface .r-product-rank-label small{display:block;font-size:10px;color:#42564a;font-weight:500;margin-top:3px}
+  .reports-surface .r-product-rank-label strong small{display:inline;margin:0}
+  .reports-surface .r-bars{padding:23px 24px 25px;gap:22px}
+  .reports-surface .r-bar-label{font-size:12px;margin-bottom:9px;font-weight:600}
+  .reports-surface .r-bar-label strong{font-size:12px;font-weight:700}
+  .reports-surface .r-bar-track{height:6px;background:#edf3ee}
+  .reports-surface .r-overview-grid .r-table-wrap table{font-size:11px}
+  .reports-surface .r-overview-grid .r-transaction{max-width:175px;font-size:11px}
+  .reports-surface .r-table-wrap th{background:#f6f8f6;color:#364d3e;text-transform:uppercase;font-size:10px;font-weight:750;letter-spacing:.3px}
+  .reports-surface .r-table-wrap th,.reports-surface .r-table-wrap td{padding:15px 22px}
+  .reports-surface .r-table-wrap td strong{font-weight:700}
+  .reports-surface .r-table-wrap td small{color:#42564a}
+  .reports-surface .r-summary{gap:0;padding:0 24px;border-bottom:1px solid #edf1ee}
+  .reports-surface .r-summary>div{flex:1;min-width:150px;padding:20px 24px;border-right:1px solid #e6ece7}
+  .reports-surface .r-summary>div:first-child{padding-left:0}
+  .reports-surface .r-summary>div:last-child{border-right:0}
+  .reports-surface .r-summary small{font-size:11px;font-weight:650}
+  .reports-surface .r-summary strong{font-size:24px;font-weight:750;letter-spacing:-.6px}
+  .reports-surface .r-summary p{font-size:10px}
+  .reports-surface .r-toolbar{padding:18px 24px;border-top:0}
+  .reports-surface .r-search input,.reports-surface .r-filter select{border-color:#d7e1d9;border-radius:7px;min-height:40px}
+  .reports-surface .r-export-note{font-size:10px;font-weight:500;max-width:210px}
+  .reports-surface .r-badge{font-size:10px;border-radius:5px;font-weight:650}
+  .reports-surface .r-table-footer{padding:14px 24px;font-size:11px}
+  .reports-surface .r-profit-layout{grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:22px}
+  .reports-surface .r-profit-report{padding:24px}
+  .reports-surface .r-profit-title h2{font-size:18px}
+  .reports-surface .r-profit-section{padding:18px 0}
+  .reports-surface .r-profit-section h3{color:#364d3e;font-size:10px;font-weight:750}
+  .reports-surface .r-profit-line{font-size:12px;margin:13px 0;gap:18px}
+  .reports-surface .r-profit-line span{color:#314b39}
+  .reports-surface .r-profit-line strong{font-weight:650}
+  .reports-surface .r-profit-subtotal{border-top:1px solid #e1e9e2;background:#f5f8f4;margin:14px -10px 0;padding:13px 10px}
+  .reports-surface .r-profit-result{background:#e9f4ec;border:1px solid #d0e3d5;border-radius:8px;color:#18593f}
+  .reports-surface .r-profit-notes{padding:24px}
+  .reports-surface .r-profit-notes .r-bars{padding:24px 0 0}
+  .reports-surface .r-profit-notes h2{font-size:16px}
+  .reports-surface .r-two-columns>.r-card:first-child{display:block}
+}
+@media screen and (max-width:1200px){
+  .reports-surface .r-metric{padding:19px 18px}.reports-surface .r-metric-label{font-size:11px}.reports-surface .r-metric>strong{font-size:23px}
+  .reports-surface .r-payment-layout{gap:16px;padding:24px 20px}.reports-surface .r-donut{width:120px;height:120px}.reports-surface .r-donut>div{inset:15px}
+  .reports-surface .r-payment-legend>div{font-size:11px;gap:6px}.reports-surface .r-payment-legend .r-payment-value strong{font-size:10px}
+  .reports-surface .r-card-head{padding:20px}.reports-surface .r-card-head h2{font-size:15px}.reports-surface .r-card-head .r-link{font-size:10px}
+  .reports-surface .r-overview-grid .r-table-wrap th,.reports-surface .r-overview-grid .r-table-wrap td{padding:14px 16px}
+}
+@media screen and (max-width:1000px){
+  .reports-surface .r-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:0}.reports-surface .r-metric:nth-child(2){border-right:0}.reports-surface .r-metric:nth-child(-n+2){border-bottom:1px solid var(--r-line)}
+  .reports-surface .r-metric>strong{font-size:28px}.reports-surface .r-metric-label{font-size:12px}
+  .reports-surface .r-overview-grid,.reports-surface .r-profit-layout{grid-template-columns:1fr}
+  .reports-surface .r-payment-layout{padding:25px 30px;gap:30px}.reports-surface .r-donut{width:150px;height:150px}.reports-surface .r-donut>div{inset:19px}
+  .reports-surface .r-payment-legend>div{font-size:12px}.reports-surface .r-payment-legend .r-payment-value strong{font-size:12px}
+  .reports-surface .r-two-columns .r-payment-layout{flex-direction:column;gap:20px}.reports-surface .r-two-columns .r-payment-legend{width:100%}
+  .reports-surface .r-summary>div{padding:18px}.reports-surface .r-summary strong{font-size:23px}
+}
+@media screen and (max-width:600px){
+  .reports-surface .r-metrics{margin-bottom:16px}.reports-surface .r-metric{padding:16px 14px}.reports-surface .r-metric:after{left:14px;right:14px;height:2px}
+  .reports-surface .r-metric-label{font-size:11px;line-height:1.4;align-items:start;gap:4px}.reports-surface .r-metric-label>span,.reports-surface .r-metric-label .icon{width:15px;height:15px}
+  .reports-surface .r-metric>strong{font-size:clamp(18px,5vw,24px);letter-spacing:-.6px;margin:11px 0 8px}.reports-surface .r-metric p{font-size:10px;line-height:1.6}
+  .reports-surface .r-card-head{padding:18px 17px 15px;min-height:74px;gap:10px}.reports-surface .r-card-head p{font-size:10px}
+  .reports-surface .r-overview-chart{margin-bottom:16px}.reports-surface .r-overview-grid{gap:16px}
+  .reports-surface .r-chart-total{padding:14px 17px 9px;gap:9px}.reports-surface .r-chart-total>span{font-size:10px;max-width:none}.reports-surface .r-chart-total strong{font-size:12px}
+  .reports-surface .r-chart-desktop{display:none}.reports-surface .r-chart-mobile{display:block;min-height:0;max-height:none;padding:0 2px 6px}.reports-surface .r-chart text{font-size:12px}
+  .reports-surface .r-chart-caption{padding:10px 17px;font-size:10px}.reports-surface .r-daily summary{padding:12px 17px;font-size:10px}
+  .reports-surface .r-payment-layout,.reports-surface .r-two-columns .r-payment-layout{flex-direction:row;padding:23px 17px;gap:16px;min-height:210px}
+  .reports-surface .r-donut{width:112px;height:112px}.reports-surface .r-donut>div{inset:14px}.reports-surface .r-donut strong{font-size:24px}.reports-surface .r-donut small{font-size:9px}
+  .reports-surface .r-payment-legend{gap:14px}.reports-surface .r-payment-legend>div{font-size:10px;gap:5px;grid-template-columns:7px minmax(0,1fr) auto}
+  .reports-surface .r-payment-legend span>small{font-size:9px}.reports-surface .r-payment-legend .r-payment-value strong{font-size:10px;text-align:right}
+  .reports-surface .r-product-ranks{padding:18px;gap:16px}.reports-surface .r-product-rank{gap:8px}.reports-surface .r-product-rank>.r-rank{width:17px}
+  .reports-surface .r-product-rank-label{font-size:11px}.reports-surface .r-product-rank-label small{font-size:9px}
+  .reports-surface .r-bars{padding:20px 18px 23px}.reports-surface .r-bar-label,.reports-surface .r-bar-label strong{font-size:11px}
+  .reports-surface .r-table-wrap th{font-size:9px}.reports-surface .r-table-wrap th,.reports-surface .r-table-wrap td{padding:14px 16px}
+  .reports-surface .r-summary{padding:0 17px;flex-wrap:wrap}.reports-surface .r-summary>div{min-width:120px;padding:17px 12px}.reports-surface .r-summary>div:first-child{padding-left:0}.reports-surface .r-summary>div:last-child{padding-right:0}
+  .reports-surface .r-summary strong{font-size:22px}.reports-surface .r-summary small{font-size:10px}.reports-surface .r-summary p{font-size:9px}
+  .reports-surface .r-toolbar{padding:16px}.reports-surface .r-export-note{max-width:none}.reports-surface .r-table-footer{padding:13px 16px;font-size:10px}
+  .reports-surface .r-profit-report,.reports-surface .r-profit-notes{padding:20px 18px}.reports-surface .r-profit-result>strong{font-size:25px}
+}

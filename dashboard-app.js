@@ -1,17 +1,19 @@
 import { loadOutletFeatures, hasCommissionPilot } from '/dashboard-operations-data.js';
 import { loadCommissionReport } from '/dashboard-commissions-data.js';
-import { renderCommissionReport, commissionReportRows, bindCommissionReport, readCommissionReportFilters } from '/dashboard-commissions.js';
+import { renderCommissionReport, bindCommissionReport, readCommissionReportFilters } from '/dashboard-commissions.js';
 import { createCommissionWorkbook, COMMISSION_XLSX_MIME } from '/dashboard-commission-workbook.js';
 import { config } from '/dashboard-config.js';
-import { loadOutlets, loadReport, requestScope, makeCsv, outletDisplayName } from '/dashboard-data.js';
+import { loadOutlets, loadReport, requestScope, outletDisplayName } from '/dashboard-data.js';
 import { identityGuard, validatePublicConfig, boundedFetch } from '/dashboard-session.js';
 import { createAuthStorage, finishAuthLogout } from '/dashboard-auth-session.js';
 import { icon, escape as h } from '/dashboard-icons.js';
 import { renderAuth, bindAuth } from '/dashboard-auth.js';
 import { renderReport, bindReport, reportExportRows } from '/dashboard-reports.js';
-import { loadOperations, renderOperations, bindOperations, downloadCsvFile } from '/dashboard-operations.js';
+import { loadOperations, renderOperations, bindOperations } from '/dashboard-operations.js';
 import { formatRange, mountDateRange } from '/dashboard-date-range.js';
 import { renderSubscriptionCard } from '/dashboard-subscription.js';
+import { createReportWorkbook, REPORT_XLSX_MIME } from '/dashboard-report-workbook.js';
+import { createReportPrintMarkup } from '/dashboard-report-print.js';
 
 validatePublicConfig(config);
 let storage;
@@ -28,7 +30,7 @@ const identity = identityGuard(), outletsScope = requestScope(), pageScope = req
 const authRoutes = new Set(['login','signup','verify','business','forgot','reset']);
 const operationRoutes = new Set(['products','settings']);
 const titles = {
-  overview:['Ringkasan bisnis','Perkembangan bisnis dan transaksi outlet Anda.'],
+  overview:['Dashboard penjualan','Perkembangan bisnis dan transaksi outlet Anda.'],
   reports:['Pusat laporan','Laporan operasional dari transaksi yang sudah tersinkron.'],
   sales:['Laporan penjualan','Telusuri transaksi dan penerimaan penjualan.'],
   profit:['Laba & rugi','Pendapatan, HPP, dan biaya usaha dalam satu laporan.'],
@@ -53,12 +55,12 @@ const route = () => { const name=location.hash.slice(1).split('?')[0]; return na
 function syncMenuAccess() { const sidebar=document.querySelector('.sidebar'); if(sidebar)sidebar.inert=mobile.matches&&!document.body.classList.contains('menu-open'); }
 mobile.addEventListener('change',syncMenuAccess);
 function toast(message) { const stack=document.querySelector('#toast-stack');stack.innerHTML=`<div class="toast">${icon('info')}<span>${h(message)}</span></div>`;clearTimeout(toastTimer);toastTimer=setTimeout(()=>stack.replaceChildren(),6000); }
-function closeModal() { modalCleanup?.abort();modalCleanup=null;modalRoot.replaceChildren();document.body.classList.remove('modal-open');document.querySelector('.main-shell')?.removeAttribute('inert');document.querySelector('.sidebar')?.removeAttribute('inert');syncMenuAccess();if(focusBeforeModal?.isConnected)focusBeforeModal.focus(); }
+function closeModal() { modalCleanup?.abort();modalCleanup=null;modalRoot.replaceChildren();document.body.classList.remove('modal-open');document.querySelector('.main-shell')?.removeAttribute('inert');document.querySelector('.sidebar')?.removeAttribute('inert');document.querySelector('.topbar')?.removeAttribute('inert');syncMenuAccess();if(focusBeforeModal?.isConnected)focusBeforeModal.focus(); }
 function modal({title,description='',content,footer=''}) {
   if(!modalRoot.childElementCount)focusBeforeModal=document.activeElement;
   modalCleanup?.abort();modalCleanup=new AbortController();
   modalRoot.innerHTML=`<div class="modal-layer"><section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><header class="modal-head"><div><h2 id="dialog-title">${h(title)}</h2><p>${h(description)}</p></div><button class="icon-btn" data-close-modal aria-label="Tutup dialog">${icon('cross')}</button></header><div class="modal-body">${content}</div>${footer?`<footer class="modal-footer">${footer}</footer>`:''}</section></div>`;
-  document.body.classList.add('modal-open');document.querySelector('.main-shell')?.setAttribute('inert','');document.querySelector('.sidebar')?.setAttribute('inert','');
+  document.body.classList.add('modal-open');document.querySelector('.main-shell')?.setAttribute('inert','');document.querySelector('.sidebar')?.setAttribute('inert','');document.querySelector('.topbar')?.setAttribute('inert','');
   const panel=modalRoot.querySelector('.modal-panel');panel.querySelector('input,select,button,a')?.focus();return panel;
 }
 function safeError(error) {
@@ -78,17 +80,28 @@ function picker(isMobile=false) {
 }
 function brand() { return '<a href="#overview" data-route="overview" class="brand" aria-label="VORA POS — beranda"><img class="brand-logo" src="/dashboard-assets-vora-logo-transparent.png" alt="VORA POS"><span class="brand-subtitle">BACKOFFICE</span></a>'; }
 function initials() { return h((state.user?.email||'V').slice(0,2).toUpperCase()); }
+function settingsTab() { return new URLSearchParams(location.hash.split('?')[1]||'').get('tab')||'business'; }
 function sidebar(current) {
-  const link=(key,label,glyph)=>`<a class="nav-item ${current===key||(key==='reports'&&!['overview','products','settings'].includes(current))?'active':''}" href="#${key}" data-route="${key}">${icon(glyph)}<span>${label}</span></a>`;
-  return `<button class="mobile-scrim" data-action="close-menu" aria-label="Tutup menu"></button><aside class="sidebar" aria-label="Navigasi dashboard">${brand()}${picker()}<p class="nav-label">WORKSPACE</p><nav class="side-nav">${link('overview','Ringkasan','grid')}${link('reports','Laporan bisnis','chart')}${link('products','Produk & kategori','box')}</nav><p class="nav-label">KELOLA BISNIS</p><nav class="side-nav">${link('settings','Pengaturan','settings')}</nav><div class="side-bottom"><div class="help-card">${icon('help')}<h3>Butuh bantuan?</h3><p>Tim VORA siap membantu operasional bisnis Anda.</p><a class="text-link" href="https://wa.me/6289636974140" target="_blank" rel="noopener noreferrer">Hubungi VORA ${icon('arrow')}</a></div><button class="profile-button" data-action="profile"><span class="avatar">${initials()}</span><span><strong>Akun pemilik</strong><small>${h(state.user?.email||'')}</small></span>${icon('down')}</button></div></aside>`;
+  const reports=['reports','sales','profit','product-report','payments','staff-report','refunds','expenses'];
+  const tab=settingsTab(), commission=current==='commission-report'||(current==='settings'&&tab==='commissions');
+  const link=(key,label,glyph,active=current===key,child=false)=>`<a class="nav-item ${child?'nav-child ':''}${active?'active':''}" href="#${key}" data-route="${key}" ${active?'aria-current="page"':''}>${glyph?icon(glyph):''}<span>${label}</span></a>`;
+  return `<button class="mobile-scrim" data-action="close-menu" aria-label="Tutup menu"></button><aside class="sidebar" aria-label="Navigasi dashboard">${picker()}<nav class="side-nav">${link('overview','Dashboard','grid')}<details class="nav-section" ${reports.includes(current)?'open':''}><summary class="nav-item ${reports.includes(current)?'section-active':''}">${icon('chart')}<span>Laporan</span>${icon('down')}</summary><div class="nav-children">${reports.map(key=>link(key,key==='reports'?'Semua laporan':titles[key][0],null,current===key,true)).join('')}</div></details>${link('products','Produk & kategori','box')}${state.commissionPilotEnabled?`<details class="nav-section" ${commission?'open':''}><summary class="nav-item ${commission?'section-active':''}">${icon('wallet')}<span>Komisi staf</span>${icon('down')}</summary><div class="nav-children">${link('settings?tab=commissions','Grup komisi',null,current==='settings'&&tab==='commissions',true)}${link('commission-report','Laporan komisi',null,current==='commission-report',true)}</div></details>`:''}${link('settings','Pengaturan','settings',current==='settings'&&!['users','commissions'].includes(tab))}</nav><div class="side-bottom"><a class="sidebar-help" href="https://wa.me/6289636974140" target="_blank" rel="noopener noreferrer">${icon('help')}<span><strong>Bantuan VORA</strong><small>Konsultasikan kebutuhan Anda</small></span>${icon('arrow')}</a><span class="sidebar-footnote">VORA POS · Backoffice</span></div></aside>`;
+}
+function subscriptionPanel(current) {
+  const card=renderSubscriptionCard(outlet(),state.user?.id,{page:current,loading:!!subscriptionRefreshRequest});
+  if(!card.includes('subscription-active'))return card;
+  return `<details class="subscription-fold"><summary><span><i aria-hidden="true"></i>Langganan aktif</span><span>Lihat masa aktif & bantuan ${icon('down')}</span></summary>${card}</details>`;
 }
 function shell(current,content) {
-  const [title,description]=titles[current];
-  return `${sidebar(current)}<div class="main-shell"><header class="topbar"><button class="icon-btn menu-toggle" data-action="menu" aria-label="Buka menu navigasi" aria-expanded="false">${icon('menu')}</button>${picker(true)}<div class="breadcrumb"><span>${h(outletDisplayName(outlet())||'Bisnis Anda')}</span>${icon('chevron')}<strong>${title}</strong></div><div class="top-actions"><button class="icon-btn" data-action="refresh" aria-label="Muat ulang data" ${state.loading?'disabled':''}>${icon('clock')}</button><button class="icon-btn search-button" data-action="search" aria-label="Cari menu">${icon('search')}</button><button class="avatar" data-action="profile" aria-label="Akun dan keluar">${initials()}</button></div></header><main class="dashboard-main" id="main" tabindex="-1"><section class="page-heading"><div><h1>${title}</h1><p>${description}</p></div>${!operationRoutes.has(current)?`<div class="page-heading-actions"><button class="btn btn-secondary period-select" data-action="period" aria-haspopup="dialog">${icon('calendar')}<span>${h(formatRange(state.range))}</span>${icon('down')}</button><button class="btn btn-primary" data-action="export" ${!state.report||state.loading?'disabled':''}>${icon('download')} Ekspor laporan</button></div>`:''}</section>${renderSubscriptionCard(outlet(),state.user?.id,{page:current,loading:!!subscriptionRefreshRequest})}<div id="page-content">${content}</div><footer class="page-footer"><span>© VORA POS · ${h(outletDisplayName(outlet()))}</span><span>Data tersinkron dari aplikasi kasir</span></footer></main></div>`;
+  const tab=settingsTab(), staff=current==='settings'&&tab==='users', commission=current==='commission-report'||(current==='settings'&&tab==='commissions');
+  const [title,description]=staff?['Karyawan','Kelola staf dan hak akses outlet Anda.']:commission&&current==='settings'?['Grup komisi','Atur komisi dan karyawan penerima pada outlet terpilih.']:titles[current];
+  const module=staff?'staff':current==='settings'&&!commission?'settings':'sales';
+  const moduleLink=(key,target,label)=>`<a href="#${target}" data-route="${target}" class="module-tab ${module===key?'active':''}" ${module===key?'aria-current="page"':''}>${label}</a>`;
+  return `<header class="topbar">${brand()}<button class="icon-btn menu-toggle" data-action="menu" aria-label="Buka menu navigasi" aria-expanded="false">${icon('menu')}</button><nav class="module-nav" aria-label="Modul bisnis">${moduleLink('sales','overview','Penjualan')}${moduleLink('staff','settings?tab=users','Karyawan')}${moduleLink('settings','settings','Pengaturan')}</nav><div class="top-actions"><button class="icon-btn" data-action="refresh" aria-label="Muat ulang data" ${state.loading?'disabled':''}>${icon('clock')}</button><button class="icon-btn search-button" data-action="search" aria-label="Cari menu">${icon('search')}</button><button class="top-profile" data-action="profile" aria-label="Akun dan keluar"><span class="avatar">${initials()}</span><span class="top-profile-copy"><strong>${h(outletDisplayName(outlet())||'Bisnis Anda')}</strong><small>Akun pemilik</small></span>${icon('down')}</button></div></header>${sidebar(current)}<div class="main-shell"><main class="dashboard-main" data-section="${staff?'staff':module}" id="main" tabindex="-1"><div class="mobile-outlet-context">${picker(true)}</div><section class="page-heading"><div><h1>${h(title)}</h1><p>${h(description)}</p></div>${!operationRoutes.has(current)?`<div class="page-heading-actions"><button class="btn btn-primary" data-action="export" ${!state.report||state.loading?'disabled':''}>${icon('download')} Ekspor laporan</button></div>`:''}</section>${!operationRoutes.has(current)?`<section class="period-toolbar" aria-label="Filter laporan"><div><span class="period-label">Periode laporan</span><button class="btn btn-secondary period-select" data-action="period" aria-haspopup="dialog">${icon('calendar')}<span>${h(formatRange(state.range))}</span>${icon('down')}</button></div><p>Outlet: <strong>${h(outletDisplayName(outlet()))}</strong></p></section>`:''}${subscriptionPanel(current)}<div id="page-content">${content}</div><footer class="page-footer"><span>© VORA POS · ${h(outletDisplayName(outlet()))}</span><span>Data tersinkron dari aplikasi kasir</span></footer></main></div>`;
 }
 function loading(message='Memuat data outlet…') { return `<div class="loading-state" role="status"><span class="vora-spinner" aria-hidden="true"></span><strong>${h(message)}</strong><p>Mohon tunggu sebentar.</p></div>`; }
 function errorView(message) { return `<div class="card error-state" role="alert"><h2>Data belum tersedia</h2><p>${h(message)}</p><button class="btn btn-primary" data-action="refresh">Coba lagi</button><button class="btn btn-secondary" data-action="logout">Keluar akun</button></div>`; }
-function resetData() { subscriptionRefreshRequest=null;outletsScope.cancel();pageScope.cancel();state.outlets=[];state.outletId='';state.report=null;state.data=null;state.commissionPilotEnabled=false;state.ready=false;state.error='';cleanupPage?.();cleanupPage=null;closeModal(); }
+function resetData() { clearPrintSnapshot(); subscriptionRefreshRequest=null;outletsScope.cancel();pageScope.cancel();state.outlets=[];state.outletId='';state.report=null;state.data=null;state.commissionPilotEnabled=false;state.ready=false;state.error='';cleanupPage?.();cleanupPage=null;closeModal(); }
 async function adoptSession(session, preferredOutlet) {
   const user=session?.user||null;
   if(identity.id!==user?.id){identity.set(user?.id||null);resetData();}
@@ -132,6 +145,7 @@ function commonApi(sequence,signal) {
     onAuthenticated:session=>sequence===renderSequence&&validIdentity()?adoptSession(session):Promise.resolve(),print:()=>window.print()};
 }
 async function render() {
+  clearPrintSnapshot();
   const sequence=++renderSequence;cleanupPage?.();cleanupPage=null;pageScope.cancel();closeModal();
   let current=route();document.body.classList.remove('menu-open');
   if(!state.user){
@@ -149,7 +163,7 @@ async function render() {
   const scope=pageScope.begin(),validIdentity=identity.capture(),selected=outlet();state.loading=true;state.report=null;state.data=null;state.commissionPilotEnabled=false;state.error='';
   app.innerHTML=shell(current,loading());syncMenuAccess();window.scrollTo(0,0);
   try{
-    const features=['reports','commission-report'].includes(current)?await loadOutletFeatures(client,selected,scope.signal):null;
+    const features=!operationRoutes.has(current)?await loadOutletFeatures(client,selected,scope.signal):null;
     if(current==='commission-report'&&features?.pilot_enabled!==true)throw new Error('Halaman belum tersedia untuk outlet ini.');
     const value=current==='commission-report'?await loadCommissionReport(client,state.user,selected,state.range,scope.signal):operationRoutes.has(current)?await loadOperations(client,state.user,selected,scope.signal):await loadReport(client,state.user.id,selected,state.range,scope.signal);
     if(sequence!==renderSequence||!scope.current()||!validIdentity())return;
@@ -182,26 +196,41 @@ async function logout({broadcast=true}={}) {
   }
 }
 
+function clearPrintSnapshot() { document.querySelector('#vora-full-report-print')?.remove(); }
+function printSnapshot(options) {
+  clearPrintSnapshot();
+  try {
+    const markup=createReportPrintMarkup(options),host=document.createElement('section');
+    host.id='vora-full-report-print';host.innerHTML=markup;document.body.append(host);
+    window.print();
+  } catch { clearPrintSnapshot();toast('PDF belum dapat disiapkan. Periksa data dan coba lagi.'); }
+}
+window.addEventListener('afterprint',clearPrintSnapshot);
 function exportReport() {
   if(!state.report||state.loading||state.error)return;
-  const current=route(), report=state.report,selected=outlet();
+  const current=route(),report=state.report,selected=outlet(),range={...state.range};
   if(current==='commission-report')return exportCommissionReport(report,selected);
-  const el=modal({title:'Ekspor laporan',description:`${outletDisplayName(selected)} · ${state.range.start} – ${state.range.end}`,content:current==='commission-report'?'<p>CSV memuat seluruh rincian komisi pada periode ini. Cetak / PDF mengikuti ringkasan dan maksimal 500 catatan yang terlihat di layar.</p>':'<p>Unduh seluruh data laporan pada periode ini, atau gunakan Cetak / Simpan PDF pada browser.</p>',footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><button class="btn btn-primary" id="export-csv">Unduh CSV</button>'});
-  el.querySelector('#export-csv').addEventListener('click',()=>{
-    const rows=[['VORA POS',outletDisplayName(selected)],['Periode',state.range.start,state.range.end],[],...(current==='commission-report'?commissionReportRows(report):reportExportRows(current,report))];
-    downloadCsvFile(makeCsv(rows),`VORA-${current}-${state.range.start}-${state.range.end}.csv`);
-    closeModal();toast('Unduhan CSV dimulai. Periksa folder unduhan browser Anda.');
-  });
-  el.querySelector('#export-print').addEventListener('click',()=>{closeModal();window.print();});
+  const sequence=renderSequence,validIdentity=identity.capture();
+  const el=modal({title:'Ekspor laporan',description:`${outletDisplayName(selected)} · ${range.start} – ${range.end}`,content:'<p>Excel dan PDF memuat seluruh catatan pada periode serta outlet terpilih, termasuk baris yang tidak terlihat pada halaman tabel. Pencarian tabel tidak membatasi ekspor ini.</p><p>Untuk PDF, pilih <strong>Simpan sebagai PDF</strong> pada dialog cetak browser.</p><p id="report-export-status" role="status">Menyiapkan file Excel…</p>',footer:'<button class="btn btn-secondary" id="export-print">Simpan PDF</button><span id="report-xlsx-download"></span>'});
+  const signal=modalCleanup.signal,valid=()=>!signal.aborted&&el.isConnected&&validIdentity()&&sequence===renderSequence&&state.report===report&&state.outletId===selected.id&&route()===current&&state.range.start===range.start&&state.range.end===range.end&&!state.loading&&!state.error;
+  el.querySelector('#export-print').addEventListener('click',()=>{if(!valid())return;closeModal();printSnapshot({view:current,report,outlet:selected,range});},{signal});
+  void createReportWorkbook({view:current,report,outlet:selected,range,generatedAt:new Date().toISOString()}).then(bytes=>{
+    if(!valid())return;
+    const url=URL.createObjectURL(new Blob([bytes],{type:REPORT_XLSX_MIME}));let downloaded=false;
+    signal.addEventListener('abort',()=>{if(downloaded)setTimeout(()=>URL.revokeObjectURL(url),60000);else URL.revokeObjectURL(url);},{once:true});
+    const link=document.createElement('a');link.className='btn btn-primary';link.href=url;link.download=`VORA-${current}-${range.start}-${range.end}.xlsx`;link.textContent='Unduh Excel';
+    link.addEventListener('click',event=>{if(!valid()){event.preventDefault();return;}downloaded=true;el.querySelector('#report-export-status').textContent='Unduhan Excel dimulai.';},{signal});
+    el.querySelector('#report-xlsx-download').append(link);el.querySelector('#report-export-status').textContent='File Excel siap. Klik Unduh Excel untuk menyimpannya.';link.focus();
+  }).catch(()=>{if(valid())el.querySelector('#report-export-status').textContent='Excel belum dapat disiapkan. Tutup dialog dan coba lagi.';});
 }
 function exportCommissionReport(report,selected) {
+  const current='commission-report',range={...state.range};
   const host=document.querySelector('#page-content'),filters=readCommissionReportFilters(host),surface=host?.querySelector('[data-commission-report]');
   const options={outlet:selected,filters,generatedAt:new Date().toISOString(),timeZone:surface?.dataset.timeZone};
   const sequence=renderSequence,validIdentity=identity.capture();
-  const el=modal({title:'Ekspor komisi karyawan',description:`${outletDisplayName(selected)} · ${report.date_from} – ${report.date_until}`,content:`<p>Excel berisi ringkasan lima kolom dan seluruh rincian komisi, sesuai periode dan pencarian saat ini.</p><p>Filter: <strong>${h(filters.search||'Semua karyawan dan cabang')}</strong></p><p id="commission-export-status" role="status">Menyiapkan file Excel…</p>`,footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><button class="btn btn-secondary" id="export-csv">Rincian CSV</button><span id="commission-xlsx-download"></span>'});
-  const signal=modalCleanup.signal,valid=()=>!signal.aborted&&el.isConnected&&validIdentity()&&sequence===renderSequence&&state.report===report&&state.outletId===selected.id;
-  el.querySelector('#export-csv').addEventListener('click',()=>{if(!valid())return;const rows=[['VORA POS',outletDisplayName(selected)],['Periode',report.date_from,report.date_until],['Filter',filters.search||'Semua'],[],...commissionReportRows(report,options)];downloadCsvFile(makeCsv(rows),`VORA-komisi-${report.date_from}-${report.date_until}.csv`);closeModal();toast('Unduhan rincian CSV dimulai.');},{signal});
-  el.querySelector('#export-print').addEventListener('click',()=>{if(!valid())return;closeModal();window.print();},{signal});
+  const el=modal({title:'Ekspor komisi karyawan',description:`${outletDisplayName(selected)} · ${report.date_from} – ${report.date_until}`,content:`<p>Excel berisi ringkasan lima kolom dan seluruh rincian komisi, sesuai periode dan pencarian saat ini.</p><p>Filter: <strong>${h(filters.search||'Semua karyawan dan cabang')}</strong></p><p id="commission-export-status" role="status">Menyiapkan file Excel…</p>`,footer:'<button class="btn btn-secondary" id="export-print">Cetak / PDF</button><span id="commission-xlsx-download"></span>'});
+  const signal=modalCleanup.signal,valid=()=>!signal.aborted&&el.isConnected&&validIdentity()&&sequence===renderSequence&&state.report===report&&state.outletId===selected.id&&route()===current&&state.range.start===range.start&&state.range.end===range.end&&!state.loading&&!state.error;
+  el.querySelector('#export-print').addEventListener('click',()=>{if(!valid())return;closeModal();printSnapshot({view:'commission-report',report,...options});},{signal});
   void createCommissionWorkbook({report,...options}).then(bytes=>{
     if(!valid())return;
     const url=URL.createObjectURL(new Blob([bytes],{type:COMMISSION_XLSX_MIME}));let downloaded=false;

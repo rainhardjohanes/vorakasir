@@ -58,10 +58,11 @@ function metrics(report) {
   return `<div class="r-metrics">${values.map(([label, value, note, symbol], i) => `<section class="r-card r-metric${!i ? ' r-metric-hero' : ''}"><div class="r-metric-label"><span>${icon(symbol)}</span>${h(label)}</div><strong>${h(value)}</strong><p>${h(note)}</p></section>`).join('')}</div>`;
 }
 
-function chart(report, metric = 'net') {
+function chart(report, metric = 'net', compact = null) {
   const days = report.days;
   if (!report.sales.length || !days.length) return empty('Belum ada transaksi untuk menggambar tren pada periode ini.');
-  const width = 740, height = 245, left = 61, right = 18, top = 18, bottom = 36;
+  if (compact === null) return `<div class="r-chart-views">${chart(report, metric, false)}${chart(report, metric, true)}</div>`;
+  const width = compact ? 480 : 1040, height = 260, left = compact ? 54 : 75, right = 20, top = 22, bottom = 36;
   const maximum = Math.max(1, ...days.map(day => numeric(day[metric]) ?? 0)) * 1.12;
   const x = index => days.length === 1 ? (width + left - right) / 2 : left + index * (width - left - right) / (days.length - 1);
   const y = value => height - bottom - (numeric(value) ?? 0) / maximum * (height - top - bottom);
@@ -71,9 +72,10 @@ function chart(report, metric = 'net') {
     const value = maximum * index / 4, yy = y(value);
     return `<line x1="${left}" x2="${width - right}" y1="${yy}" y2="${yy}" class="r-chart-grid"/><text x="${left - 11}" y="${yy + 4}" text-anchor="end">${h(metric === 'count' ? number(Math.round(value)) : shortNumber(value))}</text>`;
   }).join('');
-  const labels = days.map((day, index) => index === 0 || index === days.length - 1 || index % Math.max(1, Math.ceil(days.length / 6)) === 0 ? `<text x="${x(index)}" y="${height - 10}" text-anchor="middle">${h(day.date.slice(8) + '/' + day.date.slice(5, 7))}</text>` : '').join('');
+  const labels = days.map((day, index) => index === 0 || index === days.length - 1 || index % Math.max(1, Math.ceil(days.length / (compact ? 4 : 8))) === 0 ? `<text x="${x(index)}" y="${height - 10}" text-anchor="middle">${h(day.date.slice(8) + '/' + day.date.slice(5, 7))}</text>` : '').join('');
   const name = metric === 'count' ? 'Jumlah transaksi per hari' : 'Penerimaan bersih per hari';
-  return `<svg class="r-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${name}. Rincian setiap hari tersedia pada tabel di bawah grafik."><defs><linearGradient id="report-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5c9b75" stop-opacity=".22"/><stop offset="1" stop-color="#5c9b75" stop-opacity=".01"/></linearGradient></defs>${grids}<path d="M${x(0)},${height - bottom} L${points.join(' L')} L${x(days.length - 1)},${height - bottom} Z" fill="url(#report-area)"/><polyline points="${points.join(' ')}" fill="none" stroke="#2b835e" stroke-width="2.8" stroke-linejoin="round"/>${days.map((day, index) => `<circle cx="${x(index)}" cy="${y(day[metric])}" r="${days.length === 1 ? 4 : 2.5}" fill="#2b835e"><title>${h(`${date(day.date)}: ${metric === 'count' ? number(day.count) + ' transaksi' : money(day.net)}`)}</title></circle>`).join('')}${labels}</svg>`;
+  const gradientId = `report-area-${metric}-${compact ? 'mobile' : 'desktop'}`;
+  return `<svg class="r-chart ${compact ? 'r-chart-mobile' : 'r-chart-desktop'}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${name}. Rincian setiap hari tersedia pada tabel di bawah grafik."><defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#27a77b" stop-opacity=".2"/><stop offset="1" stop-color="#27a77b" stop-opacity=".015"/></linearGradient></defs>${grids}<path d="M${x(0)},${height - bottom} L${points.join(' L')} L${x(days.length - 1)},${height - bottom} Z" fill="url(#${gradientId})"/><polyline points="${points.join(' ')}" fill="none" stroke="#208262" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${days.map((day, index) => `<circle cx="${x(index)}" cy="${y(day[metric])}" r="${days.length === 1 ? 4 : 3}" fill="#fff" stroke="#208262" stroke-width="1.8"><title>${h(`${date(day.date)}: ${metric === 'count' ? number(day.count) + ' transaksi' : money(day.net)}`)}</title></circle>`).join('')}${labels}</svg>`;
 }
 
 function paymentChart(report) {
@@ -84,7 +86,7 @@ function paymentChart(report) {
     const start = offset; offset += fraction(row.net, total);
     return `${colors[index % colors.length]} ${start}% ${offset}%`;
   });
-  return `<div class="r-payment-visual"><div class="r-donut" style="background:${total > 0 ? `conic-gradient(${segments.join(',')})` : '#e6ece7'}" role="img" aria-label="Komposisi metode pembayaran, rinciannya tersedia di bawah"><div><small>Metode bayar</small><strong>${number(report.methods.length)}</strong></div></div></div><div class="r-payment-legend">${report.methods.map((row, index) => `<div><i style="background:${colors[index % colors.length]}"></i><span>${h(row.name)}</span><small>${h(percent(row.net, total))}</small><strong>${h(money(row.net))}</strong></div>`).join('')}</div>`;
+  return `<div class="r-payment-layout"><div class="r-payment-visual"><div class="r-donut" style="background:${total > 0 ? `conic-gradient(${segments.join(',')})` : '#e6ece7'}" role="img" aria-label="Komposisi metode pembayaran, rinciannya tersedia di samping"><div><small>Metode bayar</small><strong>${number(report.methods.length)}</strong></div></div></div><div class="r-payment-legend">${report.methods.map((row, index) => `<div><i style="background:${colors[index % colors.length]}"></i><span>${h(row.name)}<small>${h(number(row.count))} transaksi</small></span><span class="r-payment-value"><strong>${h(money(row.net))}</strong><small>${h(percent(row.net, total))}</small></span></div>`).join('')}</div></div>`;
 }
 
 function bars(rows, field = 'net', currency = true) {
@@ -97,10 +99,17 @@ function dailyDetails(report) {
   return `<details class="r-daily"><summary>Lihat rincian harian (${number(report.days.length)} hari)</summary>${table(['Tanggal usaha', 'Transaksi', 'Penerimaan bersih'], report.days.map(day => `<tr>${td(date(day.date))}${td(number(day.count), 'r-num')}${td(money(day.net), 'r-num')}</tr>`))}</details>`;
 }
 
+function topProducts(report) {
+  const products = report.products.slice(0, 5);
+  if (!products.length) return empty('Belum ada produk terjual pada periode ini.');
+  const maximum = Math.max(1, ...products.map(row => numeric(row.qty) ?? 0));
+  return `<div class="r-product-ranks">${products.map((row, index) => `<div class="r-product-rank"><span class="r-rank">${index + 1}</span><div><div class="r-product-rank-label"><span><strong>${h(row.name)}</strong><small>${h(row.category)}</small></span><span><strong>${h(number(row.qty))} <small>terjual</small></strong><small>${h(money(row.amount))}</small></span></div><div class="r-bar-track"><i style="width:${fraction(row.qty, maximum)}%;background:${index ? '#77b89b' : '#17664c'}"></i></div></div></div>`).join('')}</div>`;
+}
+
 function overview(report) {
-  const productRows = report.products.slice(0, 5).map((row, index) => `<tr><td><div class="r-product-cell"><span class="r-rank">${index + 1}</span><span class="r-product-symbol">${icon('product')}</span><div><strong>${h(row.name)}</strong>${small(row.category)}</div></div></td>${td(number(row.qty), 'r-num')}${td(money(row.amount), 'r-num')}</tr>`);
   const peak = [...report.days].sort((a, b) => b.net - a.net)[0];
-  return `${metrics(report)}<div class="r-analytics">${section('Tren penerimaan', 'Angka harian berdasarkan tanggal usaha pada struk', `<div class="r-chart-total"><strong>${h(money(report.finance.netReceipts))}</strong><span>Setelah refund, termasuk pajak dan layanan</span></div><div data-report-chart>${chart(report)}</div><div class="r-chart-caption">${peak && report.sales.length ? `Penerimaan tertinggi: ${h(date(peak.date))} · ${h(money(peak.net))}` : 'Menunggu transaksi pertama pada periode ini.'}</div>${dailyDetails(report)}`, '<div class="r-chart-controls" aria-label="Tampilan grafik"><button type="button" data-report-chart-metric="net" aria-pressed="true">Penerimaan</button><button type="button" data-report-chart-metric="count" aria-pressed="false">Transaksi</button></div>')}${section('Metode pembayaran', 'Komposisi penerimaan setelah refund', paymentChart(report), link('payments', 'Rincian'))}</div><div class="r-insight"><span>${icon('chart')}</span><div><strong>${report.finance.complete ? 'Pahami laba dari transaksi yang tercatat' : 'Ada angka historis yang perlu ditinjau'}</strong><p>${report.finance.complete ? 'Rincian HPP, biaya pembayaran, dan biaya usaha tersedia di laporan laba rugi.' : 'Laporan laba rugi menunjukkan komponen yang tersedia dan catatan rekonsiliasi.'}</p></div>${link('profit', 'Lihat laba rugi')}</div><div class="r-bottom-grid">${section('Produk terlaris', 'Kuantitas neto setelah pengembalian item', table(['Produk', 'Terjual', 'Nilai item'], productRows), link('product-report', 'Lihat semua'))}${section('Jenis pesanan', 'Penerimaan bersih berdasarkan jenis pesanan', bars(report.orderTypes))}</div>${section('Transaksi terbaru', 'Pilih nomor struk untuk membuka rincian', table(salesDefinition(report).headers, report.sales.slice(0, 5).map(salesDefinition(report).row)), link('sales', 'Semua transaksi'))}`;
+  const recent = report.sales.slice(0, 5).map(sale => `<tr><td>${saleButton(sale)}${small(`${date(sale.date)} · ${sale.time || '—'}`)}</td><td>${h(sale.method || 'Belum tercatat')}${small(statusLabel(sale))}</td>${td(money(netSaleAmount(sale, report.logs)), 'r-num')}</tr>`);
+  return `${metrics(report)}<div class="r-overview-chart">${section('Tren penerimaan', 'Angka harian berdasarkan tanggal usaha pada struk', `<div class="r-chart-total"><span><i></i>Penerimaan setelah refund, termasuk pajak dan layanan</span><strong>${h(money(report.finance.netReceipts))}</strong></div><div data-report-chart>${chart(report)}</div><div class="r-chart-caption">${peak && report.sales.length ? `Penerimaan tertinggi: ${h(date(peak.date))} · ${h(money(peak.net))}` : 'Menunggu transaksi pertama pada periode ini.'}</div>${dailyDetails(report)}`, '<div class="r-chart-controls" aria-label="Tampilan grafik"><button type="button" data-report-chart-metric="net" aria-pressed="true">Penerimaan</button><button type="button" data-report-chart-metric="count" aria-pressed="false">Transaksi</button></div>')}</div><div class="r-overview-grid">${section('Metode pembayaran', 'Komposisi penerimaan setelah refund', paymentChart(report), link('payments', 'Lihat laporan'))}${section('Produk terlaris', 'Kuantitas neto setelah pengembalian item', topProducts(report), link('product-report', 'Lihat laporan'))}${section('Jenis pesanan', 'Penerimaan bersih berdasarkan jenis pesanan', bars(report.orderTypes), link('sales', 'Lihat laporan'))}${section('Transaksi terbaru', 'Pilih nomor struk untuk membuka rincian', table(['No. transaksi / waktu', 'Pembayaran', 'Penerimaan bersih'], recent), link('sales', 'Semua transaksi'))}</div>`;
 }
 
 function hub(report,commissionPilotEnabled=false) {
@@ -190,7 +199,7 @@ function tablePage(def, state) {
 
 function reportTable(view, report, title, description, summaries) {
   const def = definition(view, report), state = { query: '', filter: 'all', page: 0 };
-  return `<section class="r-card r-data-card"><header class="r-card-head"><div><h2>${h(title)}</h2><p>${h(description)}</p></div>${badge(`${number(def.rows.length)} catatan`, 'gray')}</header>${summary(summaries)}<div class="r-toolbar"><label class="r-search">${icon('search')}<span class="sr-only">Cari di ${h(title.toLocaleLowerCase('id-ID'))}</span><input type="search" data-report-search placeholder="Cari di laporan…" maxlength="200" autocomplete="off"></label>${def.filters ? `<label class="r-filter"><span class="sr-only">Filter ${h(title.toLocaleLowerCase('id-ID'))}</span><select data-report-filter>${def.filters.map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></label>` : ''}<span class="r-export-note">CSV dan cetak mencakup seluruh catatan periode ini.</span></div><div data-report-table>${tablePage(def, state)}</div></section>`;
+  return `<section class="r-card r-data-card"><header class="r-card-head"><div><h2>${h(title)}</h2><p>${h(description)}</p></div>${badge(`${number(def.rows.length)} catatan`, 'gray')}</header>${summary(summaries)}<div class="r-toolbar"><label class="r-search">${icon('search')}<span class="sr-only">Cari di ${h(title.toLocaleLowerCase('id-ID'))}</span><input type="search" data-report-search placeholder="Cari di laporan…" maxlength="200" autocomplete="off"></label>${def.filters ? `<label class="r-filter"><span class="sr-only">Filter ${h(title.toLocaleLowerCase('id-ID'))}</span><select data-report-filter>${def.filters.map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></label>` : ''}<span class="r-export-note">Excel dan PDF mencakup seluruh catatan periode ini.</span></div><div data-report-table>${tablePage(def, state)}</div></section>`;
 }
 
 function detailView(view, report) {
@@ -239,11 +248,11 @@ export function reportExportRows(view, report) {
 
 function printReport(view, report, outlet, range) {
   const labels = { overview: 'Ringkasan dan transaksi', reports: 'Seluruh transaksi', sales: 'Penjualan', profit: 'Laba rugi', 'product-report': 'Performa produk', payments: 'Metode pembayaran', 'staff-report': 'Penjualan per kasir', refunds: 'Pengembalian dana', expenses: 'Biaya usaha' };
-  // Sale print columns stay readable on A4; financial component detail remains in CSV and each receipt.
+  // Sale print columns stay readable on A4; financial detail remains in Excel and each receipt.
   const salePrint = ['overview', 'reports', 'sales'].includes(view);
   const rows = salePrint ? [['Nomor struk / tanggal', 'Kasir', 'Metode', 'Total struk', 'Refund', 'Neto'], ...report.sales.map(sale => [`${sale.id}\n${sale.date} ${sale.time || ''}`, sale.cashier, sale.method, money(sale.total), money(refundAmount(sale, report.logs)), money(netSaleAmount(sale, report.logs))])] : reportExportRows(view, report);
   const headers = rows[0] || [];
-  return `<header class="r-print-heading"><h2>${h(labels[view] || 'Laporan')} · ${h(outlet?.name || 'Outlet')}</h2><p>${h(date(range.start))} – ${h(date(range.end))} · seluruh catatan periode ini</p></header>${['overview', 'reports'].includes(view) ? summary([['Penjualan bersih', money(report.finance.revenue)], ['Penerimaan bersih', money(report.finance.netReceipts)], ['Laba operasional', money(report.operatingProfit)]]): ''}${table(headers, rows.slice(1).map(row => `<tr>${row.map(value => td(value === null || value === undefined ? '—' : value)).join('')}</tr>`))}<p class="r-footnote">Data hanya mencakup catatan yang telah tersinkron. Tanggal mengikuti tanggal usaha pada struk. Ekspor CSV memuat seluruh komponen angka.</p>`;
+  return `<header class="r-print-heading"><h2>${h(labels[view] || 'Laporan')} · ${h(outlet?.name || 'Outlet')}</h2><p>${h(date(range.start))} – ${h(date(range.end))} · seluruh catatan periode ini</p></header>${['overview', 'reports'].includes(view) ? summary([['Penjualan bersih', money(report.finance.revenue)], ['Penerimaan bersih', money(report.finance.netReceipts)], ['Laba operasional', money(report.operatingProfit)]]): ''}${table(headers, rows.slice(1).map(row => `<tr>${row.map(value => td(value === null || value === undefined ? '—' : value)).join('')}</tr>`))}<p class="r-footnote">Data hanya mencakup catatan yang telah tersinkron. Tanggal mengikuti tanggal usaha pada struk. Ekspor Excel memuat seluruh komponen angka.</p>`;
 }
 
 /** Bind once after render; cleanup must be called before outlet/route/auth changes. */

@@ -36,14 +36,42 @@ export function historicalTenderSnapshot(sale) {
   return { kind: 'imported', tenders, issue: null };
 }
 
-// The first adapter version accepts separately verified absence of refunds.
-// It deliberately does not infer zero from SUCCESS, an empty native ledger,
-// or a future/unsupported historical refund state.
+const businessDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+  && Number.isFinite(Date.parse(value + 'T00:00:00Z'))
+  && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
+// Validate the timestamp with millisecond precision understood by both Hermes
+// and browsers. Preserve the source proof string (and its hash) untouched.
+const reviewTimeValid = value => typeof value === 'string'
+  && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)
+  && businessDate(value.slice(0, 10))
+  && Number.isFinite(Date.parse(value.replace(/\.(\d+)(?=Z|[+-]\d{2}:\d{2}$)/,
+    (_, fraction) => '.' + fraction.slice(0, 3).padEnd(3, '0'))));
+
+function verifiedRefundsWithVoidsExcluded(sale, m) {
+  const refund = m.evidence?.refundEvidence, exclusion = m.evidence?.voidExclusion;
+  return m.sourceVoidDisposition === 'excluded_by_user'
+    && refund && digest(refund.sha256) && text(refund.locator)
+    && refund.refundCount === 0 && refund.refundAmount === 0
+    && businessDate(refund.period?.start) && businessDate(refund.period?.end)
+    && refund.period.start <= refund.period.end && businessDate(sale.date)
+    && sale.date >= refund.period.start && sale.date <= refund.period.end
+    && exclusion && exclusion.disposition === 'excluded_by_user'
+    && exclusion.decision === 'void tidak perlu dimigrasikan, lanjut saja yang lain'
+    && exclusion.reviewedBy === 'root' && reviewTimeValid(exclusion.reviewedAt)
+    && digest(exclusion.reviewSha256) && digest(exclusion.sourceReportSha256)
+    && exclusion.locator === 'history-void-exclusion-review.json';
+}
+
+// A zero cash refund needs separately verified evidence. Excluding source void
+// records is a distinct user choice, never a claim that no voids occurred.
+// SUCCESS, an empty native ledger, or an unsupported state cannot imply zero.
 export function importedRefundAmount(sale) {
   if (!isImportedHistory(sale)) return undefined;
   const m = readImportedHistory(sale);
   return m && historicalTenderSnapshot(sale).kind === 'imported' && sale.refund_requires_review === false
-    && m.sourceRefundState === 'no_refunds_or_voids' && Array.isArray(m.sourceRefunds) && !m.sourceRefunds.length
+    && (m.sourceRefundState === 'no_refunds_or_voids'
+      || (m.sourceRefundState === 'no_refunds_voids_excluded' && verifiedRefundsWithVoidsExcluded(sale, m)))
+    && Array.isArray(m.sourceRefunds) && !m.sourceRefunds.length
     && sale.refund_revision === 0 && sale.refunded_amount === 0 ? 0 : null;
 }
 

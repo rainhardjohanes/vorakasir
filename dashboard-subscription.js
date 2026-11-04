@@ -1,7 +1,7 @@
 import { escape as h, icon } from '/dashboard-icons.js';
 
 export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.vorapos.app';
-const ADMIN_WHATSAPP = 'https://wa.me/6289636974140';
+const ADMIN_WHATSAPP = 'https://wa.me/6285755180005';
 
 export function subscriptionSummary(outlet, now = Date.now()) {
   const value = outlet?.subscription_end_date;

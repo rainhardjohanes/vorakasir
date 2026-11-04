@@ -171,7 +171,7 @@ export function createAdsMeasurement({ window, document, config = ADS_MEASUREMEN
   }
   function whatsappTarget(value) {
     try { const url = new URL(value); return url.protocol === 'https:' && url.hostname === 'wa.me'
-      && !url.port && !url.username && !url.password && url.pathname === '/6289636974140'; } catch { return false; }
+      && !url.port && !url.username && !url.password && url.pathname === '/6285755180005'; } catch { return false; }
   }
   function click(event) {
     if (event.isTrusted !== true || event.defaultPrevented || event.button !== 0) return;

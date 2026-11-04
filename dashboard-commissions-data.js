@@ -1,5 +1,6 @@
 import { verifyOwner } from '/dashboard-operations-data.js';
-import { validateRange } from '/dashboard-data.js';
+import { validateRange, collect } from '/dashboard-data.js';
+import {mergeHistoricalCommissionReport,validateHistoricalCommissionRow} from '/dashboard-commission-history.js';
 
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const abort = signal => { if (signal?.aborted) throw new DOMException('Halaman berubah.', 'AbortError'); };
@@ -60,19 +61,23 @@ export async function saveCommissionGroup(client,user,outlet,draft,existing,oper
 export async function loadCommissionReport(client,user,outlet,range,signal) {
   validateRange(range); await verifyOwner(client,user,outlet,signal);
   const data = await rpc(client,'vora_commission_report',{p_outlet_id:outlet.id,p_date_from:range.start,p_date_until:range.end},signal);
-  return validateCommissionReport(data,outlet,range);
+  validateCommissionReport(data,outlet,range);
+  const sales=await collect(()=>client.from('sales').select('id,outlet_id,date,cart_data').eq('outlet_id',outlet.id).gte('date',range.start).lte('date',range.end),r=>r.outlet_id===outlet.id&&r.date>=range.start&&r.date<=range.end,signal);
+  return validateCommissionReport(mergeHistoricalCommissionReport(data,sales,outlet,range),outlet,range);
 }
 export function validateCommissionReport(data,outlet,range) {
   if (!data || data.outlet_id !== outlet.id || data.date_from !== range.start || data.date_until !== range.end || !Array.isArray(data.items)) throw new TypeError('Laporan komisi tidak lengkap atau periode tidak sesuai.');
-  if(data.report_version!==undefined&&![1,2].includes(data.report_version))throw new TypeError('Versi laporan komisi belum didukung. Muat ulang dashboard.');
-  const seen=new Set();let earned=0,reversed=0;
+  if(data.report_version!==undefined&&![1,2,3].includes(data.report_version))throw new TypeError('Versi laporan komisi belum didukung. Muat ulang dashboard.');
+  const seen=new Set();let earned=0,reversed=0,source=0,sourceRows=0;
   for(const row of data.items){
     if(row.outlet_id!==outlet.id)throw new TypeError('Data lintas outlet ditolak.');
-    if(!row.id||seen.has(row.id)||typeof row.staff_id!=='string'||!row.staff_id||typeof row.staff_name!=='string'||!['earned','refund'].includes(row.event_type)||!['product','transaction'].includes(row.scope)||!Number.isSafeInteger(row.amount)||!Number.isSafeInteger(row.basis)||row.basis<0||row.event_type==='earned'&&row.amount<0||row.event_type==='refund'&&row.amount>0)throw new TypeError('Catatan komisi tidak lengkap atau ganda.');
+    if(row.source_archive){if(data.report_version!==3)throw new TypeError('Versi arsip komisi tidak sesuai.');validateHistoricalCommissionRow(row);source+=row.amount;sourceRows++;}
+    if(!row.id||seen.has(row.id)||typeof row.staff_id!=='string'||!row.staff_id||typeof row.staff_name!=='string'||!['earned','refund'].includes(row.event_type)||!['product','transaction'].includes(row.scope)||!Number.isSafeInteger(row.amount)||(!row.source_archive&&(!Number.isSafeInteger(row.basis)||row.basis<0))||row.event_type==='earned'&&row.amount<0||row.event_type==='refund'&&row.amount>0)throw new TypeError('Catatan komisi tidak lengkap atau ganda.');
     seen.add(row.id);if(row.event_type==='earned')earned+=row.amount;else reversed-=row.amount;
   }
   if(!Number.isSafeInteger(earned)||!Number.isSafeInteger(reversed)||data.totals?.earned!==earned||data.totals?.reversed!==reversed||data.totals?.net!==earned-reversed)throw new TypeError('Total komisi belum sesuai rincian. Muat ulang; laporan tidak dipotong.');
-  if(data.report_version===2)validateReportMetadata(data);
+  if(data.report_version===3&&(!Number.isSafeInteger(source)||data.totals.source!==source||data.history?.sourceAmount!==source||data.history.rowCount!==sourceRows||!Number.isSafeInteger(data.history.invoiceCount)||data.history.invoiceCount<1||!Array.isArray(data.history.coverage)||!data.history.coverage.length))throw new TypeError('Rekonsiliasi arsip komisi belum lengkap.');
+  if(data.report_version>=2)validateReportMetadata(data);
   return data;
 }
 
@@ -83,12 +88,14 @@ function validateReportMetadata(data) {
   if(!hasText(data.outlet_name)||!hasText(data.generated_at)||!Number.isFinite(Date.parse(data.generated_at))||!Array.isArray(data.summary))throw new TypeError('Metadata laporan komisi belum lengkap.');
   const groups=new Map();
   for(const row of data.items){
-    if(!hasText(row.checkout_id)||!hasText(row.sale_id)||row.outlet_name!==data.outlet_name||!(row.product_name===null||hasText(row.product_name))||!['reserved_cart','current_product','missing','not_applicable'].includes(row.product_name_source)||!quantity(row.product_quantity)||!quantity(row.refund_quantity)||!['settlement_snapshot','refund_lines','payment_ratio','missing','not_applicable'].includes(row.quantity_source))throw new TypeError('Rincian kuantitas atau identitas transaksi komisi belum lengkap.');
+    const archived=!!row.source_archive;
+    if((!archived&&!hasText(row.checkout_id))||!hasText(row.sale_id)||row.outlet_name!==data.outlet_name||!(row.product_name===null||hasText(row.product_name))||!['reserved_cart','current_product','missing','not_applicable',...(archived?['source_archive']:[])].includes(row.product_name_source)||!quantity(row.product_quantity)||!quantity(row.refund_quantity)||!['settlement_snapshot','refund_lines','payment_ratio','missing','not_applicable',...(archived?['source_archive']:[])].includes(row.quantity_source))throw new TypeError('Rincian kuantitas atau identitas transaksi komisi belum lengkap.');
     if(![null,'percent','fixed'].includes(row.commission_kind)||!(row.commission_value===null||Number.isSafeInteger(row.commission_value)&&row.commission_value>=0)||!([null,'before','after'].includes(row.discount_basis))||!([null,'split','full'].includes(row.multi_staff_mode))||(row.commission_kind===null)!==(row.commission_value===null)||row.commission_kind==='percent'&&row.commission_value>100)throw new TypeError('Snapshot tarif komisi tidak valid.');
-    if(row.product_quantity!==null&&(row.event_type!=='earned'||row.scope!=='product'||row.quantity_source!=='settlement_snapshot')||row.refund_quantity!==null&&(row.event_type!=='refund'||row.scope!=='product'||row.quantity_source!=='refund_lines'))throw new TypeError('Sumber kuantitas komisi tidak sesuai jenis catatan.');
-    const g=groups.get(row.staff_id)||{earned:0,reversed:0,transactions:new Set(),product_quantity:0,unknown_product_quantity_count:0};
+    if(row.product_quantity!==null&&(row.event_type!=='earned'||row.scope!=='product'||row.quantity_source!==(archived?'source_archive':'settlement_snapshot'))||row.refund_quantity!==null&&(row.event_type!=='refund'||row.scope!=='product'||row.quantity_source!=='refund_lines'))throw new TypeError('Sumber kuantitas komisi tidak sesuai jenis catatan.');
+    const g=groups.get(row.staff_id)||{earned:0,reversed:0,source:0,transactions:new Set(),product_quantity:0,unknown_product_quantity_count:0};
     if(row.event_type==='earned'){
       g.earned+=row.amount;
+      if(archived)g.source+=row.amount;
       if(row.scope==='transaction')g.transactions.add(row.checkout_id);
       else if(row.product_quantity===null)g.unknown_product_quantity_count++;else g.product_quantity+=row.product_quantity;
     }else g.reversed-=row.amount;
@@ -97,6 +104,7 @@ function validateReportMetadata(data) {
   const seen=new Set();
   for(const row of data.summary){
     const g=groups.get(row.staff_id);
+    if(data.report_version===3&&row.source!==g?.source)throw new TypeError('Ringkasan arsip komisi belum sesuai rincian.');
     if(!g||seen.has(row.staff_id)||!hasText(row.staff_name)||row.outlet_id!==data.outlet_id||row.outlet_name!==data.outlet_name||!Number.isSafeInteger(row.transaction_count)||row.transaction_count!==g.transactions.size||!Number.isSafeInteger(row.unknown_product_quantity_count)||row.unknown_product_quantity_count!==g.unknown_product_quantity_count||!quantity(row.product_quantity)||!sameQuantity(row.product_quantity,g.unknown_product_quantity_count?null:g.product_quantity)||row.earned!==g.earned||row.reversed!==g.reversed||row.net!==g.earned-g.reversed)throw new TypeError('Ringkasan komisi belum sesuai rincian. Muat ulang; data tidak dipotong.');
     seen.add(row.staff_id);
   }

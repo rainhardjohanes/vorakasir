@@ -1,5 +1,7 @@
 import { escapeHtml as h } from '/dashboard-data.js';
 import { refundAmount, netSaleAmount } from '/dashboard-lib-refundReports.js';
+import { historicalDisplayPlan, historicalTenderSnapshot, negateKnown, averageKnown } from '/dashboard-historical-reports.js';
+import { receiptIdentity, receiptLineTotal, isImportedHistory, readImportedHistory } from '/dashboard-lib-importedHistory.js';
 
 const PER_PAGE = 25;
 const colors = ['#246c51', '#88b79c', '#ddba77', '#8c9db1', '#bba7c4', '#b8c9bd'];
@@ -31,14 +33,19 @@ const summary = entries => `<div class="r-summary">${entries.map(([label, value,
 const table = (headers, rows) => `<div class="r-table-wrap" tabindex="0" role="region" aria-label="Tabel laporan, geser untuk melihat seluruh kolom"><table><thead><tr>${headers.map(header => `<th scope="col">${h(header)}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.join('') : `<tr><td colspan="${headers.length}">${empty('Tidak ada catatan yang cocok dengan pilihan ini.')}</td></tr>`}</tbody></table></div>`;
 const td = (value, cls = '') => `<td${cls ? ` class="${cls}"` : ''}>${h(value)}</td>`;
 const small = value => `<small>${h(value)}</small>`;
-const saleButton = sale => `<button type="button" class="r-transaction" data-report-sale="${h(sale.id)}">${h(sale.id)}</button>`;
+const historyState = (sale, report) => report?.historicalCompatibility?.saleStates.find(state => state.id === sale.id);
+const reportedRefund = (sale, report) => historyState(sale, report)?.refund ?? (historyState(sale, report)?.refund === null ? null : refundAmount(sale, report.logs));
+const reportedNet = (sale, report) => historyState(sale, report)?.net ?? (historyState(sale, report)?.net === null ? null : netSaleAmount(sale, report.logs));
+const productFields = report => historicalDisplayPlan(report) || { productQuantityMetric: 'qty', productAmountMetric: 'amount', productLabel: 'Kuantitas neto setelah pengembalian item' };
+const saleButton = sale => `<button type="button" class="r-transaction" data-report-sale="${h(sale.id)}">${h(receiptIdentity(sale))}</button>`;
 
-function statusLabel(sale) {
+function statusLabel(sale, report) {
+  if (historyState(sale, report)?.statusLabel) return historyState(sale, report).statusLabel;
   if (sale.status === 'REFUNDED') return 'Refund penuh';
   if (sale.status === 'PARTIAL_REFUND' || Number(sale.refunded_amount) > 0) return 'Refund sebagian';
   return sale.status === 'SUCCESS' ? 'Selesai' : (sale.status || 'Belum tercatat');
 }
-const saleStatus = sale => badge(statusLabel(sale), sale.status === 'SUCCESS' && !Number(sale.refunded_amount) ? '' : 'amber');
+const saleStatus = (sale, report) => badge(statusLabel(sale, report), sale.status === 'SUCCESS' && !Number(sale.refunded_amount) ? '' : 'amber');
 const expenseStatus = row => row.reversal ? 'Pembatalan' : row.reversed ? 'Dibatalkan' : 'Tercatat';
 const legacyExpenses = report => report.expense.expenses.some(row => row.legacy);
 function warnings(report) {
@@ -50,9 +57,9 @@ const tabs = view => `<nav class="r-tabs" aria-label="Jenis laporan">${[['report
 function metrics(report) {
   const f = report.finance;
   const values = [
-    ['Penjualan bersih', money(f.revenue), 'Tanpa pajak, layanan, dan surcharge', 'chart'],
+    report.historicalCompatibility?.unknownRefundCount ? ['Nilai struk sebelum refund', money(f.receipts), 'Nilai tercatat; refund riwayat belum terverifikasi', 'chart'] : ['Penjualan bersih', money(f.revenue), 'Tanpa pajak, layanan, dan surcharge', 'chart'],
     ['Jumlah transaksi', number(f.transactions), 'Seluruh struk, termasuk refund', 'receipt'],
-    ['Rata-rata penerimaan', money(f.transactions ? f.netReceipts / f.transactions : 0), 'Penerimaan setelah refund per struk', 'payment'],
+    ['Rata-rata penerimaan', money(averageKnown(f.netReceipts, f.transactions)), 'Penerimaan setelah refund per struk', 'payment'],
     ['Laba operasional', money(report.operatingProfit), f.complete ? 'Setelah HPP, MDR, dan biaya tercatat' : 'Sementara · perlu rekonsiliasi', 'expense'],
   ];
   return `<div class="r-metrics">${values.map(([label, value, note, symbol], i) => `<section class="r-card r-metric${!i ? ' r-metric-hero' : ''}"><div class="r-metric-label"><span>${icon(symbol)}</span>${h(label)}</div><strong>${h(value)}</strong><p>${h(note)}</p></section>`).join('')}</div>`;
@@ -61,6 +68,7 @@ function metrics(report) {
 function chart(report, metric = 'net', compact = null) {
   const days = report.days;
   if (!report.sales.length || !days.length) return empty('Belum ada transaksi untuk menggambar tren pada periode ini.');
+  if (days.some(day => numeric(day[metric]) === null)) return empty('Tren penerimaan belum tersedia karena refund riwayat belum terverifikasi. Jumlah transaksi tetap dapat dilihat.');
   if (compact === null) return `<div class="r-chart-views">${chart(report, metric, false)}${chart(report, metric, true)}</div>`;
   const width = compact ? 480 : 1040, height = 260, left = compact ? 54 : 75, right = 20, top = 22, bottom = 36;
   const maximum = Math.max(1, ...days.map(day => numeric(day[metric]) ?? 0)) * 1.12;
@@ -79,20 +87,21 @@ function chart(report, metric = 'net', compact = null) {
 }
 
 function paymentChart(report) {
-  const total = sum(report.methods, 'net');
+  const metric = historicalDisplayPlan(report)?.paymentChartMetric || 'net';
+  const total = sum(report.methods, metric);
   if (!report.methods.length) return empty('Belum ada penerimaan pada periode ini.');
   let offset = 0;
   const segments = report.methods.map((row, index) => {
-    const start = offset; offset += fraction(row.net, total);
+    const start = offset; offset += fraction(row[metric], total);
     return `${colors[index % colors.length]} ${start}% ${offset}%`;
   });
-  return `<div class="r-payment-layout"><div class="r-payment-visual"><div class="r-donut" style="background:${total > 0 ? `conic-gradient(${segments.join(',')})` : '#e6ece7'}" role="img" aria-label="Komposisi metode pembayaran, rinciannya tersedia di samping"><div><small>Metode bayar</small><strong>${number(report.methods.length)}</strong></div></div></div><div class="r-payment-legend">${report.methods.map((row, index) => `<div><i style="background:${colors[index % colors.length]}"></i><span>${h(row.name)}<small>${h(number(row.count))} transaksi</small></span><span class="r-payment-value"><strong>${h(money(row.net))}</strong><small>${h(percent(row.net, total))}</small></span></div>`).join('')}</div></div>`;
+  return `<div class="r-payment-layout"><div class="r-payment-visual"><div class="r-donut" style="background:${total > 0 ? `conic-gradient(${segments.join(',')})` : '#e6ece7'}" role="img" aria-label="Komposisi metode pembayaran, rinciannya tersedia di samping"><div><small>Metode bayar</small><strong>${number(report.methods.length)}</strong></div></div></div><div class="r-payment-legend">${report.methods.map((row, index) => `<div><i style="background:${colors[index % colors.length]}"></i><span>${h(row.name)}<small>${h(number(row.count))} ${report.historicalCompatibility ? 'struk memakai metode' : 'transaksi'}</small></span><span class="r-payment-value"><strong>${h(money(row[metric]))}</strong><small>${h(percent(row[metric], total))}</small></span></div>`).join('')}</div></div>`;
 }
 
 function bars(rows, field = 'net', currency = true) {
   if (!rows.length) return empty();
   const maximum = Math.max(...rows.map(row => numeric(row[field]) ?? 0), 1);
-  return `<div class="r-bars">${rows.map((row, index) => `<div><div class="r-bar-label"><span>${h(row.name || row.label)}</span><strong>${h(currency ? money(row[field]) : number(row[field]))}</strong></div><div class="r-bar-track"><i style="width:${fraction(row[field], maximum)}%;background:${colors[index % colors.length]}"></i></div></div>`).join('')}</div>`;
+  return `<div class="r-bars">${rows.map((row, index) => `<div><div class="r-bar-label"><span>${h(row.name || row.label)}</span><strong>${h(currency ? money(row[field]) : number(row[field]))}</strong></div>${numeric(row[field]) === null ? '<small>Belum tersedia</small>' : `<div class="r-bar-track"><i style="width:${fraction(row[field], maximum)}%;background:${colors[index % colors.length]}"></i></div>`}</div>`).join('')}</div>`;
 }
 
 function dailyDetails(report) {
@@ -100,16 +109,18 @@ function dailyDetails(report) {
 }
 
 function topProducts(report) {
+  const fields = productFields(report), qty = fields.productQuantityMetric, amount = fields.productAmountMetric;
   const products = report.products.slice(0, 5);
   if (!products.length) return empty('Belum ada produk terjual pada periode ini.');
-  const maximum = Math.max(1, ...products.map(row => numeric(row.qty) ?? 0));
-  return `<div class="r-product-ranks">${products.map((row, index) => `<div class="r-product-rank"><span class="r-rank">${index + 1}</span><div><div class="r-product-rank-label"><span><strong>${h(row.name)}</strong><small>${h(row.category)}</small></span><span><strong>${h(number(row.qty))} <small>terjual</small></strong><small>${h(money(row.amount))}</small></span></div><div class="r-bar-track"><i style="width:${fraction(row.qty, maximum)}%;background:${index ? '#77b89b' : '#17664c'}"></i></div></div></div>`).join('')}</div>`;
+  const maximum = Math.max(1, ...products.map(row => numeric(row[qty]) ?? 0));
+  return `<div class="r-product-ranks">${products.map((row, index) => `<div class="r-product-rank"><span class="r-rank">${index + 1}</span><div><div class="r-product-rank-label"><span><strong>${h(row.name)}</strong><small>${h(row.category)}</small></span><span><strong>${h(number(row[qty]))} <small>${report.historicalCompatibility?.unknownRefundCount ? 'tercatat' : 'terjual'}</small></strong><small>${h(money(row[amount]))}</small></span></div><div class="r-bar-track"><i style="width:${fraction(row[qty], maximum)}%;background:${index ? '#77b89b' : '#17664c'}"></i></div></div></div>`).join('')}</div>`;
 }
 
 function overview(report) {
-  const peak = [...report.days].sort((a, b) => b.net - a.net)[0];
-  const recent = report.sales.slice(0, 5).map(sale => `<tr><td>${saleButton(sale)}${small(`${date(sale.date)} · ${sale.time || '—'}`)}</td><td>${h(sale.method || 'Belum tercatat')}${small(statusLabel(sale))}</td>${td(money(netSaleAmount(sale, report.logs)), 'r-num')}</tr>`);
-  return `${metrics(report)}<div class="r-overview-chart">${section('Tren penerimaan', 'Angka harian berdasarkan tanggal usaha pada struk', `<div class="r-chart-total"><span><i></i>Penerimaan setelah refund, termasuk pajak dan layanan</span><strong>${h(money(report.finance.netReceipts))}</strong></div><div data-report-chart>${chart(report)}</div><div class="r-chart-caption">${peak && report.sales.length ? `Penerimaan tertinggi: ${h(date(peak.date))} · ${h(money(peak.net))}` : 'Menunggu transaksi pertama pada periode ini.'}</div>${dailyDetails(report)}`, '<div class="r-chart-controls" aria-label="Tampilan grafik"><button type="button" data-report-chart-metric="net" aria-pressed="true">Penerimaan</button><button type="button" data-report-chart-metric="count" aria-pressed="false">Transaksi</button></div>')}</div><div class="r-overview-grid">${section('Metode pembayaran', 'Komposisi penerimaan setelah refund', paymentChart(report), link('payments', 'Lihat laporan'))}${section('Produk terlaris', 'Kuantitas neto setelah pengembalian item', topProducts(report), link('product-report', 'Lihat laporan'))}${section('Jenis pesanan', 'Penerimaan bersih berdasarkan jenis pesanan', bars(report.orderTypes), link('sales', 'Lihat laporan'))}${section('Transaksi terbaru', 'Pilih nomor struk untuk membuka rincian', table(['No. transaksi / waktu', 'Pembayaran', 'Penerimaan bersih'], recent), link('sales', 'Semua transaksi'))}</div>`;
+  const history = historicalDisplayPlan(report);
+  const peak = history?.hideNetChart ? null : [...report.days].sort((a, b) => b.net - a.net)[0];
+  const recent = report.sales.slice(0, 5).map(sale => `<tr><td>${saleButton(sale)}${small(`${date(sale.date)} · ${sale.time || '—'}`)}</td><td>${h(sale.method || 'Belum tercatat')}${small(statusLabel(sale, report))}</td>${td(money(reportedNet(sale, report)), 'r-num')}</tr>`);
+  return `${metrics(report)}<div class="r-overview-chart">${section('Tren penerimaan', 'Angka harian berdasarkan tanggal usaha pada struk', `<div class="r-chart-total"><span><i></i>Penerimaan setelah refund, termasuk pajak dan layanan</span><strong>${h(money(report.finance.netReceipts))}</strong></div><div data-report-chart>${chart(report)}</div><div class="r-chart-caption">${peak && report.sales.length ? `Penerimaan tertinggi: ${h(date(peak.date))} · ${h(money(peak.net))}` : history?.hideNetChart ? 'Penerimaan neto belum dapat dipastikan; buka tampilan Transaksi untuk melihat jumlah struk.' : 'Menunggu transaksi pertama pada periode ini.'}</div>${dailyDetails(report)}`, '<div class="r-chart-controls" aria-label="Tampilan grafik"><button type="button" data-report-chart-metric="net" aria-pressed="true">Penerimaan</button><button type="button" data-report-chart-metric="count" aria-pressed="false">Transaksi</button></div>')}</div><div class="r-overview-grid">${section('Metode pembayaran', history?.paymentChartLabel || 'Komposisi penerimaan setelah refund', paymentChart(report), link('payments', 'Lihat laporan'))}${section('Produk terlaris', history?.productLabel || 'Kuantitas neto setelah pengembalian item', topProducts(report), link('product-report', 'Lihat laporan'))}${section('Jenis pesanan', 'Penerimaan bersih berdasarkan jenis pesanan', bars(report.orderTypes), link('sales', 'Lihat laporan'))}${section('Transaksi terbaru', 'Pilih nomor struk untuk membuka rincian', table(['No. transaksi / waktu', 'Pembayaran', 'Penerimaan bersih'], recent), link('sales', 'Semua transaksi'))}</div>`;
 }
 
 function hub(report,commissionPilotEnabled=false) {
@@ -128,11 +139,11 @@ function hub(report,commissionPilotEnabled=false) {
 function profitLines(report) {
   const f = report.finance;
   return [
-    ['Total nilai struk sebelum refund', f.receipts], ['Pengembalian dana', -f.refunds], ['Penerimaan bersih', f.netReceipts],
-    ['Pajak pelanggan (dikeluarkan dari pendapatan)', -f.tax], ['Layanan (dikeluarkan dari pendapatan)', -f.service],
-    ['Surcharge pelanggan (dikeluarkan dari pendapatan)', -f.surcharge], ['Penjualan bersih', f.revenue],
-    [f.complete ? 'Harga pokok penjualan' : 'HPP tercatat (sementara)', -f.cogs], ['Laba kotor', f.grossProfit],
-    ['Biaya pembayaran / MDR', -f.mdr], ['Kontribusi setelah MDR', f.contribution],
+    ['Total nilai struk sebelum refund', f.receipts], ['Pengembalian dana', negateKnown(f.refunds)], ['Penerimaan bersih', f.netReceipts],
+    ['Pajak pelanggan (dikeluarkan dari pendapatan)', negateKnown(f.tax)], ['Layanan (dikeluarkan dari pendapatan)', negateKnown(f.service)],
+    ['Surcharge pelanggan (dikeluarkan dari pendapatan)', negateKnown(f.surcharge)], ['Penjualan bersih', f.revenue],
+    [f.complete ? 'Harga pokok penjualan' : 'HPP tercatat (sementara)', negateKnown(f.cogs)], ['Laba kotor', f.grossProfit],
+    ['Biaya pembayaran / MDR', negateKnown(f.mdr)], ['Kontribusi setelah MDR', f.contribution],
     ...report.expense.categories.filter(category => category.amount !== 0).map(category => [category.label, -category.amount]),
     ['Total biaya usaha', -report.expense.total], ['Laba operasional sebelum pajak penghasilan', report.operatingProfit],
   ];
@@ -142,38 +153,39 @@ const profitLine = (label, amount, subtotal = false) => `<div class="r-profit-li
 function profit(report, outlet, range) {
   const f = report.finance;
   const margin = f.complete && f.revenue > 0 ? report.operatingProfit / f.revenue * 100 : null;
-  return `<div class="r-profit-layout"><section class="r-card r-profit-report"><header class="r-profit-title"><div><h2>${h(outlet?.name || 'Outlet')}</h2><p>Laporan laba rugi · ${h(date(range.start))} – ${h(date(range.end))}</p></div>${badge(f.complete ? 'Data tercatat' : 'Sementara', f.complete ? '' : 'amber')}</header><div class="r-profit-section"><h3>Pendapatan usaha</h3>${profitLine('Total nilai struk sebelum refund', f.receipts)}${profitLine('Pengembalian dana', -f.refunds)}${profitLine('Penerimaan bersih', f.netReceipts, true)}${profitLine('Pajak pelanggan', -f.tax)}${profitLine('Layanan', -f.service)}${profitLine('Surcharge pelanggan', -f.surcharge)}${profitLine('Penjualan bersih', f.revenue, true)}<p>Total struk sudah memperhitungkan diskon dan pembulatan. Pajak, layanan, dan surcharge dikeluarkan dari pendapatan usaha.</p></div><div class="r-profit-section"><h3>Harga pokok & biaya pembayaran</h3>${profitLine(f.complete ? 'HPP produk terjual' : 'HPP tercatat · sementara', -f.cogs)}${profitLine('Laba kotor', f.grossProfit, true)}${profitLine('Biaya pembayaran / MDR', -f.mdr)}${profitLine('Kontribusi setelah MDR', f.contribution, true)}</div><div class="r-profit-section"><h3>Biaya operasional</h3>${report.expense.categories.filter(row => row.amount !== 0).map(row => profitLine(row.label, -row.amount)).join('') || '<p>Belum ada biaya usaha pada periode ini.</p>'}${profitLine('Total biaya usaha', -report.expense.total, true)}</div><div class="r-profit-result"><div>Laba operasional sebelum pajak penghasilan<small>${margin === null ? 'Margin belum tersedia untuk data ini' : `Margin ${number(margin)}% dari penjualan bersih`}</small></div><strong>${h(money(report.operatingProfit))}</strong></div><p class="r-footnote">Refund mengikuti tanggal penjualan asal. Laporan ini mencakup data tersinkron dan biaya yang sudah dicatat; belum mencakup pajak penghasilan.</p></section><aside class="r-card r-profit-notes"><h2>Komposisi biaya usaha</h2><p>Hanya komponen yang tercatat untuk periode dan outlet yang dipilih.</p>${bars([{ name: 'HPP tercatat', amount: f.cogs }, { name: 'Biaya pembayaran', amount: f.mdr }, { name: 'Biaya operasional', amount: report.expense.total }], 'amount')}<div class="r-note"><strong>${f.complete ? 'HPP mengikuti transaksi' : 'HPP belum lengkap'}</strong><p>HPP menggunakan snapshot biaya pada struk dan pengembalian stok. ${f.complete ? 'Harga produk saat ini tidak mengubah biaya penjualan lama.' : 'Nominal HPP di sini hanya jumlah yang dapat dibaca. Laba yang ditampilkan masih sementara.'}</p></div>${link('expenses', 'Rincian biaya usaha')}</aside></div>`;
+  return `<div class="r-profit-layout"><section class="r-card r-profit-report"><header class="r-profit-title"><div><h2>${h(outlet?.name || 'Outlet')}</h2><p>Laporan laba rugi · ${h(date(range.start))} – ${h(date(range.end))}</p></div>${badge(f.complete ? 'Data tercatat' : 'Sementara', f.complete ? '' : 'amber')}</header><div class="r-profit-section"><h3>Pendapatan usaha</h3>${profitLine('Total nilai struk sebelum refund', f.receipts)}${profitLine('Pengembalian dana', negateKnown(f.refunds))}${profitLine('Penerimaan bersih', f.netReceipts, true)}${profitLine('Pajak pelanggan', negateKnown(f.tax))}${profitLine('Layanan', negateKnown(f.service))}${profitLine('Surcharge pelanggan', negateKnown(f.surcharge))}${profitLine('Penjualan bersih', f.revenue, true)}<p>Total struk sudah memperhitungkan diskon dan pembulatan. Pajak, layanan, dan surcharge dikeluarkan dari pendapatan usaha.</p></div><div class="r-profit-section"><h3>Harga pokok & biaya pembayaran</h3>${profitLine(f.complete ? 'HPP produk terjual' : 'HPP tercatat · sementara', negateKnown(f.cogs))}${profitLine('Laba kotor', f.grossProfit, true)}${profitLine('Biaya pembayaran / MDR', negateKnown(f.mdr))}${profitLine('Kontribusi setelah MDR', f.contribution, true)}</div><div class="r-profit-section"><h3>Biaya operasional</h3>${report.expense.categories.filter(row => row.amount !== 0).map(row => profitLine(row.label, -row.amount)).join('') || '<p>Belum ada biaya usaha pada periode ini.</p>'}${profitLine('Total biaya usaha', -report.expense.total, true)}</div><div class="r-profit-result"><div>Laba operasional sebelum pajak penghasilan<small>${margin === null ? 'Margin belum tersedia untuk data ini' : `Margin ${number(margin)}% dari penjualan bersih`}</small></div><strong>${h(money(report.operatingProfit))}</strong></div><p class="r-footnote">Refund mengikuti tanggal penjualan asal. Laporan ini mencakup data tersinkron dan biaya yang sudah dicatat; belum mencakup pajak penghasilan.</p></section><aside class="r-card r-profit-notes"><h2>Komposisi biaya usaha</h2><p>Hanya komponen yang tercatat untuk periode dan outlet yang dipilih.</p>${bars([{ name: 'HPP tercatat', amount: f.cogs }, { name: 'Biaya pembayaran', amount: f.mdr }, { name: 'Biaya operasional', amount: report.expense.total }], 'amount')}<div class="r-note"><strong>${f.complete ? 'HPP mengikuti transaksi' : 'HPP belum lengkap'}</strong><p>HPP menggunakan snapshot biaya pada struk dan pengembalian stok. ${f.complete ? 'Harga produk saat ini tidak mengubah biaya penjualan lama.' : report.historicalCompatibility ? 'HPP dan laba ditampilkan sebagai — sampai komponen riwayat dapat diverifikasi.' : 'Nominal HPP di sini hanya jumlah yang dapat dibaca. Laba yang ditampilkan masih sementara.'}</p></div>${link('expenses', 'Rincian biaya usaha')}</aside></div>`;
 }
 
 function salesDefinition(report) {
   const refundedIds = new Set(report.refunds.map(row => row.id));
   return {
     headers: ['Nomor struk / waktu', 'Pelanggan', 'Kasir', 'Pembayaran', 'Status', 'Penerimaan bersih'], rows: report.sales,
-    search: sale => [sale.id, sale.date, sale.time, sale.cashier, sale.method, sale.table_type, sale.customer?.name].join(' '),
-    filters: [['all', 'Semua status'], ['complete', 'Selesai'], ['refund', 'Dengan refund']],
-    filter: (sale, value) => value === 'all' || (value === 'refund' ? refundedIds.has(sale.id) : sale.status === 'SUCCESS' && !Number(sale.refunded_amount)),
-    row: sale => `<tr><td>${saleButton(sale)}${small(`${date(sale.date)} · ${sale.time || '—'}`)}</td>${td(sale.customer?.name || 'Pelanggan umum')}${td(sale.cashier || 'Belum tercatat')}${td(sale.method || 'Belum tercatat')}<td>${saleStatus(sale)}</td>${td(money(netSaleAmount(sale, report.logs)), 'r-num')}</tr>`,
+    search: sale => [sale.id, receiptIdentity(sale), sale.date, sale.time, sale.cashier, sale.method, sale.table_type, sale.customer?.name].join(' '),
+    filters: [['all', 'Semua status'], ['complete', 'Selesai'], ['refund', 'Dengan refund'], ...(report.historicalCompatibility ? [['unknown', 'Riwayat perlu rekonsiliasi']] : [])],
+    filter: (sale, value) => value === 'all' || (value === 'unknown' ? historyState(sale, report)?.net === null : value === 'refund' ? refundedIds.has(sale.id) : sale.status === 'SUCCESS' && !Number(sale.refunded_amount) && historyState(sale, report)?.net !== null),
+    row: sale => `<tr><td>${saleButton(sale)}${small(`${date(sale.date)} · ${sale.time || '—'}`)}</td>${td(sale.customer?.name || 'Pelanggan umum')}${td(sale.cashier || 'Belum tercatat')}${td(sale.method || 'Belum tercatat')}<td>${saleStatus(sale, report)}</td>${td(money(reportedNet(sale, report)), 'r-num')}</tr>`,
   };
 }
 
 function definition(view, report) {
+  const fields = productFields(report);
   if (view === 'sales') return salesDefinition(report);
   if (view === 'product-report') return {
-    headers: ['Produk', 'Kategori', 'Kuantitas neto', 'Nilai item'], rows: report.products,
+    headers: ['Produk', 'Kategori', report.historicalCompatibility?.unknownRefundCount ? 'Kuantitas pada struk sebelum refund' : 'Kuantitas neto', 'Nilai item'], rows: report.products,
     search: row => `${row.name} ${row.category}`,
-    row: row => `<tr><td><strong>${h(row.name)}</strong></td>${td(row.category)}${td(number(row.qty), 'r-num')}${td(money(row.amount), 'r-num')}</tr>`,
+    row: row => `<tr><td><strong>${h(row.name)}</strong></td>${td(row.category)}${td(number(row[fields.productQuantityMetric]), 'r-num')}${td(money(row[fields.productAmountMetric]), 'r-num')}</tr>`,
   };
   if (view === 'payments' || view === 'staff-report') return {
-    headers: [view === 'payments' ? 'Metode pembayaran' : 'Nama kasir', 'Transaksi', 'Nilai struk', 'Refund', 'Penerimaan bersih', 'Rata-rata / struk', 'MDR'],
+    headers: [view === 'payments' ? 'Metode pembayaran' : 'Nama kasir', view === 'payments' && report.historicalCompatibility ? 'Struk yang memakai metode' : 'Transaksi', 'Nilai struk', 'Refund', 'Penerimaan bersih', 'Rata-rata / struk', 'MDR'],
     rows: view === 'payments' ? report.methods : report.cashiers, search: row => row.name,
-    row: row => `<tr><td><strong>${h(row.name)}</strong></td>${td(number(row.count), 'r-num')}${td(money(row.gross), 'r-num')}${td(money(row.refund), 'r-num')}${td(money(row.net), 'r-num')}${td(money(row.count ? row.net / row.count : 0), 'r-num')}${td(money(row.mdr), 'r-num')}</tr>`,
+    row: row => `<tr><td><strong>${h(row.name)}</strong></td>${td(number(row.count), 'r-num')}${td(money(row.gross), 'r-num')}${td(money(row.refund), 'r-num')}${td(money(row.net), 'r-num')}${td(money(averageKnown(row.net, row.count)), 'r-num')}${td(money(row.mdr), 'r-num')}</tr>`,
   };
   if (view === 'refunds') return {
     headers: ['Struk asal', 'Tanggal penjualan', 'Kasir', 'Status', 'Nilai struk', 'Refund', 'Penerimaan tersisa'], rows: report.refunds,
-    search: row => [row.id, row.date, row.cashier, row.method, ...report.logs.filter(log => log.sale_id === row.id).map(log => log.reason)].join(' '),
+    search: row => [row.id, receiptIdentity(row), row.date, row.cashier, row.method, ...report.logs.filter(log => log.sale_id === row.id).map(log => log.reason)].join(' '),
     filters: [['all', 'Semua refund'], ['full', 'Refund penuh'], ['partial', 'Refund sebagian'], ['unknown', 'Perlu rekonsiliasi']],
-    filter: (row, value) => value === 'all' || (value === 'unknown' ? refundAmount(row, report.logs) === null : value === 'full' ? row.status === 'REFUNDED' : row.status !== 'REFUNDED'),
-    row: row => `<tr><td>${saleButton(row)}</td>${td(date(row.date))}${td(row.cashier || 'Belum tercatat')}<td>${saleStatus(row)}</td>${td(money(row.total), 'r-num')}${td(money(refundAmount(row, report.logs)), 'r-num')}${td(money(netSaleAmount(row, report.logs)), 'r-num')}</tr>`,
+    filter: (row, value) => value === 'all' || (value === 'unknown' ? reportedRefund(row, report) === null : value === 'full' ? row.status === 'REFUNDED' : row.status !== 'REFUNDED'),
+    row: row => `<tr><td>${saleButton(row)}</td>${td(date(row.date))}${td(row.cashier || 'Belum tercatat')}<td>${saleStatus(row, report)}</td>${td(money(row.total), 'r-num')}${td(money(reportedRefund(row, report)), 'r-num')}${td(money(reportedNet(row, report)), 'r-num')}</tr>`,
   };
   if (view === 'expenses') return {
     headers: ['Tanggal usaha', 'Kategori / keterangan', 'Sumber dana', 'Dicatat oleh', 'Status', 'Nominal'], rows: report.expense.expenses,
@@ -203,12 +215,12 @@ function reportTable(view, report, title, description, summaries) {
 }
 
 function detailView(view, report) {
-  const f = report.finance;
+  const f = report.finance, fields = productFields(report), history = historicalDisplayPlan(report);
   if (view === 'sales') return reportTable(view, report, 'Riwayat penjualan', 'Klik nomor struk untuk melihat item, komponen tagihan, dan catatan refund.', [['Penerimaan bersih', money(f.netReceipts), 'Termasuk pajak dan layanan'], ['Jumlah transaksi', number(f.transactions)], ['Pengembalian dana', money(f.refunds), f.complete ? 'Untuk struk periode ini' : 'Sementara · periksa catatan']]);
-  if (view === 'product-report') return reportTable(view, report, 'Performa produk', 'Nilai item setelah refund kuantitas, sebelum diskon dan pajak struk. Tidak menunjukkan margin produk.', [['Produk tercatat', number(report.products.length)], ['Kuantitas neto', number(sum(report.products, 'qty'))], ['Nilai item', money(sum(report.products, 'amount')), 'Bukan total penerimaan struk']]);
-  if (view === 'payments') return `<div class="r-two-columns">${section('Komposisi pembayaran', 'Penerimaan bersih setelah refund', paymentChart(report))}${section('Jenis pesanan', 'Penerimaan berdasarkan jenis pesanan', bars(report.orderTypes))}</div>` + reportTable(view, report, 'Rincian pembayaran', 'MDR adalah biaya yang dikenakan ke merchant; tidak otomatis kembali saat refund.', [['Penerimaan bersih', money(f.netReceipts)], ['Metode pembayaran', number(report.methods.length)], ['Biaya MDR', money(f.mdr)]]);
+  if (view === 'product-report') return reportTable(view, report, 'Performa produk', history?.productLabel ? `${history.productLabel}. Nilai item sebelum diskon dan pajak struk; tidak menunjukkan margin produk.` : 'Nilai item setelah refund kuantitas, sebelum diskon dan pajak struk. Tidak menunjukkan margin produk.', [['Produk tercatat', number(report.products.length)], [history?.productLabel || 'Kuantitas neto', number(sum(report.products, fields.productQuantityMetric))], ['Nilai item', money(sum(report.products, fields.productAmountMetric)), 'Bukan total penerimaan struk']]);
+  if (view === 'payments') return `<div class="r-two-columns">${section('Komposisi pembayaran', history?.paymentChartLabel || 'Penerimaan bersih setelah refund', paymentChart(report))}${section('Jenis pesanan', 'Penerimaan berdasarkan jenis pesanan', bars(report.orderTypes))}</div>` + reportTable(view, report, 'Rincian pembayaran', `MDR adalah biaya yang dikenakan ke merchant; tidak otomatis kembali saat refund.${history ? ' ' + history.paymentCountNote : ''}`, [['Penerimaan bersih', money(f.netReceipts)], ['Metode pembayaran', number(report.methods.length)], ['Biaya MDR', money(f.mdr)]]);
   if (view === 'staff-report') return reportTable(view, report, 'Penjualan per kasir', 'Dikelompokkan berdasarkan nama kasir pada struk, bukan penilaian jam kerja atau absensi.', [['Nama kasir tercatat', number(report.cashiers.length)], ['Transaksi', number(f.transactions)], ['Penerimaan bersih', money(f.netReceipts)]]);
-  if (view === 'refunds') return reportTable(view, report, 'Pengembalian dana', 'Mengikuti tanggal struk asal, termasuk refund yang dilakukan di luar periode pilihan. Buka struk untuk catatan yang tersedia.', [['Struk dengan refund', number(report.refunds.length)], ['Total refund tercatat', money(f.refunds)], ['Perlu rekonsiliasi', number(report.refunds.filter(row => refundAmount(row, report.logs) === null).length)]]);
+  if (view === 'refunds') return reportTable(view, report, 'Pengembalian dana', 'Mengikuti tanggal struk asal, termasuk refund yang dilakukan di luar periode pilihan. Buka struk untuk catatan yang tersedia.', [['Struk dengan refund tercatat', number(report.refunds.length)], ['Total refund tercatat', money(f.refunds)], ['Perlu rekonsiliasi', number(report.historicalCompatibility?.unknownRefundCount ?? report.refunds.filter(row => reportedRefund(row, report) === null).length)]]);
   if (view === 'expenses') return `<div class="r-note r-expense-note"><strong>Biaya dari aplikasi kasir</strong><p>Halaman ini menampilkan catatan biaya yang telah tersinkron. Pencatatan dan pembatalan biaya dilakukan melalui aplikasi VORA POS. Pembatalan bernilai negatif agar biaya tidak dihitung dua kali.</p></div>` + reportTable(view, report, 'Catatan biaya usaha', 'Tanggal usaha dan sumber dana sesuai catatan biaya asli.', [['Total biaya neto', money(report.expense.total), 'Setelah pembatalan tercatat'], ['Catatan biaya', number(report.expense.expenses.length)], ['Kategori dengan biaya', number(report.expense.categories.filter(row => row.amount !== 0).length)]]);
   return '';
 }
@@ -221,27 +233,33 @@ export function renderReport(view, { report, outlet, range, commissionPilotEnabl
 }
 
 function transactionDetail(sale, report, outlet) {
-  const refund = refundAmount(sale, report.logs), net = netSaleAmount(sale, report.logs);
+  const refund = reportedRefund(sale, report), net = reportedNet(sale, report);
   const items = Array.isArray(sale.cart_data) ? sale.cart_data : [];
   const logs = report.logs.filter(row => row.sale_id === sale.id);
-  const metadata = [['Outlet', outlet?.name || '—'], ['Tanggal dan waktu struk', `${date(sale.date)} · ${sale.time || '—'}`], ['Kasir', sale.cashier || 'Belum tercatat'], ['Pembayaran', sale.method || 'Belum tercatat'], ['Jenis pesanan', sale.table_type || 'Belum tercatat'], ['Pelanggan', sale.customer?.name || 'Pelanggan umum']];
-  const itemRows = items.map(item => `<tr><td><strong>${h(item.name || 'Item')}</strong>${item.isPayment ? small('Penyesuaian pembayaran nominal') : ''}${(Array.isArray(item.selectedExtrasList) ? item.selectedExtrasList : []).map(extra => small(`+ ${extra.name || 'Tambahan'}`)).join('')}</td>${td(number(item.qty), 'r-num')}${td(money(item.price), 'r-num')}${td(money(numeric(item.qty) === null || numeric(item.price) === null ? null : Number(item.qty) * Number(item.price)), 'r-num')}</tr>`);
-  return `<div class="reports-surface r-receipt-detail"><div class="r-detail-grid">${metadata.map(([label, value]) => `<div><small>${h(label)}</small><strong>${h(value)}</strong></div>`).join('')}</div>${table(['Item pada struk', 'Qty', 'Harga / item', 'Nilai item'], itemRows)}<div class="r-detail-totals">${[['Subtotal', sale.subtotal], ['Diskon', numeric(sale.discount) === null ? null : -Number(sale.discount)], ['Pajak', sale.tax], ['Layanan', sale.service], ['Surcharge', sale.payment_surcharge], ['Total struk', sale.total], ['Refund', refund], ['Penerimaan bersih', net]].map(([label, value], index) => profitLine(label, value, index === 5 || index === 7)).join('')}</div>${saleStatus(sale)}${refund === null ? '<div class="r-warning"><strong>Refund belum dapat dipastikan</strong><p>Struk lama ini memerlukan rekonsiliasi. Nominal yang tidak diketahui ditampilkan sebagai —.</p></div>' : ''}${logs.length ? `<section class="r-detail-logs"><h3>Catatan pengembalian dana</h3>${logs.map(log => `<article><strong>${h(log.reason || 'Tanpa keterangan')}</strong><p>${h(date(log.date))} · ${h(log.time || '—')} · ${h(log.cashier_name || 'Staf belum tercatat')}</p>${log.item_name ? `<p>${h(log.item_name)}</p>` : ''}${numeric(log.total_amount) !== null ? `<p>${h(money(log.total_amount))}</p>` : ''}</article>`).join('')}</section>` : ''}<p class="r-footnote">Rincian sesuai data transaksi yang tersinkron. Harga item sudah termasuk tambahannya; komponen yang belum tercatat ditampilkan sebagai —.</p></div>`;
+  const imported = readImportedHistory(sale), tenders = historicalTenderSnapshot(sale);
+  const metadata = [...(isImportedHistory(sale) ? [['Nomor struk sumber', receiptIdentity(sale)], ['Sumber riwayat', imported ? `${imported.sourceSystem} · ${imported.sourceOutlet}` : 'Perlu verifikasi']] : []), ['Outlet', outlet?.name || '—'], ['Tanggal dan waktu struk', `${date(sale.date)} · ${sale.time || '—'}`], ['Kasir', sale.cashier || 'Belum tercatat'], ['Pembayaran', sale.method || 'Belum tercatat'], ['Jenis pesanan', sale.table_type || 'Belum tercatat'], ['Pelanggan', sale.customer?.name || 'Pelanggan umum']];
+  const itemRows = items.map(item => `<tr><td><strong>${h(item.name || 'Item')}</strong>${item.isPayment ? small('Penyesuaian pembayaran nominal') : ''}${(Array.isArray(item.selectedExtrasList) ? item.selectedExtrasList : []).map(extra => small(`+ ${extra.name || 'Tambahan'}`)).join('')}</td>${td(number(item.qty), 'r-num')}${td(money(item.price), 'r-num')}${td(money(isImportedHistory(sale) ? receiptLineTotal(sale,item) : numeric(item.qty) === null || numeric(item.price) === null ? null : Number(item.qty) * Number(item.price)), 'r-num')}</tr>`);
+  return `<div class="reports-surface r-receipt-detail"><div class="r-detail-grid">${metadata.map(([label, value]) => `<div><small>${h(label)}</small><strong>${h(value)}</strong></div>`).join('')}</div>${table(['Item pada struk', 'Qty', 'Harga / item', 'Nilai item'], itemRows)}${isImportedHistory(sale) ? `<section><h3>Pembayaran pada struk sumber</h3>${tenders.kind === 'imported' ? table(['Metode', 'Nominal pembayaran'], tenders.tenders.map(tender => `<tr>${td(tender.name)}${td(money(tender.principal),'r-num')}</tr>`)) : '<p>Alokasi pembayaran belum dapat diverifikasi.</p>'}<p class="r-footnote">Riwayat impor hanya untuk dilihat. Nominal merupakan pembayaran pada struk sebelum refund.</p></section>` : ''}<div class="r-detail-totals">${[['Subtotal', sale.subtotal], ['Diskon', numeric(sale.discount) === null ? null : -Number(sale.discount)], ['Pajak', sale.tax], ['Layanan', sale.service], ['Surcharge', sale.payment_surcharge], ['Total struk', sale.total], ['Refund', refund], ['Penerimaan bersih', net]].map(([label, value], index) => profitLine(label, value, index === 5 || index === 7)).join('')}</div>${saleStatus(sale, report)}${refund === null ? '<div class="r-warning"><strong>Refund belum dapat dipastikan</strong><p>Struk lama ini memerlukan rekonsiliasi. Nominal yang tidak diketahui ditampilkan sebagai —.</p></div>' : ''}${logs.length ? `<section class="r-detail-logs"><h3>Catatan pengembalian dana</h3>${logs.map(log => `<article><strong>${h(log.reason || 'Tanpa keterangan')}</strong><p>${h(date(log.date))} · ${h(log.time || '—')} · ${h(log.cashier_name || 'Staf belum tercatat')}</p>${log.item_name ? `<p>${h(log.item_name)}</p>` : ''}${numeric(log.total_amount) !== null ? `<p>${h(money(log.total_amount))}</p>` : ''}</article>`).join('')}</section>` : ''}<p class="r-footnote">Rincian sesuai data transaksi yang tersinkron. Harga item sudah termasuk tambahannya; komponen yang belum tercatat ditampilkan sebagai —.</p></div>`;
 }
 
 function exportDataRows(view, report) {
   if (!report) return [];
-  if (view === 'product-report') return [['Produk', 'Kategori', 'Kuantitas neto', 'Nilai item sebelum diskon dan pajak struk'], ...report.products.map(row => [row.name, row.category, row.qty, row.amount])];
-  if (view === 'payments' || view === 'staff-report') return [[view === 'payments' ? 'Metode pembayaran' : 'Nama kasir', 'Transaksi', 'Nilai struk sebelum refund', 'Refund', 'Penerimaan bersih', 'Rata-rata penerimaan per struk', 'MDR'], ...(view === 'payments' ? report.methods : report.cashiers).map(row => [row.name, row.count, row.gross, row.refund, row.net, row.count ? row.net / row.count : 0, row.mdr])];
+  const fields = productFields(report);
+  if (view === 'product-report') return [['Produk', 'Kategori', report.historicalCompatibility?.unknownRefundCount ? 'Kuantitas pada struk sebelum refund' : 'Kuantitas neto', 'Nilai item sebelum diskon dan pajak struk'], ...report.products.map(row => [row.name, row.category, row[fields.productQuantityMetric], row[fields.productAmountMetric]])];
+  if (view === 'payments' || view === 'staff-report') return [[view === 'payments' ? 'Metode pembayaran' : 'Nama kasir', view === 'payments' && report.historicalCompatibility ? 'Struk yang memakai metode' : 'Transaksi', 'Nilai struk sebelum refund', 'Refund', 'Penerimaan bersih', 'Rata-rata penerimaan per struk', 'MDR'], ...(view === 'payments' ? report.methods : report.cashiers).map(row => [row.name, row.count, row.gross, row.refund, row.net, averageKnown(row.net, row.count), row.mdr])];
   if (view === 'profit') return [['Komponen', 'Nominal IDR'], ...profitLines(report), ['Status laporan', report.finance.complete ? 'Komponen tersedia; hanya data tersinkron' : `Sementara: ${report.finance.issues.join(' ')}`], ...(legacyExpenses(report) ? [['Catatan biaya', 'Ada biaya format lama; periksa kesesuaian sebelum menggunakan laba sebagai angka final.']] : [])];
   if (view === 'expenses') return [['ID catatan', 'Tanggal usaha', 'Kategori', 'Keterangan', 'Sumber dana', 'Staf', 'Status', 'Nominal IDR', 'Format catatan'], ...report.expense.expenses.map(row => [row.id, row.date, row.label, row.description, row.source, row.staff, expenseStatus(row), row.amount, row.legacy ? 'Lama' : 'Buku biaya'])];
-  if (view === 'refunds') return [['Struk asal', 'Tanggal penjualan', 'Waktu struk', 'Kasir', 'Metode', 'Status', 'Total struk', 'Refund', 'Penerimaan tersisa', 'Catatan rekonsiliasi', 'Alasan refund tercatat'], ...report.refunds.map(sale => [sale.id, sale.date, sale.time, sale.cashier, sale.method, statusLabel(sale), numeric(sale.total), refundAmount(sale, report.logs), netSaleAmount(sale, report.logs), refundAmount(sale, report.logs) === null ? 'Refund belum dapat dipastikan' : '', report.logs.filter(log => log.sale_id === sale.id).map(log => log.reason || '').filter(Boolean).join(' | ')])];
-  return [['Nomor struk', 'Tanggal usaha', 'Waktu struk', 'Pelanggan', 'Kasir', 'Jenis pesanan', 'Metode', 'Status', 'Subtotal', 'Diskon', 'Pajak', 'Layanan', 'Surcharge', 'MDR', 'Total struk', 'Refund', 'Penerimaan bersih'], ...report.sales.map(sale => [sale.id, sale.date, sale.time, sale.customer?.name || '', sale.cashier, sale.table_type, sale.method, statusLabel(sale), numeric(sale.subtotal), numeric(sale.discount), numeric(sale.tax), numeric(sale.service), numeric(sale.payment_surcharge), numeric(sale.mdr_fee), numeric(sale.total), refundAmount(sale, report.logs), netSaleAmount(sale, report.logs)])];
+  if (view === 'refunds') return [['Struk asal', 'Tanggal penjualan', 'Waktu struk', 'Kasir', 'Metode', 'Status', 'Total struk', 'Refund', 'Penerimaan tersisa', 'Catatan rekonsiliasi', 'Alasan refund tercatat'], ...report.refunds.map(sale => [receiptIdentity(sale), sale.date, sale.time, sale.cashier, sale.method, statusLabel(sale, report), numeric(sale.total), reportedRefund(sale, report), reportedNet(sale, report), reportedRefund(sale, report) === null ? 'Refund belum dapat dipastikan' : '', report.logs.filter(log => log.sale_id === sale.id).map(log => log.reason || '').filter(Boolean).join(' | ')])];
+  return [['Nomor struk', 'Tanggal usaha', 'Waktu struk', 'Pelanggan', 'Kasir', 'Jenis pesanan', 'Metode', 'Status', 'Subtotal', 'Diskon', 'Pajak', 'Layanan', 'Surcharge', 'MDR', 'Total struk', 'Refund', 'Penerimaan bersih'], ...report.sales.map(sale => [receiptIdentity(sale), sale.date, sale.time, sale.customer?.name || '', sale.cashier, sale.table_type, sale.method, statusLabel(sale, report), numeric(sale.subtotal), numeric(sale.discount), numeric(sale.tax), numeric(sale.service), numeric(sale.payment_surcharge), numeric(sale.mdr_fee), numeric(sale.total), reportedRefund(sale, report), reportedNet(sale, report)])];
 }
 
 /** Full-period export: search and pagination never silently omit ledger records. */
 export function reportExportRows(view, report) {
   const rows = exportDataRows(view, report);
+  if (report?.historicalCompatibility) {
+    for (const notice of report.historicalCompatibility.notices) rows.push([], ['Catatan riwayat impor', notice]);
+    if (view === 'payments') rows.push([], ['Perhitungan struk', report.historicalCompatibility.methodCountNote]);
+  }
   if (report && view !== 'profit' && legacyExpenses(report)) rows.push([], ['Catatan biaya', 'Ada biaya format lama; periksa kesesuaian sebelum menggunakan laba sebagai angka final.']);
   return rows;
 }
@@ -250,9 +268,9 @@ function printReport(view, report, outlet, range) {
   const labels = { overview: 'Ringkasan dan transaksi', reports: 'Seluruh transaksi', sales: 'Penjualan', profit: 'Laba rugi', 'product-report': 'Performa produk', payments: 'Metode pembayaran', 'staff-report': 'Penjualan per kasir', refunds: 'Pengembalian dana', expenses: 'Biaya usaha' };
   // Sale print columns stay readable on A4; financial detail remains in Excel and each receipt.
   const salePrint = ['overview', 'reports', 'sales'].includes(view);
-  const rows = salePrint ? [['Nomor struk / tanggal', 'Kasir', 'Metode', 'Total struk', 'Refund', 'Neto'], ...report.sales.map(sale => [`${sale.id}\n${sale.date} ${sale.time || ''}`, sale.cashier, sale.method, money(sale.total), money(refundAmount(sale, report.logs)), money(netSaleAmount(sale, report.logs))])] : reportExportRows(view, report);
+  const rows = salePrint ? [['Nomor struk / tanggal', 'Kasir', 'Metode', 'Total struk', 'Refund', 'Neto'], ...report.sales.map(sale => [`${receiptIdentity(sale)}\n${sale.date} ${sale.time || ''}`, sale.cashier, sale.method, money(sale.total), money(reportedRefund(sale, report)), money(reportedNet(sale, report))])] : reportExportRows(view, report);
   const headers = rows[0] || [];
-  return `<header class="r-print-heading"><h2>${h(labels[view] || 'Laporan')} · ${h(outlet?.name || 'Outlet')}</h2><p>${h(date(range.start))} – ${h(date(range.end))} · seluruh catatan periode ini</p></header>${['overview', 'reports'].includes(view) ? summary([['Penjualan bersih', money(report.finance.revenue)], ['Penerimaan bersih', money(report.finance.netReceipts)], ['Laba operasional', money(report.operatingProfit)]]): ''}${table(headers, rows.slice(1).map(row => `<tr>${row.map(value => td(value === null || value === undefined ? '—' : value)).join('')}</tr>`))}<p class="r-footnote">Data hanya mencakup catatan yang telah tersinkron. Tanggal mengikuti tanggal usaha pada struk. Ekspor Excel memuat seluruh komponen angka.</p>`;
+  return `<header class="r-print-heading"><h2>${h(labels[view] || 'Laporan')} · ${h(outlet?.name || 'Outlet')}</h2><p>${h(date(range.start))} – ${h(date(range.end))} · seluruh catatan periode ini</p></header>${['overview', 'reports'].includes(view) ? summary([['Penjualan bersih', money(report.finance.revenue)], ['Penerimaan bersih', money(report.finance.netReceipts)], ['Laba operasional', money(report.operatingProfit)]]): ''}${report.historicalCompatibility ? warnings(report) : ''}${table(headers, rows.slice(1).map(row => `<tr>${row.map(value => td(value === null || value === undefined ? '—' : value)).join('')}</tr>`))}<p class="r-footnote">Data hanya mencakup catatan yang telah tersinkron. Tanggal mengikuti tanggal usaha pada struk. Ekspor Excel memuat seluruh komponen angka.</p>`;
 }
 
 /** Bind once after render; cleanup must be called before outlet/route/auth changes. */
@@ -290,7 +308,7 @@ export function bindReport(container, api) {
     if (target.dataset.reportSale) {
       const sale = report.sales.find(row => row.id === target.dataset.reportSale && row.outlet_id === report.outletId);
       if (!sale) return;
-      api.modal({ title: sale.id, description: 'Rincian transaksi yang tersinkron dari aplikasi kasir', content: transactionDetail(sale, report, outlet), footer: '<button type="button" class="btn btn-secondary" data-close-modal>Tutup</button>' });
+      api.modal({ title: receiptIdentity(sale), description: 'Rincian transaksi yang tersinkron dari aplikasi kasir', content: transactionDetail(sale, report, outlet), footer: '<button type="button" class="btn btn-secondary" data-close-modal>Tutup</button>' });
     }
   };
   const beforePrint = () => {

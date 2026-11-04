@@ -1,3 +1,4 @@
+import { applyHistoricalReportCompatibility } from '/dashboard-historical-reports.js';
 import { calculateProfitLoss } from '/dashboard-lib-profitLoss.js';
 import { summarizeExpenses } from '/dashboard-lib-businessExpenses.js';
 import { netSaleAmount, refundAmount, remainingLineQty } from '/dashboard-lib-refundReports.js';
@@ -115,12 +116,12 @@ export function summarizeReport(sales, logs, expenses, outletId, range) {
     }
   }
   const ranked = map => [...map.values()].sort((a, b) => b.net - a.net || a.name.localeCompare(b.name));
-  return { sales: [...sales].sort((a, b) => `${b.date} ${b.time} ${b.id}`.localeCompare(`${a.date} ${a.time} ${a.id}`)), logs,
+  return applyHistoricalReportCompatibility({ sales: [...sales].sort((a, b) => `${b.date} ${b.time} ${b.id}`.localeCompare(`${a.date} ${a.time} ${a.id}`)), logs,
     finance, expense, operatingProfit: finance.contribution - expense.total,
     days: [...days].map(([date, value]) => ({ date, ...value })), methods: ranked(methods), cashiers: ranked(cashiers), orderTypes: ranked(orderTypes),
     products: [...products.values()].filter(p => p.qty > 0).sort((a, b) => b.qty - a.qty || b.amount - a.amount),
     refunds: sales.filter(s => ['REFUNDED', 'PARTIAL_REFUND'].includes(s.status) || Number(s.refunded_amount) > 0),
-    range: { ...range }, outletId, loadedAt: new Date().toISOString() };
+    range: { ...range }, outletId, loadedAt: new Date().toISOString() });
 }
 
 export function csvCell(value) {

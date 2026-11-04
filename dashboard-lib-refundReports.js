@@ -1,8 +1,12 @@
+import { importedRefundAmount } from '/dashboard-lib-importedHistory.js';
+
 /** Refund reporting follows the date of the original sale (net-sales basis).
  * Structured aggregates are authoritative, including while queued offline.
  * Legacy partials use all distinct logs; missing legacy amounts stay unknown.
  */
 export function refundAmount(sale, logs = []) {
+  const imported = importedRefundAmount(sale);
+  if (imported !== undefined) return imported;
   const total = Math.max(0, Number(sale.total) || 0);
   if (Number(sale.refund_revision) > 0) return Math.min(total, Math.max(0, Number(sale.refunded_amount) || 0));
   if (sale.status === 'REFUNDED') return total;

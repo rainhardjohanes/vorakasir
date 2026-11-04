@@ -1,5 +1,6 @@
 import { refundAmount } from '/dashboard-lib-refundReports.js';
 import { readReceiptCost, readCostReturn } from '/dashboard-lib-paymentCost.js';
+import { isImportedHistory, historicalTenderSnapshot } from '/dashboard-lib-importedHistory.js';
 
 const amount = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
 
@@ -99,5 +100,32 @@ export function calculateProfitLoss(sales, logs = []) {
   result.issues = [...issues];
   result.complete = !issues.size;
   result.margin = result.complete && result.revenue > 0 ? result.contribution / result.revenue * 100 : null;
+  if (sales.some(isImportedHistory)) {
+    // Keep the established native calculations above, but never expose partial
+    // accumulator values as complete historical totals. Propagate unknowns to
+    // dependent figures, also for incomplete native rows in the same period.
+    const unknown = new Set();
+    for (const sale of sales) {
+      if (historicalTenderSnapshot(sale).kind === 'invalid') {
+        for (const key of ['receipts', 'refunds', 'netReceipts', 'subtotal', 'discount', 'rounding', 'tax', 'service', 'surcharge', 'revenue', 'cogs', 'mdr']) unknown.add(key);
+        issues.add('Ada identitas atau alokasi pembayaran riwayat impor yang belum terverifikasi.');
+      }
+      if (refundAmount(sale, logs) === null) {
+        for (const key of ['refunds', 'netReceipts', 'tax', 'service', 'surcharge', 'revenue', 'cogs']) unknown.add(key);
+      }
+      for (const [source, field] of [['subtotal', 'subtotal'], ['discount', 'discount'], ['tax', 'tax'], ['service', 'service'], ['payment_surcharge', 'surcharge'], ['mdr_fee', 'mdr']]) {
+        if (!amount(sale[source])) { unknown.add(field); if (field !== 'mdr') { unknown.add('rounding'); unknown.add('revenue'); } }
+      }
+      const items = sale.cart_data ?? sale.cartData, cost = readReceiptCost(items);
+      if (!Array.isArray(items) || !items.length || cost.kind === 'invalid'
+        || (cost.kind === 'legacy' && items.some(item => item.isPayment || !amount(item.buyPrice) || !amount(item.qty)))
+        || (cost.kind !== 'legacy' && readCostReturn(items || [], sale.refunded_stock_quantities) === null)) unknown.add('cogs');
+    }
+    if (unknown.size) issues.add('Komponen riwayat yang belum diketahui ditampilkan sebagai belum tersedia, bukan nol.');
+    const complete = result.complete && unknown.size === 0;
+    return { ...result, ...Object.fromEntries([...unknown].map(key => [key, null])),
+      grossProfit: complete ? result.grossProfit : null, contribution: complete ? result.contribution : null,
+      margin: complete ? result.margin : null, complete, issues: [...issues] };
+  }
   return result;
 }

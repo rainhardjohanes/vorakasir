@@ -1,13 +1,14 @@
 {
   "app": "VORA POS",
-  "version": "1.0.19",
-  "generatedAt": "2026-11-02T06:50:49.860Z",
+  "version": "1.0.27",
+  "generatedAt": "2026-11-05T23:51:02.011Z",
   "basePath": "/kasir",
   "backend": "https://pjycdyrwdcjhxmdjzxto.supabase.co",
   "routes": [
     "+not-found.html",
     "_sitemap.html",
     "attendance.html",
+    "expenses.html",
     "guide.html",
     "index.html",
     "inventory.html",
@@ -23,12 +24,12 @@
   ],
   "javascript": [
     {
-      "path": "_expo/static/js/web/entry-deb4d2aaab60c9fef01ef7fd5c4f1016.js",
-      "sha256": "deb4d2aaab60c9fef01ef7fd5c4f1016b81ce58df57da2cd0757b3ce02114c2b"
+      "path": "_expo/static/js/web/entry-ccbeec83a62496857b4505015ab1aa46.js",
+      "sha256": "a1354809d0487edf7a392adf0307395ff01f3b5ca77e713f11347ef14d88bc36"
     },
     {
-      "path": "_expo/static/js/web/index-e80d18fbbf78ce605bf5fd5c74bbfcad.js",
-      "sha256": "6435a8a2ef78ce2d1c2dd13e14c45dd95d5f25f2e8c5f03bca0979b1b690798d"
+      "path": "_expo/static/js/web/index-55918bfd21fc385342b5abc8b7e84696.js",
+      "sha256": "162cbfdfc2bb0d704492f9f3aa2be7618293a77b11feac254c87c0c3a9705fbc"
     }
   ]
 }

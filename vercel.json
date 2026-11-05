@@ -1929,6 +1929,81 @@
           "value": "camera=(self), microphone=(), geolocation=()"
         }
       ]
+    },
+    {
+      "source": "/kasir-_expo-static-js-web-entry-ccbeec83a62496857b4505015ab1aa46.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-_expo-static-js-web-index-55918bfd21fc385342b5abc8b7e84696.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-expenses.html",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
     }
   ],
   "rewrites": [
@@ -2451,6 +2526,26 @@
     {
       "source": "/kasir/_expo/static/js/web/entry-deb4d2aaab60c9fef01ef7fd5c4f1016.js",
       "destination": "/kasir-_expo-static-js-web-entry-deb4d2aaab60c9fef01ef7fd5c4f1016.js"
+    },
+    {
+      "source": "/kasir/_expo/static/js/web/entry-ccbeec83a62496857b4505015ab1aa46.js",
+      "destination": "/kasir-_expo-static-js-web-entry-ccbeec83a62496857b4505015ab1aa46.js"
+    },
+    {
+      "source": "/kasir/_expo/static/js/web/index-55918bfd21fc385342b5abc8b7e84696.js",
+      "destination": "/kasir-_expo-static-js-web-index-55918bfd21fc385342b5abc8b7e84696.js"
+    },
+    {
+      "source": "/kasir/expenses.html",
+      "destination": "/kasir-expenses.html"
+    },
+    {
+      "source": "/kasir/expenses",
+      "destination": "/kasir-expenses.html"
+    },
+    {
+      "source": "/kasir/expenses/",
+      "destination": "/kasir-expenses.html"
     }
   ],
   "redirects": [

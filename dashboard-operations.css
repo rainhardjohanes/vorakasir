@@ -39,6 +39,7 @@
 .ops-payment-branch{width:13px;height:14px;display:block;border-left:1px solid #cad8cf;border-bottom:1px solid #cad8cf;border-bottom-left-radius:4px;align-self:flex-start;flex-shrink:0;margin:5px 2px 0 0}
 .ops-payment-empty{font-size:11px;line-height:1.7;color:#52695c;padding:19px;margin:0}
 .ops-field>small{font-size:11px;line-height:1.65;color:#52695c;font-weight:400}
+.ops-settings-section{margin-top:28px;padding-top:22px;border-top:1px solid #dbe6df;min-width:0}.ops-settings-section>.ops-setting-row:first-child{border-top:0;padding-top:0}.ops-settings-section>.ops-field{max-width:420px}.ops-product-negotiation{background:#f4f9f5;padding:18px;border:1px solid #dbe6df;border-radius:12px}.ops-product-negotiation .ops-footnote{margin-bottom:0;line-height:1.65}.ops-settings-section input[type=time]{min-height:46px;min-width:0;width:100%;max-width:100%;box-sizing:border-box}.ops-settings-section .ops-setting-row>div{min-width:0}.ops-settings-section .ops-setting-row p{overflow-wrap:anywhere}@media(max-width:540px){.ops-settings-section{margin-top:22px;padding-top:18px}.ops-product-negotiation{padding:14px}.ops-settings-section>.ops-field{max-width:none}}
 .ops-optional{font-weight:400;color:#52695c}
 .ops-staff-role-note{margin:22px 0 16px;align-items:flex-start;color:#294f3b}
 .ops-staff-role-note>.ops-icon{margin-top:2px}

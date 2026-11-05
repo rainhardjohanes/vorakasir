@@ -48,6 +48,32 @@ function rangePreset(value) { const end=new Date(),start=new Date(end); if(value
 const state = { user:null,outlets:[],outletId:'',ready:false,loading:true,error:'',report:null,data:null,commissionPilotEnabled:false,range:rangePreset('month') };
 let cleanupPage, renderSequence=0, authBusy=false, logoutBusy=false, toastTimer, modalCleanup, focusBeforeModal;
 let subscriptionRefreshRequest=null;
+let manualRefreshBusy=false, manualRefreshAt=0;
+function refreshHasDraft() {
+  if(modalRoot.childElementCount)return true;
+  return [...app.querySelectorAll('#page-content form input,#page-content form textarea,#page-content form select')].some(field=>{
+    if(['submit','button','hidden'].includes(field.type))return false;
+    if(['checkbox','radio'].includes(field.type))return field.checked!==field.defaultChecked;
+    if(field.tagName==='SELECT')return [...field.options].some(option=>option.selected!==option.defaultSelected);
+    return field.value!==field.defaultValue;
+  });
+}
+function beginManualRefresh() {
+  if(manualRefreshBusy||state.loading||!state.user)return false;
+  if(refreshHasDraft()){toast('Simpan atau batalkan isian Anda dahulu sebelum memuat ulang data.');return false;}
+  if(!navigator.onLine){toast('Hubungkan internet untuk memuat data terbaru.');return false;}
+  const key=`vora-dashboard-refresh:${state.user.id}`, now=Date.now();
+  let saved=0;try{saved=Number(storage?.getItem(key))||0;}catch{}
+  const remaining=Math.max(manualRefreshAt,saved)+30000-now;
+  if(remaining>0){toast(`Data dapat dimuat ulang dalam ${Math.ceil(remaining/1000)} detik.`);return false;}
+  manualRefreshAt=now;try{storage?.setItem(key,String(now));}catch{}
+  manualRefreshBusy=true;return true;
+}
+async function refreshDashboard() {
+  if(!beginManualRefresh())return;
+  try{await(state.outlets.length?render():refreshSession());}
+  finally{manualRefreshBusy=false;}
+}
 let restoringSession=true, restoredUserId=null, logoutEventSeen=false, pendingAuthUserId=null, logoutStorageError=null;
 const mobile = window.matchMedia('(max-width:800px)');
 const outlet = () => state.outlets.find(o=>o.id===state.outletId);
@@ -247,6 +273,7 @@ function periodDialog() {
 }
 async function refreshSubscription() {
   if(subscriptionRefreshRequest||!state.user||!outlet())return;
+  if(!beginManualRefresh())return;
   const request={},validIdentity=identity.capture();subscriptionRefreshRequest=request;
   const updateButton=busy=>document.querySelectorAll('[data-action="subscription-refresh"]').forEach(button=>{
     button.disabled=busy;button.setAttribute('aria-busy',String(busy));
@@ -255,12 +282,12 @@ async function refreshSubscription() {
   updateButton(true);
   try{await refreshSession();}
   catch{if(validIdentity())toast('Status belum dapat diperbarui. Periksa koneksi lalu coba lagi.');}
-  finally{if(subscriptionRefreshRequest===request){subscriptionRefreshRequest=null;updateButton(false);}}
+  finally{manualRefreshBusy=false;if(subscriptionRefreshRequest===request){subscriptionRefreshRequest=null;updateButton(false);}}
 }
 function action(name) {
   if(name==='logout')return void logout();
   if(name==='subscription-refresh')return void refreshSubscription();
-  if(name==='refresh')return void (state.outlets.length?render():refreshSession());
+  if(name==='refresh')return void refreshDashboard();
   if(name==='menu'||name==='close-menu'){const open=name==='menu'&&!document.body.classList.contains('menu-open');document.body.classList.toggle('menu-open',open);syncMenuAccess();document.querySelector('.menu-toggle')?.setAttribute('aria-expanded',String(open));return;}
   if(name==='export')return exportReport();if(name==='period')return periodDialog();
   if(name==='outlet'){

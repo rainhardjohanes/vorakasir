@@ -1,10 +1,12 @@
+import { negotiationConfig } from '/dashboard-lib-productNegotiation.js';
+import { validateRegisterCloseSchedule } from '/dashboard-lib-registerCloseSchedule.js';
 // Owner backoffice operations. RLS remains the authority; every request also carries outlet scope.
-export const PRODUCT_FIELDS = 'id,outlet_id,name,sku,category,unit,price,buy_price,stock,track_stock,image_uri,icon,extras,is_favorite,updated_at,deleted_at';
+export const PRODUCT_FIELDS = 'id,outlet_id,name,sku,category,unit,price,buy_price,stock,track_stock,image_uri,icon,extras,is_favorite,negotiation_enabled,max_negotiation_percent,updated_at,deleted_at';
 export const STAFF_FIELDS = 'id,outlet_id,name,role,updated_at,deleted_at';
 const SETTINGS_FIELDS = 'id,outlet_id,profile_data,tax_config,rounding_config,payment_methods,receipt_data';
 const pendingCreations = new Map();
 export const PAYMENT_TYPES = ['Bank Transfer', 'e-Wallet', 'QRIS', 'EDC / Kartu'];
-export const RECEIPT_KEYS = ['showReceiptNumber','showOrderNumber','showCustomer','showServer','showCashier','showPaymentMethod','showWifi','showLogo'];
+export const RECEIPT_KEYS = ['showReceiptNumber','showOrderNumber','showCustomer','showServer','showProductStaff','showCashier','showPaymentMethod','showWifi','showLogo','autoPrintSavedOrder'];
 const abort = signal => { if (signal?.aborted) throw new DOMException('Permintaan dibatalkan.', 'AbortError'); };
 function scope(user, outlet) {
   const uid = typeof user === 'string' ? user : user?.id;
@@ -84,6 +86,16 @@ function number(value,label,max=1000000000000){if(value===''||value==null||!Numb
 export const newId=prefix=>`${prefix}-${crypto.randomUUID()}`;
 export function productPayload(draft,outletId,existing){
   const out={name:text(draft.name,'Nama produk'),sku:text(draft.sku,'SKU',100),category:text(draft.category,'Kategori'),unit:text(draft.unit||'Pcs','Satuan',40),price:number(draft.price,'Harga jual')};
+  const negotiationChanged=!existing||['negotiation_enabled','max_negotiation_percent'].some(key=>Object.hasOwn(draft,key)&&(key==='negotiation_enabled'?draft[key]!==existing[key]:Number(draft[key])!==Number(existing[key]??0)));
+  if(negotiationChanged){
+    const enabled=draft.negotiation_enabled??existing?.negotiation_enabled??false;
+    if(typeof enabled!=='boolean')throw new Error('Pilihan harga nego belum valid.');
+    const percent=number(draft.max_negotiation_percent??existing?.max_negotiation_percent??0,'Batas nego (%)',100);
+    if(!negotiationConfig({negotiation_enabled:enabled,max_negotiation_percent:percent}).valid)throw new Error('Batas nego maksimal dua angka di belakang koma.');
+    if(enabled&&!Number.isSafeInteger(out.price))throw new Error('Harga jual untuk harga nego harus berupa Rupiah bulat.');
+    out.negotiation_enabled=enabled;out.max_negotiation_percent=percent;
+  }
+  if((out.negotiation_enabled??existing?.negotiation_enabled)===true&&!Number.isSafeInteger(out.price))throw new Error('Harga jual untuk harga nego harus berupa Rupiah bulat.');
   if(!existing || Object.hasOwn(draft,'buy_price')&&Number(draft.buy_price)!==Number(existing.buy_price||0))out.buy_price=number(draft.buy_price??0,'Harga pokok');
   if(!existing || Object.hasOwn(draft,'track_stock')&&!!draft.track_stock!==!!existing.track_stock)out.track_stock=!!draft.track_stock;
   if(!existing){out.id=text(draft.id,'ID produk');out.outlet_id=outletId;out.stock=draft.track_stock?number(draft.stock??0,'Stok awal',2147483647):0;if(!Number.isInteger(out.stock))throw new Error('Stok awal harus bilangan bulat.');out.extras=Array.isArray(draft.extras)?draft.extras:[];out.icon='📦';}
@@ -109,7 +121,7 @@ export async function saveProduct(client,user,outlet,draft,existing,signal){
   if(response.error.code==='23505'){
     const saved=await result(client.from('products').select(PRODUCT_FIELDS).eq('id',payload.id).eq('outlet_id',outlet.id).is('deleted_at',null).maybeSingle(),signal);
     // A retry after a lost response returns the committed product, without rewriting live stock.
-    const matches=saved&&['name','sku','category','unit','price','buy_price','track_stock'].every(key=>String(saved[key]??'')===String(payload[key]??''))&&JSON.stringify(saved.extras||[])===JSON.stringify(payload.extras||[]);
+    const matches=saved&&['name','sku','category','unit','price','buy_price','track_stock','negotiation_enabled','max_negotiation_percent'].every(key=>String(saved[key]??'')===String(payload[key]??''))&&JSON.stringify(saved.extras||[])===JSON.stringify(payload.extras||[]);
     if(matches){await openingMovement(client,outlet,payload,signal);pendingCreations.delete(creationKey);return ownRow(saved,outlet);}
   }
   if(response.error.code && response.error.code!=='23505')pendingCreations.delete(creationKey);
@@ -155,12 +167,31 @@ export async function deleteStaff(client,user,outlet,member,signal){await verify
 export async function patchSettings(client,user,outlet,field,changes,signal,baseline){
   await verifyOwner(client,user,outlet,signal);
   if(!['profile_data','tax_config','rounding_config','receipt_data'].includes(field))throw new Error('Pengaturan tidak didukung.');
-  const allowed={profile_data:['businessName','address','phone','email','wifiPassword','logoUri'],tax_config:['ppnActive','ppnRate','serviceActive','serviceRate','serviceTaxable','isInclusive'],rounding_config:['cashActive','cashMultiplier','nonCashActive','nonCashMultiplier'],receipt_data:[...RECEIPT_KEYS,'footer']}[field];
+  const allowed={profile_data:['businessName','address','phone','email','wifiPassword','logoUri','timezone','registerCloseSchedule'],tax_config:['ppnActive','ppnRate','serviceActive','serviceRate','serviceTaxable','isInclusive'],rounding_config:['cashActive','cashMultiplier','nonCashActive','nonCashMultiplier'],receipt_data:[...RECEIPT_KEYS,'footer']}[field];
   if(!changes||Object.keys(changes).some(key=>!allowed.includes(key)))throw new Error('Kolom pengaturan tidak didukung aplikasi kasir.');
   const before=await settingsRow(client,outlet,signal);
   if(baseline&&Object.keys(changes).some(key=>JSON.stringify(before?.[field]?.[key])!==JSON.stringify(baseline[key])))throw new Error('Kolom yang Anda ubah telah diperbarui di perangkat lain. Muat ulang pengaturan.');
   const merged={...(before?.[field]||{}),...changes};
+  if(field==='profile_data'){
+    if(Object.hasOwn(changes,'timezone')){
+      if(typeof changes.timezone!=='string'||!changes.timezone||changes.timezone!==changes.timezone.trim())throw new Error('Pilih zona waktu outlet yang valid.');
+      try{new Intl.DateTimeFormat('id-ID',{timeZone:changes.timezone}).format();}catch{throw new Error('Pilih zona waktu outlet yang valid.');}
+    }
+    if(Object.hasOwn(changes,'registerCloseSchedule')){
+      if(!changes.registerCloseSchedule||typeof changes.registerCloseSchedule!=='object'||Array.isArray(changes.registerCloseSchedule)||Object.keys(changes.registerCloseSchedule).some(key=>!['enabled','time'].includes(key)))throw new Error('Pengaturan jadwal tutup kasir belum valid.');
+      const previous=before?.[field]?.registerCloseSchedule;
+      merged.registerCloseSchedule={...(previous&&typeof previous==='object'&&!Array.isArray(previous)?previous:{}),...validateRegisterCloseSchedule({registerCloseSchedule:changes.registerCloseSchedule})};
+    }
+  }
   if(field==='tax_config'){for(const key of ['ppnRate','serviceRate'])if(key in changes)merged[key]=number(changes[key],'Persentase',100);}
+  if(field==='rounding_config'){
+    for(const key of ['cashActive','nonCashActive'])if(Object.hasOwn(changes,key)&&typeof changes[key]!=='boolean')throw new Error('Pilihan pembulatan belum valid.');
+    for(const key of ['cashMultiplier','nonCashMultiplier'])if(Object.hasOwn(changes,key)){
+      const value=number(changes[key],'Besaran pembulatan');
+      if(!Number.isSafeInteger(value)||value<=0)throw new Error('Besaran pembulatan harus berupa Rupiah bulat lebih dari nol.');
+      merged[key]=value;
+    }
+  }
   return writeSettingField(client,outlet,field,merged,before,signal);
 }
 async function writeSettingField(client,outlet,field,value,before,signal){

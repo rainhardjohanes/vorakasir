@@ -1,3 +1,4 @@
+import { nativeReceiptIdentity } from '/dashboard-lib-receiptNumbering.js';
 // Shared read-only adapter for tagged historical receipts. Native receipts are
 // left untouched. An invalid/unsupported import marker must never enable edits.
 const cart = sale => sale?.cart_data ?? sale?.cartData ?? [];
@@ -75,7 +76,8 @@ export function importedRefundAmount(sale) {
     && sale.refund_revision === 0 && sale.refunded_amount === 0 ? 0 : null;
 }
 
-export const receiptIdentity = sale => readImportedHistory(sale)?.billId || sale?.id || '-';
+export const receiptIdentity = sale => readImportedHistory(sale)?.billId
+  || (isImportedHistory(sale) ? sale?.id || '-' : nativeReceiptIdentity(sale));
 
 export function receiptLineTotal(sale, item) {
   if (!isImportedHistory(sale)) return Number(item.price) * Number(item.qty);

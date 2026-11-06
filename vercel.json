@@ -2054,6 +2054,56 @@
           "value": "camera=(self), microphone=(), geolocation=()"
         }
       ]
+    },
+    {
+      "source": "/kasir-_expo-static-js-web-entry-5ae88a95c59aa85f08c72485762fe930.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-_expo-static-js-web-index-ca86c28a7a6e4ca7ed276c2a8c1f7aee.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
     }
   ],
   "rewrites": [
@@ -2600,6 +2650,14 @@
     {
       "source": "/kasir/_expo/static/js/web/entry-5fa81c94f6dbfacd26812cd63252aeb6.js",
       "destination": "/kasir-_expo-static-js-web-entry-5fa81c94f6dbfacd26812cd63252aeb6.js"
+    },
+    {
+      "source": "/kasir/_expo/static/js/web/entry-5ae88a95c59aa85f08c72485762fe930.js",
+      "destination": "/kasir-_expo-static-js-web-entry-5ae88a95c59aa85f08c72485762fe930.js"
+    },
+    {
+      "source": "/kasir/_expo/static/js/web/index-ca86c28a7a6e4ca7ed276c2a8c1f7aee.js",
+      "destination": "/kasir-_expo-static-js-web-index-ca86c28a7a6e4ca7ed276c2a8c1f7aee.js"
     }
   ],
   "redirects": [

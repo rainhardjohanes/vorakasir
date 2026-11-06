@@ -1,7 +1,7 @@
 {
   "app": "VORA POS",
-  "version": "1.0.27",
-  "generatedAt": "2026-11-05T23:51:02.011Z",
+  "version": "1.0.28",
+  "generatedAt": "2026-11-06T03:21:28.151Z",
   "basePath": "/kasir",
   "backend": "https://pjycdyrwdcjhxmdjzxto.supabase.co",
   "routes": [
@@ -24,8 +24,8 @@
   ],
   "javascript": [
     {
-      "path": "_expo/static/js/web/entry-ccbeec83a62496857b4505015ab1aa46.js",
-      "sha256": "a1354809d0487edf7a392adf0307395ff01f3b5ca77e713f11347ef14d88bc36"
+      "path": "_expo/static/js/web/entry-5fa81c94f6dbfacd26812cd63252aeb6.js",
+      "sha256": "c1cea65a5a50da2258b48cf1eb8c87fed220c2d34be3bf7d426b1a785457f5ad"
     },
     {
       "path": "_expo/static/js/web/index-55918bfd21fc385342b5abc8b7e84696.js",

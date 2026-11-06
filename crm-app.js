@@ -1,3 +1,4 @@
+import {LEAD_STAGES,LEAD_LISTS,CALL_OUTCOMES,leadPayload,callPayload,leadError,leadBadge,callOptions,leadOptions,leadContactHint,leadHistory} from '/crm-telesales.js';
 import {canManageTier,validateEntitlement,tierPayload,tierError,tierBody} from '/crm-tiers.js';
 import { createAuth } from '/crm-auth.js';
 import { createApi } from '/crm-data.js';
@@ -33,7 +34,8 @@ const nav = {
   followups: ['Follow-up', 'chat'],
   renewals: ['Perpanjangan', 'clock'],
   demos: ['Akun demo', 'spark'],
-  referrals: ['Telesales & referral', 'users'],
+  telesales: ['Telesales', 'chat'],
+  referrals: ['Tim & kode referral', 'users'],
   team: ['Tim & akses', 'shield'],
   audit: ['Log aktivitas', 'audit']
 };
@@ -58,6 +60,7 @@ const state = {
   authError: '',
   authBusy: false,
   authMessage: '',
+  leadFilters: {stage:'all',list:'all',outcome:'all',owner:''},
   demo: freshDemo()
 };
 let auth,
@@ -102,6 +105,7 @@ function clearPrivate() {
   state.session = null;
   state.data = null;
   state.demo = freshDemo();
+  state.leadFilters = {stage:'all',list:'all',outcome:'all',owner:''};
   state.error = '';
   state.loading = false;
   state.search = '';
@@ -145,7 +149,7 @@ async function authorize(session) {
     if (!result?.member?.active) throw new Error('Email ini belum mendapat akses CRM. Minta pemilik menambahkan email Anda di Tim & akses.');
     state.session = result;
     if (can('create_demo')) state.demo.operationId = demoStore();
-    state.page = can('read_customers') ? 'overview' : can('renew') ? 'renewals' : 'overview';
+    state.page = state.session.member.role==='telesales'&&can('read_leads') ? 'telesales' : can('read_customers') ? 'overview' : can('renew') ? 'renewals' : can('read_leads') ? 'telesales' : 'overview';
     state.authBusy = false;
     render();
     await loadPage();
@@ -226,12 +230,13 @@ function pageHeading() {
     followups: ['HUBUNGAN PELANGGAN', 'Percakapan berikutnya.', 'Catat hasil komunikasi dan jadwalkan tindak lanjut yang tepat.'],
     renewals: ['LANGGANAN', 'Bantu bisnis terus berjalan.', 'Perpanjang outlet setelah pembayaran pengguna Anda verifikasi.'],
     demos: ['DEMONSTRASI VORA', 'Akun siap untuk demo.', 'Buat akun dengan katalog bergambar dan masa aktif 6 bulan.'],
+    telesales: ['RUANG KERJA TELESALES', 'Setiap nomor, satu riwayat.', 'Catat prospek, hasil telepon, dan jadwal tindak lanjut dalam satu tempat.'],
     referrals: ['TELESALES & REFERRAL', 'Satu kode, hubungan yang berkelanjutan.', 'Kelola kode pendaftaran dan penanggung jawab pelanggan.'],
     team: ['PENGELOLAAN AKSES', 'Tim yang tepat, akses yang tepat.', 'Tentukan siapa yang dapat melihat data dan membantu pelanggan.'],
     audit: ['JEJAK AKTIVITAS', 'Setiap tindakan, tercatat.', 'Lihat perubahan akses, follow-up, dan perpanjangan oleh tim.']
   };
   const t = titles[state.page];
-  return `<div class="page-heading"><div><div class="eyebrow">${t[0]}</div><h1>${t[1]}</h1><p>${t[2]}</p></div>${state.page === 'referrals' ? `<button class="button primary" data-action="add-telesales">${icon('plus')} Tambah telesales</button>` : state.page === 'team' ? `<button class="button primary" data-action="add-member">${icon('plus')} Tambah tim</button>` : `<button class="button" data-action="refresh" aria-label="Perbarui" ${state.loading ? 'disabled' : ''}>${icon('refresh')} <span class="refresh-text">Perbarui</span></button>`}</div>`;
+  return `<div class="page-heading"><div><div class="eyebrow">${t[0]}</div><h1>${t[1]}</h1><p>${t[2]}</p></div>${state.page === 'telesales' ? `<button class="button primary" data-action="add-lead">${icon('plus')} Tambah prospek</button>` : state.page === 'referrals' ? `<button class="button primary" data-action="add-telesales">${icon('plus')} Tambah telesales</button>` : state.page === 'team' ? `<button class="button primary" data-action="add-member">${icon('plus')} Tambah tim</button>` : `<button class="button" data-action="refresh" aria-label="Perbarui" ${state.loading ? 'disabled' : ''}>${icon('refresh')} <span class="refresh-text">Perbarui</span></button>`}</div>`;
 }
 async function loadPage() {
   if (!state.session) return;
@@ -267,7 +272,7 @@ async function loadPage() {
       return loadPage();
     }
     let data;
-    if (page === 'referrals') data = await api.telesales({p_search: state.search, p_status: state.status, p_limit: 25, p_offset: state.offset});else if (page === 'demos') data = await api.demos({p_limit: 25, p_offset: state.offset});else if (page === 'team') data = await api.members();else if (page === 'audit') data = await api.audit({
+    if (page === 'telesales') data = await api.leads({p_search:state.search,p_stage:state.leadFilters.stage,p_list:state.leadFilters.list,p_outcome:state.leadFilters.outcome,p_owner_id:state.leadFilters.owner||null,p_limit:25,p_offset:state.offset});else if (page === 'referrals') data = await api.telesales({p_search: state.search, p_status: state.status, p_limit: 25, p_offset: state.offset});else if (page === 'demos') data = await api.demos({p_limit: 25, p_offset: state.offset});else if (page === 'team') data = await api.members();else if (page === 'audit') data = await api.audit({
       p_limit: 25,
       p_offset: state.offset
     });else if (page === 'overview' && can('read_customers')) {
@@ -299,7 +304,7 @@ async function loadPage() {
   } catch (error) {
     if (epoch !== state.epoch || id !== state.loadId) return;
     if (denyAccess(error)) return;
-    state.error = page === 'demos' ? demoError(error) : page === 'referrals' ? referralError(error) : humanError(error);
+    state.error = page === 'telesales' ? leadError(error) : page === 'demos' ? demoError(error) : page === 'referrals' ? referralError(error) : humanError(error);
   } finally {
     if (epoch === state.epoch && id === state.loadId) {
       state.loading = false;
@@ -310,6 +315,7 @@ async function loadPage() {
 function pageContent() {
   if (!state.data) return state.error ? empty('Data belum dapat dimuat', 'Gunakan tombol coba lagi untuk menghubungkan ulang.', 'refresh') : loading();
   if (state.page === 'overview') return overview();
+  if (state.page === 'telesales') return prospects();
   if (state.page === 'referrals') return referrals();
   if (state.page === 'team') return team();
   if (state.page === 'audit') return audit();
@@ -317,6 +323,67 @@ function pageContent() {
   if (state.page === 'demos') return demos();
   return directory();
 }
+function leadManager(permissions=state.data?.permissions){return Boolean(permissions?.manage_assignments);}
+function prospects(){
+  if(!can('read_leads'))return '';
+  const d=state.data, f=state.leadFilters, stats=d.stats||{},agents=d.agents||[];
+  const stat=(label,value,cls,attrs)=>`<button class="lead-kpi ${cls}" data-action="lead-quick-filter" ${attrs}><span>${label}</span><strong>${esc(usageCount(value))}</strong><small>Lihat daftar ${icon('arrow')}</small></button>`;
+  return `<section class="lead-intro"><div class="lead-intro-icon">${icon('chat')}</div><div><strong>Telepon yang terarah, tanpa nomor berulang.</strong><p>Periksa riwayat lalu pilih <b>Mulai telepon</b> sebelum menghubungi. Nomor yang sama tidak dapat dibuat dua kali. Nomor blacklist tidak dapat ditelepon kembali.</p>${state.session.member.role==='telesales'?'<p class="lead-scope">Anda hanya melihat prospek yang ditugaskan kepada Anda.</p>':''}</div></section><div class="lead-kpis">${stat('Total prospek',stats.total,'','')}<article class="lead-kpi ready"><span>Siap ditelepon</span><strong>${esc(usageCount(stats.ready_to_call))}</strong><small>Sesuai jadwal & penugasan</small></article>${stat('Tertarik',stats.interested,'interested','data-stage="interested"')}${stat('Follow-up',stats.follow_up,'followup','data-stage="follow_up"')}${stat('Blacklist',stats.blacklist,'blocked','data-list="blacklist"')}</div><section class="panel"><form id="lead-search-form" class="toolbar lead-toolbar"><label class="search">${icon('search')}<input name="search" aria-label="Cari prospek" placeholder="Cari nama toko, nomor telepon, atau area…" maxlength="100" value="${esc(state.search)}"></label><label class="filter-field"><span>Tahap prospek</span><select name="stage" class="filter">${leadOptions(LEAD_STAGES,f.stage,{emptyLabel:'Semua tahap'})}</select></label><label class="filter-field"><span>Daftar kontak</span><select name="list" class="filter">${leadOptions(LEAD_LISTS,f.list,{emptyLabel:'Semua daftar kontak'})}</select></label><label class="filter-field"><span>Respon terakhir</span><select name="outcome" class="filter"><option value="all">Semua respon</option>${Object.entries(CALL_OUTCOMES).map(([v,l])=>`<option value="${v}" ${f.outcome===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>${leadManager()?`<label class="filter-field"><span>Penanggung jawab</span><select name="owner" class="filter"><option value="">Semua telesales</option>${agents.map(a=>`<option value="${esc(a.id)}" ${f.owner===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>`:''}<button class="button primary" type="submit">Terapkan filter</button></form><div class="lead-filter-chips" aria-label="Filter cepat"><button class="lead-chip ${f.stage==='interested'?'active':''}" data-action="lead-quick-filter" data-stage="interested">Tertarik</button><button class="lead-chip ${f.stage==='not_interested'?'active':''}" data-action="lead-quick-filter" data-stage="not_interested">Tidak tertarik</button><button class="lead-chip ${f.list==='whitelist'?'active':''}" data-action="lead-quick-filter" data-list="whitelist">Whitelist</button><button class="lead-chip ${f.list==='blacklist'?'active':''}" data-action="lead-quick-filter" data-list="blacklist">Blacklist</button><button class="lead-chip" data-action="lead-quick-filter">Semua prospek</button></div>${(d.items||[]).length?`<p class="table-swipe-hint">Geser tabel ke samping untuk melihat seluruh informasi.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Daftar prospek telesales"><table class="lead-table"><thead><tr><th>Toko & kontak</th><th>Tahap & daftar</th><th>Respon terakhir</th><th>Penanggung jawab</th><th>Tindak lanjut</th><th></th></tr></thead><tbody>${d.items.map(l=>`<tr><td><strong class="lead-store">${esc(l.store_name)}</strong><span class="lead-phone">${esc(l.phone)}</span><small class="cell-secondary">${esc([l.category,l.city].filter(Boolean).join(' · ')||'Jenis usaha / area belum diisi')}</small></td><td>${leadBadge(l.stage)}<span class="cell-secondary">${leadBadge(l.list_status,LEAD_LISTS)}</span></td><td>${l.last_outcome?leadBadge(l.last_outcome,CALL_OUTCOMES):'<span class="muted">Belum ada panggilan</span>'}<small class="cell-secondary">${esc(usageCount(l.call_count))} panggilan${l.last_contacted_at?` · ${esc(date(l.last_contacted_at,true))}`:''}</small></td><td><strong>${esc(l.assigned_name||'Belum ditugaskan')}</strong></td><td>${l.next_followup_at?`<strong>${esc(date(l.next_followup_at,true))}</strong>`:'<span class="muted">Belum ada jadwal</span>'}<small class="lead-contact-hint ${l.can_contact?'ready':''}">${esc(leadContactHint(l))}</small></td><td><button class="button tiny" data-action="lead-detail" data-id="${esc(l.id)}">Buka ${icon('arrow')}</button></td></tr>`).join('')}</tbody></table></div>`:empty('Belum ada prospek yang cocok',state.search||f.stage!=='all'||f.list!=='all'||f.outcome!=='all'?'Ubah pencarian atau filter untuk melihat prospek lain.':'Tambahkan nama toko dan nomor telepon untuk memulai.','store')}${pagination()}</section><p class="lead-footer-note">Whitelist berarti boleh dihubungi, tetap mengikuti penugasan, jadwal, dan jeda panggilan. Penawaran tidak dikirim otomatis dari CRM.</p>`;
+}
+async function openLead(id){
+  if(!can('read_leads'))return;
+  const m={type:'lead-detail',id,loading:true,error:'',busy:false,detail:null,epoch:state.epoch};setModal(m);
+  try{const detail=await api.lead(id);if(state.epoch!==m.epoch||state.modal!==m)return;m.detail=detail;m.loading=false;
+    // A returned server claim may be resumed only by its same CRM actor; no local claim can grant authority.
+    if(detail.lead?.claim_actor_id===state.userId&&new Date(detail.lead.claim_expires_at)>new Date(detail.server_now||Date.now())){m.claimId=detail.lead.claim_id;m.claimExpiresAt=detail.lead.claim_expires_at;}
+  }catch(error){if(state.epoch!==m.epoch||state.modal!==m)return;if(denyAccess(error))return;m.loading=false;m.error=leadError(error);}renderModal();
+}
+function leadDetailModal(m){
+  if(!can('read_leads'))return '';
+  if(m.loading)return modalFrame('Prospek telesales','Memuat data terbaru',loading(),'',true);
+  if(!m.detail)return modalFrame('Prospek belum tersedia','',`<div class="error" role="alert">${esc(m.error)}</div>`,`<button class="button" data-action="lead-reload">Perbarui data</button>`,true);
+  const l=m.detail.lead,locked=m.busy||m.uncertain,editing=leadManager(m.detail.permissions);
+  const controls=m.claimId?`<section class="lead-call-card"><div class="row between"><h3>Catat hasil telepon</h3><span class="lead-status contacting">Sesi Anda aktif</span></div><p class="helper">Nomor ditandai sedang Anda tangani hingga ${esc(date(m.claimExpiresAt,true))}. Telepon dilakukan manual; CRM tidak menelepon atau mengirim pesan.</p><form id="lead-call-form" class="stack"><label class="field">Respon setelah telepon<select name="outcome" id="lead-call-outcome" required ${locked?'disabled':''}>${callOptions(m.values?.outcome)}</select></label><div class="lead-outcome-note" id="lead-outcome-note" role="status">${m.values?.outcome==='do_not_contact'?'Nomor akan masuk blacklist dan tidak boleh dihubungi kembali.':''}</div><label class="field">Catatan panggilan<textarea name="note" maxlength="3000" rows="4" placeholder="Catat kebutuhan, nama PIC, atau hal yang perlu ditindaklanjuti…" ${locked?'readonly':''}>${esc(m.values?.note||'')}</textarea></label><label class="field">Jadwal tindak lanjut / meeting (opsional)<input type="datetime-local" name="followup_at" value="${esc(m.values?.followup_at||'')}" ${locked?'readonly':''}><span class="helper">Wajib jika diminta menelepon kembali atau meeting sudah dijadwalkan. Jam mengikuti perangkat ini.</span></label></form></section>`:`<section class="lead-call-card ${l.can_contact?'':'blocked'}"><h3>${l.can_contact?'Siap menghubungi prospek?':'Periksa status kontak'}</h3><p>${esc(leadContactHint(l))}</p>${l.can_contact?'<p class="helper">Klik Mulai telepon agar telesales lain mengetahui nomor sedang ditangani. Satu sesi berlaku 10 menit.</p>':''}</section>`;
+  const err=m.error?`<div class="error" role="alert">${esc(m.error)}</div>`:'';
+  const retry=m.conflict?'<button class="button primary" data-action="lead-reload">Perbarui data</button>':m.claimId?`<button class="button primary" type="submit" form="lead-call-form" ${m.busy?'disabled':''}>${m.busy?'Menyimpan…':m.uncertain?'Periksa & simpan hasil':'Simpan hasil telepon'}</button>`:`<button class="button primary" data-action="claim-lead" ${m.busy||(!l.can_contact&&!m.uncertain)?'disabled':''}>${m.busy?'Memeriksa…':m.uncertain?'Periksa sesi telepon':'Mulai telepon'}</button>`;
+  return modalFrame(l.store_name,'Prospek telesales',`<div class="row wrap">${leadBadge(l.stage)}${leadBadge(l.list_status,LEAD_LISTS)}</div><dl class="detail-grid">${datum('Nomor telepon',l.phone)}${datum('Jenis usaha',l.category)}${datum('Kota / area',l.city)}${datum('Penanggung jawab',l.assigned_name||'Belum ditugaskan')}${datum('Telepon terakhir',date(l.last_contacted_at,true))}${datum('Jumlah panggilan',usageCount(l.call_count))}</dl>${l.notes?`<div class="lead-notes"><strong>Catatan prospek</strong><p>${esc(l.notes)}</p></div>`:''}${controls}${err}${m.uncertain?'<div class="notice warning">Hasil permintaan belum pasti. Gunakan tombol periksa untuk melanjutkan permintaan yang sama; jangan memulai panggilan baru.</div>':''}<section class="detail-section"><div class="row between"><h3>Riwayat telepon</h3><span class="badge-count">${esc(usageCount(l.call_count))} panggilan</span></div>${leadHistory(m.detail.calls||[])}${Number(l.call_count)>200?'<p class="helper">Menampilkan 200 riwayat telepon terbaru.</p>':''}</section>`,`<button class="button" data-action="close-modal" ${locked?'disabled':''}>Tutup</button>${!m.claimId&&!m.uncertain?`<button class="button" data-action="edit-lead" ${m.busy?'disabled':''}>${editing?'Edit & penugasan':'Edit prospek'}</button>`:''}${retry}`,true);
+}
+function openLeadEdit(lead=null,permissions=state.data?.permissions){
+  if(!can('read_leads'))return;
+  const manageAssignments=leadManager(permissions);
+  setModal({type:'lead-edit',lead,permissions,manageAssignments,agents:state.data?.agents||[],values:lead?{...lead}:{store_name:'',phone:'',category:'',city:'',stage:'new',list_status:'normal',notes:'',assigned_telesales_id:state.session.telesales?.id||''},operationId:uuid(),epoch:state.epoch,busy:false,error:''});
+}
+function leadEditModal(m){
+  if(!can('read_leads'))return '';
+  const v=m.values,locked=m.busy||m.uncertain,stopped=m.lead&&['not_interested','converted','invalid'].includes(m.lead.stage)&&!m.manageAssignments;
+  const statuses=stopped?{[m.lead.stage]:LEAD_STAGES[m.lead.stage]}:LEAD_STAGES;
+  const lists=m.lead?.list_status==='blacklist'&&!m.manageAssignments?{blacklist:LEAD_LISTS.blacklist}:LEAD_LISTS;
+  return modalFrame(m.lead?'Edit prospek':'Tambah prospek','Satu nomor telepon disimpan satu kali untuk seluruh tim.',`<form id="lead-edit-form" class="stack"><label class="field">Nama toko / usaha<input name="store_name" maxlength="150" required value="${esc(v.store_name)}" placeholder="Contoh: Kopi Pagi" ${locked?'readonly':''}></label><label class="field">Nomor telepon<input name="phone" type="tel" inputmode="tel" maxlength="40" required value="${esc(v.phone)}" placeholder="08xxxxxxxxxx / +62xxxxxxxxxx" ${locked||m.lead?'readonly':''}><span class="helper">${m.lead?'Nomor tidak dapat diubah agar riwayat dan blacklist tetap terjaga.':'Nomor diperiksa lintas telesales untuk mencegah duplikat.'}</span></label><div class="form-row"><label class="field">Jenis usaha<input name="category" maxlength="100" value="${esc(v.category||'')}" placeholder="Cafe, retail, salon…" ${locked?'readonly':''}></label><label class="field">Kota / area<input name="city" maxlength="100" value="${esc(v.city||'')}" placeholder="Contoh: Denpasar" ${locked?'readonly':''}></label></div><div class="form-row"><label class="field">Tahap prospek<select name="stage" ${locked?'disabled':''}>${leadOptions(statuses,v.stage)}</select></label><label class="field">Daftar kontak<select name="list_status" ${locked?'disabled':''}>${leadOptions(lists,v.list_status)}</select></label></div>${m.manageAssignments?`<label class="field">Penanggung jawab telesales<select name="assigned_telesales_id" ${locked?'disabled':''}><option value="">Belum ditugaskan / owner</option>${m.agents.filter(a=>a.active!==false||a.id===v.assigned_telesales_id).map(a=>`<option value="${esc(a.id)}" ${v.assigned_telesales_id===a.id?'selected':''}>${esc(a.name)}${a.active===false?' · nonaktif':''}</option>`).join('')}</select></label>`:'<div class="notice">Prospek baru otomatis menjadi tanggung jawab Anda. Penugasan ke telesales lain dilakukan owner atau admin.</div>'}<label class="field">Catatan prospek<textarea name="notes" maxlength="3000" rows="4" placeholder="Nama PIC, kebutuhan usaha, atau informasi penting…" ${locked?'readonly':''}>${esc(v.notes||'')}</textarea></label><p class="helper">Blacklist berarti jangan dihubungi. Whitelist tetap mengikuti penugasan dan jeda panggilan. Hanya owner atau admin yang dapat membuka kembali prospek yang berhenti.</p>${m.error?`<div class="error" role="alert">${esc(m.error)}</div>`:''}${m.uncertain?'<div class="notice warning">Hasil penyimpanan belum pasti. Periksa permintaan yang sama sebelum membuat data baru.</div>':''}</form>`,`<button class="button" data-action="close-modal" ${locked?'disabled':''}>Batal</button>${m.conflict?'<button class="button primary" data-action="lead-reload">Perbarui data</button>':`<button class="button primary" type="submit" form="lead-edit-form" ${m.busy?'disabled':''}>${m.busy?'Menyimpan…':m.uncertain?'Periksa & simpan':'Simpan prospek'}</button>`}`);
+}
+function leadDefinite(error){return ['PT409','PT412','PT423','PT429','PT403','40001','22023','23505','42501','PGRST202','42883'].includes(error?.code);}
+function leadConflict(error){return ['PT409','PT412','PT423','PT429','PT403','40001'].includes(error?.code);}
+async function saveLead(form){
+  const m=state.modal;if(!can('read_leads')||m?.type!=='lead-edit'||m.busy||m.conflict)return;
+  if(!m.payload){try{m.values=Object.fromEntries(new FormData(form));m.payload=leadPayload(m.values,m.operationId,m.lead,{manageAssignments:m.manageAssignments});}catch(error){m.error=leadError(error);renderModal();return;}}
+  m.busy=true;m.error='';renderModal();
+  try{await api.saveLead(m.payload);if(state.modal!==m||state.epoch!==m.epoch)return;closeModal();toast('Prospek tersimpan. Nomor dan riwayatnya digunakan bersama oleh tim.');await loadPage();}
+  catch(error){if(state.modal!==m||state.epoch!==m.epoch)return;if(denyAccess(error))return;m.busy=false;m.error=leadError(error);m.uncertain=!leadDefinite(error);m.conflict=leadConflict(error);if(!m.uncertain&&!m.conflict)m.payload=null;renderModal();}
+}
+async function claimLead(){
+  const m=state.modal;if(!can('read_leads')||m?.type!=='lead-detail'||m.busy||m.conflict||m.claimId||!m.detail?.lead)return;
+  if(!m.detail.lead.can_contact&&!m.uncertain)return;
+  m.claimPayload||={p_operation_id:uuid(),p_id:m.id,p_expected_updated_at:m.detail.lead.updated_at};m.busy=true;m.error='';renderModal();
+  try{const result=await api.claimLead(m.claimPayload);if(state.modal!==m||state.epoch!==m.epoch)return;m.detail.lead=result.lead;m.claimId=result.claim_id;m.claimExpiresAt=result.claim_expires_at;m.operationId=uuid();m.busy=false;m.uncertain=false;m.values={outcome:'',note:'',followup_at:''};renderModal();}
+  catch(error){if(state.modal!==m||state.epoch!==m.epoch)return;if(denyAccess(error))return;m.busy=false;m.error=leadError(error);m.uncertain=!leadDefinite(error);m.conflict=leadConflict(error);if(!m.uncertain)m.claimPayload=null;renderModal();}
+}
+async function saveCall(form){
+  const m=state.modal;if(!can('read_leads')||m?.type!=='lead-detail'||m.busy||m.conflict||!m.claimId)return;
+  if(!m.callPayload){try{m.values=Object.fromEntries(new FormData(form));m.operationId||=uuid();m.callPayload=callPayload(m.values,m.operationId,m.detail.lead,m.claimId);}catch(error){m.error=leadError(error);renderModal();return;}}
+  m.busy=true;m.error='';renderModal();
+  try{await api.logCall(m.callPayload);if(state.modal!==m||state.epoch!==m.epoch)return;closeModal();toast('Hasil telepon dan jadwal tindak lanjut tersimpan.');await loadPage();}
+  catch(error){if(state.modal!==m||state.epoch!==m.epoch)return;if(denyAccess(error))return;m.busy=false;m.error=leadError(error);m.uncertain=!leadDefinite(error);m.conflict=leadConflict(error);if(!m.uncertain&&!m.conflict)m.callPayload=null;renderModal();}
+}
+
 function kpi(label, value, hint, symbol, featured = false) {
   return `<article class="kpi ${featured ? 'featured' : ''}"><div class="label">${esc(label)}${icon(symbol)}</div><div class="value">${esc(value ?? 0)}</div><div class="hint">${esc(hint)}</div></article>`;
 }
@@ -655,6 +722,8 @@ function renderModal() {
     return;
   }
   document.body.classList.add('has-modal');
+  if (m.type === 'lead-detail') modalRoot.innerHTML = leadDetailModal(m);
+  if (m.type === 'lead-edit') modalRoot.innerHTML = leadEditModal(m);
   if (m.type === 'detail') modalRoot.innerHTML = detailModal(m);
   if (m.type === 'renew') modalRoot.innerHTML = renewModal(m);
   if (m.type === 'tier') modalRoot.innerHTML = tierModal(m);
@@ -836,7 +905,7 @@ function openFollowup() {
   });
 }
 function followupModal(m) {
-  return modalFrame('Catat follow-up', customerName(m.customer), `<form id="followup-form" class="stack"><label class="field">Hasil komunikasi<select name="outcome" ${m.uncertain || m.busy ? 'disabled' : ''}>${Object.entries(OUTCOME).map(([key, label]) => `<option value="${key}" ${key === m.values.outcome ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label class="field">Catatan<textarea name="note" maxlength="4000" required placeholder="Kebutuhan pengguna, kendala, atau hasil pembicaraan…" ${m.uncertain || m.busy ? 'readonly' : ''}>${esc(m.values.note)}</textarea></label><label class="field">Jadwal follow-up berikutnya (opsional)<input name="next" type="datetime-local" value="${esc(m.values.next)}" ${m.uncertain || m.busy ? 'readonly' : ''}><small>Waktu mengikuti zona waktu perangkat Anda. Jadwal ditampilkan di CRM; tidak mengirim pesan otomatis.</small></label><div class="error" role="alert">${esc(m.error)}</div>${m.uncertain ? '<div class="notice warning">Hasil penyimpanan belum pasti. Coba kembali untuk memeriksa catatan yang sama tanpa menggandakannya.</div>' : ''}</form>`, `<button class="button" data-action="close-modal" ${m.busy ? 'disabled' : ''}>Batal</button><button class="button primary" type="submit" form="followup-form" ${m.busy ? 'disabled' : ''}>${m.busy ? 'Menyimpan…' : m.uncertain ? 'Periksa & simpan' : 'Simpan catatan'}</button>`);
+  return modalFrame('Catat follow-up', customerName(m.customer), `<form id="followup-form" class="stack"><label class="field">Hasil komunikasi<select name="outcome" ${m.uncertain || m.busy ? 'disabled' : ''}>${Object.entries(OUTCOME).map(([key, label]) => `<option value="${key}" ${key === m.values.outcome ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label class="field">Catatan<textarea name="note" maxlength="3000" required placeholder="Kebutuhan pengguna, kendala, atau hasil pembicaraan…" ${m.uncertain || m.busy ? 'readonly' : ''}>${esc(m.values.note)}</textarea></label><label class="field">Jadwal follow-up berikutnya (opsional)<input name="next" type="datetime-local" value="${esc(m.values.next)}" ${m.uncertain || m.busy ? 'readonly' : ''}><small>Waktu mengikuti zona waktu perangkat Anda. Jadwal ditampilkan di CRM; tidak mengirim pesan otomatis.</small></label><div class="error" role="alert">${esc(m.error)}</div>${m.uncertain ? '<div class="notice warning">Hasil penyimpanan belum pasti. Coba kembali untuk memeriksa catatan yang sama tanpa menggandakannya.</div>' : ''}</form>`, `<button class="button" data-action="close-modal" ${m.busy ? 'disabled' : ''}>Batal</button><button class="button primary" type="submit" form="followup-form" ${m.busy ? 'disabled' : ''}>${m.busy ? 'Menyimpan…' : m.uncertain ? 'Periksa & simpan' : 'Simpan catatan'}</button>`);
 }
 async function saveFollowup(form) {
   const m = state.modal;
@@ -976,6 +1045,7 @@ function navigate(page, usage = 'all') {
   state.search = '';
   state.status = 'all';
   state.usage = USAGE_STAGES[usage] ? usage : 'all';
+  state.leadFilters={stage:'all',list:'all',outcome:'all',owner:''};
   state.sort = 'recent';
   state.offset = 0;
   state.error = '';
@@ -1042,6 +1112,12 @@ async function action(button) {
     render();
     return;
   }
+  if(a==='add-lead'&&can('read_leads'))return openLeadEdit();
+  if(a==='lead-detail'&&can('read_leads'))return openLead(button.dataset.id);
+  if(a==='edit-lead'&&can('read_leads')&&state.modal?.type==='lead-detail'&&!state.modal.busy&&!state.modal.uncertain&&!state.modal.claimId)return openLeadEdit(state.modal.detail.lead,state.modal.detail.permissions);
+  if(a==='claim-lead')return claimLead();
+  if(a==='lead-reload'&&state.modal&&!state.modal.busy){const id=state.modal.id||state.modal.lead?.id;if(id)return openLead(id);closeModal();return loadPage();}
+  if(a==='lead-quick-filter'&&can('read_leads')){state.search='';state.leadFilters={stage:'all',list:'all',outcome:'all',owner:''};if(button.dataset.stage)state.leadFilters.stage=button.dataset.stage;if(button.dataset.list)state.leadFilters.list=button.dataset.list;state.offset=0;return loadPage();}
   if (a === 'refresh') return loadPage();
   if (a === 'previous' || a === 'next') {
     state.offset = Math.max(0, state.offset + (a === 'next' ? 25 : -25));
@@ -1129,6 +1205,9 @@ document.addEventListener('submit', event => {
   if (form.id === 'signup-form') return void handleAuth(form, 'signup');
   if (form.id === 'verify-form') return void handleAuth(form, 'verify');
   if (form.id === 'demo-form') return void createDemo(form);
+  if(form.id==='lead-edit-form')return void saveLead(form);
+  if(form.id==='lead-call-form')return void saveCall(form);
+  if(form.id==='lead-search-form') {const v=Object.fromEntries(new FormData(form));state.search=String(v.search||'').trim();state.leadFilters={stage:v.stage||'all',list:v.list||'all',outcome:v.outcome||'all',owner:v.owner||''};state.offset=0;return void loadPage();}
   if (form.id === 'search-form') {
     const values = Object.fromEntries(new FormData(form));
     state.search = values.search.trim();
@@ -1182,6 +1261,8 @@ document.addEventListener('input', event => {
   if (event.target.id === 'demo-outlet-name') state.demo.outletName = event.target.value;
 });
 document.addEventListener('change', event => {
+  if(event.target.id==='lead-call-outcome') {const notice=document.querySelector('#lead-outcome-note');if(notice)notice.textContent=event.target.value==='do_not_contact'?'Nomor akan masuk blacklist dan tidak boleh dihubungi kembali.':event.target.value==='not_interested'?'Nomor tidak masuk antrean penawaran lagi sampai owner atau admin membukanya kembali.':'';}
+
   if (['status-filter', 'usage-filter', 'usage-sort'].includes(event.target.id)) {
     const form = event.target.form;
     state.search = form.elements.search.value.trim();

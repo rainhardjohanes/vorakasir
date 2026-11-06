@@ -159,7 +159,7 @@ export function isRenewalConflict(error) {
   return error?.code === 'PT409' || error?.code === '40001';
 }
 export function allowedPages(permissions) {
-  return ['overview', ...(permissions.read_customers ? ['users', 'followups'] : []), ...(permissions.renew ? ['renewals'] : []), ...(permissions.create_demo ? ['demos'] : []), ...(permissions.manage_referrals ? ['referrals'] : []), ...(permissions.manage_members ? ['team'] : []), ...(permissions.read_audit ? ['audit'] : [])];
+  return ['overview', ...(permissions.read_customers ? ['users', 'followups'] : []), ...(permissions.renew ? ['renewals'] : []), ...(permissions.create_demo ? ['demos'] : []), ...(permissions.read_leads ? ['telesales'] : []), ...(permissions.manage_referrals ? ['referrals'] : []), ...(permissions.manage_members ? ['team'] : []), ...(permissions.read_audit ? ['audit'] : [])];
 }
 export function humanError(error) {
   const code = error?.code;

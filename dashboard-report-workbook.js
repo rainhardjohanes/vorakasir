@@ -34,6 +34,8 @@ function validateScope(report, outlet, range) {
     if (!Array.isArray(report[key]) || report[key].some(row => !row || row.outlet_id !== outlet.id)) throw new TypeError('Data lintas outlet ditolak. Muat ulang laporan.');
   }
   if (!Array.isArray(report.expense?.expenses) || report.expense.expenses.some(row => !row?.record || row.record.outlet_id !== outlet.id)) throw new TypeError('Biaya tidak sesuai outlet terpilih. Muat ulang laporan.');
+  const manualRows = report.manualCashOut?.rows ?? [];
+  if (!Array.isArray(manualRows) || manualRows.some(row => !row?.record || row.record.outlet_id !== outlet.id)) throw new TypeError('Kas keluar manual tidak sesuai outlet terpilih. Muat ulang laporan.');
 }
 
 /** Pure full-period export model; screen search and pagination do not truncate it. */
@@ -56,6 +58,7 @@ export function reportWorkbookModel({ view, report, outlet, range = report?.rang
     '— berarti data belum tersedia atau tidak berlaku; bukan angka nol.',
   ];
   if (!report.finance?.complete) notes.push(`Laporan sementara: ${(report.finance?.issues || []).join(' ') || 'Sebagian komponen belum lengkap. Periksa rekonsiliasi.'}`);
+  if (report.manualCashOut?.rows?.length) notes.push(`Kas keluar manual belum dikategorikan dan tidak termasuk total biaya usaha maupun perhitungan laba. Sebagian kas keluar dapat berupa penarikan uang owner. Tanggal kas keluar mengikuti zona waktu outlet ${report.manualCashOut.timeZone || zone}. Rincian lengkap ada pada laporan Biaya usaha.`);
   return { view, title: titles[view], outletId: outlet.id, outletName: text(outletDisplayName(outlet)), range: { ...range }, generatedAt: generated.toISOString(), generatedLabel, timeZone: zone, headers, rows, notes, moneyColumns: headers.map(header => moneyColumns.has(header)) };
 }
 

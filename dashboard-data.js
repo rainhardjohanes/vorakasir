@@ -2,6 +2,7 @@ import { applyHistoricalReportCompatibility } from '/dashboard-historical-report
 import { calculateProfitLoss } from '/dashboard-lib-profitLoss.js';
 import { summarizeExpenses } from '/dashboard-lib-businessExpenses.js';
 import { netSaleAmount, refundAmount, remainingLineQty } from '/dashboard-lib-refundReports.js';
+import { resolveCashOutTimezone, summarizeManualCashOut } from '/dashboard-manual-cash-out.js';
 
 export const PAGE_SIZE = 500;
 export const MAX_ROWS = 25000;
@@ -73,10 +74,15 @@ export async function loadReport(client, userId, outlet, range, signal) {
   const inRange = row => valid(row) && row.date >= range.start && row.date <= range.end;
   const envelopeStart = new Date(Date.parse(range.start) - 14 * 3600000).toISOString();
   const envelopeEnd = new Date(Date.parse(range.end) + 38 * 3600000).toISOString();
-  const [sales, legacy, ledger] = await Promise.all([
+  const [sales, legacy, ledger, context] = await Promise.all([
     collect(() => client.from('sales').select('*').eq('outlet_id', outlet.id).gte('date', range.start).lte('date', range.end), inRange, signal),
-    collect(() => client.from('cash_flows').select('*').eq('outlet_id', outlet.id).eq('type', 'OUT').gte('created_at', envelopeStart).lt('created_at', envelopeEnd), valid, signal),
+    collect(() => client.from('cash_flows').select('*,linked_expenses:vora_operating_expenses(id,outlet_id,cash_flow_id)').eq('outlet_id', outlet.id).eq('type', 'OUT').gte('created_at', envelopeStart).lt('created_at', envelopeEnd), valid, signal),
     collect(() => client.from('vora_operating_expenses').select('*').eq('outlet_id', outlet.id).gte('business_date', range.start).lte('business_date', range.end), valid, signal),
+    (async()=>{
+      const profiles=await collect(()=>client.from('settings').select('id,outlet_id,timezone:profile_data->timezone').eq('outlet_id',outlet.id),valid,signal,1);
+      const timeZone=resolveCashOutTimezone(profiles[0]?.timezone);
+      return {timeZone};
+    })(),
   ]);
   const refundIds = sales.filter(s => ['PARTIAL_REFUND', 'REFUNDED'].includes(s.status) || Number(s.refunded_amount) > 0).map(s => s.id);
   const logMap = new Map();
@@ -86,14 +92,15 @@ export async function loadReport(client, userId, outlet, range, signal) {
     logs.forEach(log => logMap.set(log.id, log));
     if (logMap.size > MAX_ROWS) throw new Error('Riwayat refund terlalu besar. Persempit periode laporan.');
   }
-  return summarizeReport(sales, [...logMap.values()], [...legacy, ...ledger], outlet.id, range);
+  return summarizeReport(sales, [...logMap.values()], [...legacy, ...ledger], outlet.id, range, null, context.timeZone);
 }
 
-export function summarizeReport(sales, logs, expenses, outletId, range) {
+export function summarizeReport(sales, logs, expenses, outletId, range, _reserved = null, timeZone = 'Asia/Makassar') {
   // Even in-memory fixtures/imports must not merge data belonging to another outlet.
   if (sales.some(s => s.outlet_id !== outletId) || logs.some(s => s.outlet_id !== outletId) || expenses.some(s => s.outlet_id !== outletId)) throw new Error('Data lintas outlet ditolak.');
   const finance = calculateProfitLoss(sales, logs);
   const expense = summarizeExpenses(expenses, outletId, range);
+  const manualCashOut = summarizeManualCashOut(expenses, outletId, range, timeZone);
   const days = new Map(), methods = new Map(), cashiers = new Map(), orderTypes = new Map(), products = new Map();
   const group = (map, name, sale, net) => {
     const item = map.get(name) || { name, count: 0, gross: 0, refund: 0, net: 0, mdr: 0 };
@@ -117,7 +124,7 @@ export function summarizeReport(sales, logs, expenses, outletId, range) {
   }
   const ranked = map => [...map.values()].sort((a, b) => b.net - a.net || a.name.localeCompare(b.name));
   return applyHistoricalReportCompatibility({ sales: [...sales].sort((a, b) => `${b.date} ${b.time} ${b.id}`.localeCompare(`${a.date} ${a.time} ${a.id}`)), logs,
-    finance, expense, operatingProfit: finance.contribution - expense.total,
+    finance, expense, manualCashOut, operatingProfit: finance.contribution - expense.total,
     days: [...days].map(([date, value]) => ({ date, ...value })), methods: ranked(methods), cashiers: ranked(cashiers), orderTypes: ranked(orderTypes),
     products: [...products.values()].filter(p => p.qty > 0).sort((a, b) => b.qty - a.qty || b.amount - a.amount),
     refunds: sales.filter(s => ['REFUNDED', 'PARTIAL_REFUND'].includes(s.status) || Number(s.refunded_amount) > 0),

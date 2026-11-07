@@ -14,11 +14,45 @@ export function commissionError(error) {
   if (error?.code === 'PT409') return 'Pengaturan sudah berubah. Muat ulang sebelum mengedit kembali.';
   if (['42501','FEATURE_DISABLED'].includes(error?.code)) return 'Komisi staf memerlukan Premium aktif dan akses pemilik outlet.';
   if (error?.code === 'PGRST202') return 'Fitur komisi belum tersedia pada server ini.';
-  if (error?.code === '23505') return 'Ada staf dan produk yang sudah memakai grup komisi aktif lain. Ubah cakupan atau nonaktifkan grup lama dahulu.';
+  if (error?.code === '23505') return 'Produk atau pasangan staf dan produk sudah memakai grup komisi aktif lain. Komisi fleksibel memerlukan satu grup aktif per produk. Ubah cakupan atau nonaktifkan grup lama dahulu.';
   if (error?.code === '22023') return 'Pengaturan belum valid. Periksa nilai, staf, dan produk yang dipilih.';
   return error instanceof TypeError ? error.message : 'Belum berhasil. Periksa koneksi dan coba kembali dengan formulir yang sama.';
 }
-export function commissionDraft(draft, outletId, {staff = [], products = [], existing = null} = {}) {
+const plainObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const exactFields = (value,fields) => plainObject(value) && Object.keys(value).every(key=>fields.includes(key));
+const rateValue = (kind,raw,label,strict) => {
+  const text=String(raw ?? '').trim(),value=Number(text);
+  if(!['percent','fixed'].includes(kind)||strict&&typeof raw!=='number'||!/^\d+$/.test(text)||!Number.isSafeInteger(value)||value<0||value>(kind==='percent'?100:1000000000000))throw new TypeError(`${label} harus ${kind==='percent'?'persentase bulat 0–100':'Rupiah bulat 0–1.000.000.000.000'}.`);
+  return value;
+};
+export function flexibleCommissionDraft(config,rule,{strict=false}={}) {
+  if(config===undefined)return undefined;
+  if(!plainObject(config)||typeof config.enabled!=='boolean')throw new TypeError('Pilihan komisi fleksibel tidak valid.');
+  if(!config.enabled)return undefined;
+  if(!exactFields(config,['version','enabled','allow_manual','max_total','scenarios'])||config.version!==1||typeof config.allow_manual!=='boolean'||rule.scope!=='product'||!exactFields(config.max_total,['kind','value'])||!Array.isArray(config.scenarios)||config.scenarios.length>25||!config.allow_manual&&!config.scenarios.length)throw new TypeError('Komisi fleksibel hanya berlaku untuk produk, dengan batas total dan maksimal 25 skenario. Pilih minimal satu skenario atau izinkan input manual.');
+  const max_total={kind:config.max_total.kind,value:rateValue(config.max_total.kind,config.max_total.value,'Batas total komisi',strict)};
+  const seen=new Set();
+  const scenarios=config.scenarios.map(scenario=>{
+    if(!exactFields(scenario,['id','name','rates'])||typeof scenario.id!=='string'||!scenario.id.trim()||scenario.id.length>100||/[\x00-\x1f\x7f]/.test(scenario.id)||seen.has(scenario.id))throw new TypeError('Identitas skenario komisi tidak valid atau ganda.');
+    seen.add(scenario.id);
+    const name=String(scenario.name||'').trim();
+    if(!name||name.length>80||/[\x00-\x1f\x7f]/.test(name))throw new TypeError('Nama skenario wajib diisi, maksimal 80 karakter.');
+    if(strict&&typeof scenario.name!=='string'||!Array.isArray(scenario.rates)||!scenario.rates.length||scenario.rates.length>500||rule.selection_mode==='single'&&scenario.rates.length!==1)throw new TypeError('Setiap skenario wajib memiliki staf sesuai pilihan satu atau beberapa staf.');
+    const staffSeen=new Set();let total=0;
+    const rates=scenario.rates.map(rate=>{
+      if(!exactFields(rate,['staff_id','kind','value'])||typeof rate.staff_id!=='string'||!rule.staff_ids.includes(rate.staff_id)||staffSeen.has(rate.staff_id))throw new TypeError('Staf skenario harus dipilih sebagai penerima grup dan tidak boleh ganda.');
+      staffSeen.add(rate.staff_id);
+      if(rate.kind!==max_total.kind)throw new TypeError('Semua nilai skenario harus memakai satuan yang sama dengan batas total (% atau Rupiah).');
+      const value=rateValue(rate.kind,rate.value,'Nilai per staf',strict);
+      total+=value;
+      return {staff_id:rate.staff_id,kind:rate.kind,value};
+    }).sort((a,b)=>a.staff_id<b.staff_id?-1:a.staff_id>b.staff_id?1:0);
+    if(total>max_total.value)throw new TypeError(`Total skenario “${name}” melebihi batas total komisi.`);
+    return {id:scenario.id,name,rates};
+  });
+  return {version:1,enabled:true,allow_manual:config.allow_manual,max_total,scenarios};
+}
+export function commissionDraft(draft, outletId, {staff = [], products = [], existing = null, rules = []} = {}) {
   if (!uuid(draft.id)) throw new TypeError('ID grup komisi tidak valid.');
   const name = String(draft.name || '').trim();
   if (!name || name.length > 80 || /[\x00-\x1f]/.test(name)) throw new TypeError('Nama grup wajib diisi, maksimal 80 karakter.');
@@ -33,7 +67,11 @@ export function commissionDraft(draft, outletId, {staff = [], products = [], exi
   const staff_ids = ids(draft.staff_ids, staff, 'Staf', existing?.staff_ids);
   const product_ids = draft.scope === 'product' ? ids(draft.product_ids, products, 'Produk', existing?.product_ids) : [];
   if (draft.is_active && (!staff_ids.length || draft.scope === 'product' && !product_ids.length)) throw new TypeError('Grup aktif wajib memiliki staf dan, untuk komisi produk, minimal satu produk.');
-  return {id:draft.id,name,is_active:draft.is_active === true,scope:draft.scope,kind:draft.kind,value,discount_basis:draft.discount_basis,required:draft.required === true,selection_mode:draft.selection_mode,multi_staff_mode:draft.multi_staff_mode,staff_ids,product_ids};
+  const rule={id:draft.id,name,is_active:draft.is_active === true,scope:draft.scope,kind:draft.kind,value,discount_basis:draft.discount_basis,required:draft.required === true,selection_mode:draft.selection_mode,multi_staff_mode:draft.multi_staff_mode,staff_ids,product_ids};
+  const flexible=flexibleCommissionDraft(draft.flexible,rule);if(flexible)rule.flexible=flexible;
+  const conflict=rule.is_active&&rule.scope==='product'&&rules.find(other=>other.id!==rule.id&&other.is_active&&other.scope==='product'&&(flexible||other.flexible?.enabled===true)&&other.product_ids.some(id=>product_ids.includes(id)));
+  if(conflict)throw new TypeError(`Produk sudah dipakai grup aktif “${conflict.name}”. Komisi fleksibel memerlukan satu grup aktif per produk. Ubah cakupan atau nonaktifkan grup tersebut terlebih dahulu.`);
+  return rule;
 }
 export function validateCommissionCatalog(data, outlet) {
   if (!data || data.outlet_id !== outlet.id || typeof data.commission_enabled !== 'boolean' || !Array.isArray(data.rules)) throw new TypeError('Katalog komisi tidak lengkap atau outlet tidak sesuai.');
@@ -41,6 +79,7 @@ export function validateCommissionCatalog(data, outlet) {
   for (const row of data.rules) {
     if (!uuid(row.id) || row.outlet_id !== outlet.id || seen.has(row.id) || !Number.isSafeInteger(row.version) || row.version < 1 || !Array.isArray(row.staff_ids) || !Array.isArray(row.product_ids)) throw new TypeError('Versi grup komisi tidak valid. Muat ulang.');
     if(typeof row.name!=='string' || typeof row.is_active!=='boolean' || typeof row.required!=='boolean' || !['product','transaction'].includes(row.scope) || !['percent','fixed'].includes(row.kind) || !['before','after'].includes(row.discount_basis) || !['single','multiple'].includes(row.selection_mode) || !['split','full'].includes(row.multi_staff_mode) || !Number.isSafeInteger(row.value) || row.value<0 || row.value>(row.kind==='percent'?100:1000000000000)) throw new TypeError('Isi grup komisi tidak valid. Muat ulang.');
+    if(row.flexible!==undefined)flexibleCommissionDraft(row.flexible,row,{strict:true});
     seen.add(row.id);
   }
   return data;
@@ -55,7 +94,8 @@ export async function saveCommissionGroup(client,user,outlet,draft,existing,oper
   const rule = commissionDraft(draft,outlet.id,{...catalog,existing});
   const result = await rpc(client,'vora_save_commission_group',{p_outlet_id:outlet.id,p_operation_id:operationId,p_expected_version:existing?.version || 0,p_rule:rule},signal);
   validateCommissionCatalog({outlet_id:outlet.id,commission_enabled:true,rules:[result?.rule]},outlet);
-  if(result.rule.id!==rule.id || result.rule.version!==(existing?.version||0)+1 || typeof result.replayed!=='boolean')throw new TypeError('Konfirmasi penyimpanan belum cocok. Periksa kembali permintaan yang sama.');
+  const flexibleKey=row=>{const config=flexibleCommissionDraft(row.flexible,row,{strict:true});return config?JSON.stringify({...config,scenarios:[...config.scenarios].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0)}):null;};
+  if(result.rule.id!==rule.id || result.rule.version!==(existing?.version||0)+1 || typeof result.replayed!=='boolean'||flexibleKey(result.rule)!==flexibleKey(rule))throw new TypeError('Konfirmasi penyimpanan belum cocok. Periksa kembali permintaan yang sama.');
   return result;
 }
 export async function loadCommissionReport(client,user,outlet,range,signal) {

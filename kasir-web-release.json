@@ -1,7 +1,7 @@
 {
   "app": "VORA POS",
   "version": "1.0.30",
-  "generatedAt": "2026-11-06T08:29:12.086Z",
+  "generatedAt": "2026-11-07T00:41:23.250Z",
   "basePath": "/kasir",
   "backend": "https://pjycdyrwdcjhxmdjzxto.supabase.co",
   "routes": [
@@ -24,12 +24,16 @@
   ],
   "javascript": [
     {
-      "path": "_expo/static/js/web/entry-e865c2bd36b8120dbf86442c6c1ca8b9.js",
-      "sha256": "9b2a4048c192da5b8a3773bfce7b41f96bd915f62ec1955295ce78573f988bed"
+      "path": "_expo/static/js/web/entry-d62e1aeaae94e3d1b451d2da44225058.js",
+      "sha256": "1408e66c756ec3391898ff0a0f24129d8f1927f037958aa2fb2e318cd5276930"
     },
     {
       "path": "_expo/static/js/web/index-5191daed04d1180f78d1a514fdf1d76a.js",
       "sha256": "4871b0bd4cbc06938d2b385ace75dfc86692b3813a675b5638165451ee1a092b"
     }
-  ]
+  ],
+  "webFeatureRevision": "flexible-commissions-v1-2026-11-07",
+  "capabilities": {
+    "flexibleProductCommissions": 1
+  }
 }

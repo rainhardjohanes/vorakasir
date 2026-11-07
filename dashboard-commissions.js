@@ -4,6 +4,7 @@ import {commissionReportModel,commissionDetailRows,normalizeCommissionFilters} f
 
 const money = value => `Rp ${Number(value).toLocaleString('id-ID')}`;
 const label = rule => rule.kind === 'percent' ? `${rule.value}%` : `${money(rule.value)}${rule.scope === 'product' ? ' / unit' : ' / transaksi'}`;
+const flexibleLabel = cap => cap.kind==='percent'?`${cap.value}%`:money(cap.value);
 const select = (name,title,value,options) => `<label class="field ops-field"><span>${title}</span><select class="input" name="${name}">${options.map(([id,text])=>`<option value="${id}" ${value===id?'selected':''}>${text}</option>`).join('')}</select></label>`;
 export const commissionShell = () => '<section data-commissions><p role="status">Memuat grup komisi outlet…</p></section>';
 export function filterCommissionGroups(rules, filters = {}) {
@@ -16,7 +17,7 @@ export function filterCommissionGroups(rules, filters = {}) {
 const hasGroupFilters = filters => !!String(filters.search||'').trim() || ['product','transaction'].includes(filters.scope) || ['active','draft'].includes(filters.status);
 const groupCount = (rules,matches,filters) => hasGroupFilters(filters)?`${matches.length} dari ${rules.length} grup komisi`:`${rules.length} grup komisi`;
 function commissionGroupCards(rules,enabled,total) {
-  return rules.map(rule=>`<article class="commission-group"><header><div><span class="ops-pill ${rule.is_active?'green':'neutral'}">${rule.is_active?'Aktif':'Draf / nonaktif'}</span><h3>${h(rule.name)}</h3></div>${enabled?`<button class="btn btn-secondary" data-commission-edit="${h(rule.id)}" type="button">Ubah</button>`:''}</header><strong class="commission-rate">${h(label(rule))}</strong><p>${rule.scope==='product'?'Komisi produk':'Komisi transaksi'} · ${rule.discount_basis==='before'?'Sebelum diskon':'Setelah diskon'}</p><dl><div><dt>Pemilihan staf</dt><dd>${rule.selection_mode==='single'?'Satu staf':'Beberapa staf'} · ${rule.required?'Wajib':'Opsional'}</dd></div><div><dt>Pembagian</dt><dd>${rule.multi_staff_mode==='split'?'Dibagi rata':'Penuh per staf'}</dd></div><div><dt>Cakupan</dt><dd>${rule.staff_ids.length} staf${rule.scope==='product'?` · ${rule.product_ids.length} produk`:''}</dd></div></dl><small>Versi ${rule.version} · Riwayat transaksi memakai aturan saat transaksi.</small></article>`).join('')||(total?'<div class="ops-empty">Tidak ada grup yang sesuai.<small>Ubah pencarian atau reset filter untuk melihat grup lainnya.</small></div>':'<div class="ops-empty">Belum ada grup komisi.<small>Mulai dengan grup produk atau transaksi, lalu pilih staf penerimanya.</small></div>');
+  return rules.map(rule=>`<article class="commission-group"><header><div><span class="ops-pill ${rule.is_active?'green':'neutral'}">${rule.is_active?'Aktif':'Draf / nonaktif'}</span><h3>${h(rule.name)}</h3></div>${enabled?`<button class="btn btn-secondary" data-commission-edit="${h(rule.id)}" type="button">Ubah</button>`:''}</header><strong class="commission-rate">${h(rule.flexible?.enabled?`Maks. ${flexibleLabel(rule.flexible.max_total)} / unit`:label(rule))}</strong><p>${rule.scope==='product'?'Komisi produk':'Komisi transaksi'} · ${rule.discount_basis==='before'?'Sebelum diskon':'Setelah diskon'}</p><dl><div><dt>Pemilihan staf</dt><dd>${rule.selection_mode==='single'?'Satu staf':'Beberapa staf'} · ${rule.required?'Wajib':'Opsional'}</dd></div><div><dt>${rule.flexible?.enabled?'Fleksibel':'Pembagian'}</dt><dd>${rule.flexible?.enabled?`${rule.flexible.scenarios.length} skenario${rule.flexible.allow_manual?' · input manual kasir':''}`:rule.multi_staff_mode==='split'?'Dibagi rata':'Penuh per staf'}</dd></div><div><dt>Cakupan</dt><dd>${rule.staff_ids.length} staf${rule.scope==='product'?` · ${rule.product_ids.length} produk`:''}</dd></div></dl><small>Versi ${rule.version} · Riwayat transaksi memakai aturan saat transaksi.</small></article>`).join('')||(total?'<div class="ops-empty">Tidak ada grup yang sesuai.<small>Ubah pencarian atau reset filter untuk melihat grup lainnya.</small></div>':'<div class="ops-empty">Belum ada grup komisi.<small>Mulai dengan grup produk atau transaksi, lalu pilih staf penerimanya.</small></div>');
 }
 export function commissionSettingsView(catalog, data, filters = {}) {
   const enabled = catalog.commission_enabled;
@@ -28,8 +29,18 @@ function checkList(name, rows, selected, caption) {
   const missing = selected.filter(id=>!known.has(id));
   return `<fieldset class="commission-picks"><legend>${caption}</legend><input class="input" type="search" data-commission-search="${name}" placeholder="Cari ${name==='staff_ids'?'staf':'produk'}…" aria-label="Cari ${caption.toLowerCase()}"><div class="commission-pick-list" data-commission-list="${name}">${rows.map(row=>`<label class="commission-check" data-label="${h(row.name.toLowerCase())}"><input type="checkbox" name="${name}" value="${h(row.id)}" ${selected.includes(row.id)?'checked':''}><span>${h(row.name)}${row.category?`<small>${h(row.category)}</small>`:''}</span></label>`).join('')}${missing.map(id=>`<label class="commission-check"><input type="checkbox" name="${name}" value="${h(id)}" checked><span>Referensi nonaktif <small>${h(id)} · Hapus pilihan sebelum mengaktifkan grup.</small></span></label>`).join('')}${!rows.length&&!missing.length?'<p>Belum ada data. Tambahkan dari pengaturan outlet terlebih dahulu.</p>':''}</div></fieldset>`;
 }
+function scenarioStaffOptions(staff,selected,current='') {
+  return `<option value="">Pilih staf grup</option>${staff.filter(row=>selected.includes(row.id)).map(row=>`<option value="${h(row.id)}" ${row.id===current?'selected':''}>${h(row.name)}</option>`).join('')}${current&&!staff.some(row=>row.id===current&&selected.includes(row.id))?`<option value="${h(current)}" selected>${h(staff.find(row=>row.id===current)?.name||current)} — belum dipilih di grup</option>`:''}`;
+}
+function scenarioRate(rate,staff,selected,kind) {
+  return `<div class="commission-scenario-rate" data-commission-rate><label class="field ops-field"><span>Staf penerima</span><select class="input" data-commission-rate-staff>${scenarioStaffOptions(staff,selected,rate.staff_id)}</select></label><label class="field ops-field"><span data-commission-rate-label>${kind==='percent'?'Komisi staf (%)':'Komisi staf (Rp / unit)'}</span><input class="input" data-commission-rate-value type="number" inputmode="numeric" min="0" step="1" max="${kind==='percent'?100:1000000000000}" value="${h(rate.value)}"></label><button class="btn btn-secondary" type="button" data-commission-rate-remove aria-label="Hapus penerima dari skenario">Hapus staf</button></div>`;
+}
+function scenarioForm(scenario,staff,selected,kind) {
+  return `<article class="commission-scenario" data-commission-scenario="${h(scenario.id)}"><header><h4>Skenario komisi</h4><button class="btn btn-secondary" type="button" data-commission-scenario-remove>Hapus skenario</button></header><label class="field ops-field"><span>Nama skenario</span><input class="input" data-commission-scenario-name maxlength="80" value="${h(scenario.name)}" placeholder="Contoh: Dikerjakan bersama"></label><div data-commission-rates>${scenario.rates.map(rate=>scenarioRate(rate,staff,selected,kind)).join('')}</div><div class="commission-scenario-footer"><button class="btn btn-secondary" type="button" data-commission-rate-add>Tambah staf</button><p data-commission-scenario-total role="status" aria-live="polite"></p></div></article>`;
+}
 export function commissionForm(rule, data) {
-  return `<form id="commission-form" class="commission-form"><div class="ops-form-grid"><label class="field ops-field"><span>Nama grup</span><input class="input" name="name" maxlength="80" required value="${h(rule.name)}" placeholder="Contoh: Komisi pelayanan"></label>${select('is_active','Status',String(rule.is_active),[['false','Draf / nonaktif'],['true','Aktif']])}${select('scope','Jenis komisi',rule.scope,[['product','Per produk'],['transaction','Per transaksi']])}${select('kind','Besaran',rule.kind,[['percent','Persentase (%)'],['fixed','Nominal Rupiah']])}<label class="field ops-field"><span>Nilai komisi</span><input class="input" name="value" type="number" inputmode="numeric" min="0" step="1" max="${rule.kind==='percent'?100:1000000000000}" value="${h(rule.value)}" required><small data-commission-value-note>${rule.kind==='fixed'?'Nominal produk berlaku untuk setiap unit.':'Persentase 0–100 dari harga produk yang berlaku.'}</small></label>${select('discount_basis','Dasar perhitungan',rule.discount_basis,[['before','Sebelum diskon'],['after','Setelah diskon']])}${select('selection_mode','Jumlah staf yang dipilih',rule.selection_mode,[['single','Satu staf'],['multiple','Beberapa staf']])}${select('multi_staff_mode','Jika beberapa staf dipilih',rule.multi_staff_mode,[['split','Komisi dibagi rata'],['full','Setiap staf mendapat komisi penuh']])}${select('required','Wajib memilih staf?',String(rule.required),[['false','Tidak, boleh dilewati'],['true','Ya, wajib dipilih di kasir']])}</div>${checkList('staff_ids',data.staff,rule.staff_ids,'Staf penerima')}<div data-commission-products ${rule.scope==='transaction'?'hidden':''}>${checkList('product_ids',data.products,rule.product_ids,'Produk yang berlaku')}</div><p class="ops-note">Perubahan berlaku untuk transaksi berikutnya. Komisi lama dan nilai pembayaran tidak diubah.</p><p data-commission-error class="ops-inline-error" role="alert" hidden></p></form>`;
+  const flexible=rule.flexible?.enabled===true,config=flexible?rule.flexible:{allow_manual:true,max_total:{kind:'percent',value:0},scenarios:[]};
+  return `<form id="commission-form" class="commission-form"><div class="ops-form-grid"><label class="field ops-field"><span>Nama grup</span><input class="input" name="name" maxlength="80" required value="${h(rule.name)}" placeholder="Contoh: Komisi pelayanan"></label>${select('is_active','Status',String(rule.is_active),[['false','Draf / nonaktif'],['true','Aktif']])}${select('scope','Jenis komisi',rule.scope,[['product','Per produk'],['transaction','Per transaksi']])}${select('discount_basis','Dasar perhitungan',rule.discount_basis,[['before','Sebelum diskon'],['after','Setelah diskon']])}${select('selection_mode','Jumlah staf yang dipilih',rule.selection_mode,[['single','Satu staf'],['multiple','Beberapa staf']])}${select('required','Wajib memilih staf?',String(rule.required),[['false','Tidak, boleh dilewati'],['true','Ya, wajib dipilih di kasir']])}</div><div data-commission-standard ${flexible?'hidden':''}><div class="ops-form-grid">${select('kind','Besaran',rule.kind,[['percent','Persentase (%)'],['fixed','Nominal Rupiah']])}<label class="field ops-field"><span>Nilai komisi</span><input class="input" name="value" type="number" inputmode="numeric" min="0" step="1" max="${rule.kind==='percent'?100:1000000000000}" value="${h(rule.value)}" required><small data-commission-value-note>${rule.kind==='fixed'?'Nominal produk berlaku untuk setiap unit.':'Persentase 0–100 dari harga produk yang berlaku.'}</small></label>${select('multi_staff_mode','Jika beberapa staf dipilih',rule.multi_staff_mode,[['split','Komisi dibagi rata'],['full','Setiap staf mendapat komisi penuh']])}</div></div>${checkList('staff_ids',data.staff,rule.staff_ids,'Staf penerima')}<div data-commission-products ${rule.scope==='transaction'?'hidden':''}>${checkList('product_ids',data.products,rule.product_ids,'Produk yang berlaku')}</div><fieldset class="commission-picks commission-flexible" data-commission-flexible ${rule.scope==='transaction'?'hidden':''}><legend>Komisi fleksibel per produk</legend>${select('flexible_enabled','Gunakan skenario dan batas total komisi',String(flexible),[['false','Tidak, gunakan komisi biasa'],['true','Ya, aktifkan komisi fleksibel']])}<div data-commission-flexible-fields ${flexible?'':'hidden'}><p class="ops-note"><span data-commission-choice-note>${config.allow_manual?'Kasir wajib memilih skenario atau mengisi komisi setiap staf.':'Kasir wajib memilih salah satu skenario yang disiapkan pemilik.'}</span> Total seluruh staf untuk satu produk tidak boleh melewati batas ini. Satu produk hanya dapat memiliki satu grup komisi aktif saat mode fleksibel digunakan.</p><div class="ops-form-grid">${select('flexible_cap_kind','Satuan komisi dan batas total',config.max_total.kind,[['percent','Persentase (%)'],['fixed','Rupiah per unit']])}<label class="field ops-field"><span>Batas total seluruh staf</span><input class="input" name="flexible_cap_value" type="number" inputmode="numeric" min="0" step="1" max="${config.max_total.kind==='percent'?100:1000000000000}" value="${h(config.max_total.value)}"><small data-commission-cap-note></small></label></div><label class="commission-check"><input type="checkbox" name="flexible_allow_manual" ${config.allow_manual?'checked':''}><span>Izinkan penyesuaian manual oleh kasir<small>Kasir dapat menentukan nilai setiap staf hingga batas total yang Anda tetapkan.</small></span></label><p class="commission-flexible-help">Nilai setiap staf memakai satuan yang sama. Untuk jumlah produk lebih dari satu, batas Rupiah berlaku per unit. Tarif skenario dan input manual menggantikan pembagian komisi biasa.</p><div data-commission-scenarios>${config.scenarios.map(scenario=>scenarioForm(scenario,data.staff,rule.staff_ids,config.max_total.kind)).join('')}</div><button class="btn btn-secondary" type="button" data-commission-scenario-add>Tambah skenario</button><p class="commission-flexible-help" data-commission-manual-note>${config.allow_manual?'Skenario bersifat opsional (maksimal 25). Kasir tetap dapat mengisi komisi manual, termasuk saat belum ada skenario.':'Sediakan minimal satu skenario (maksimal 25). Kasir hanya dapat memakai staf dan nilai yang disimpan dalam skenario.'}</p></div></fieldset><p class="ops-note">Perubahan berlaku untuk transaksi berikutnya. Komisi lama dan nilai pembayaran tidak diubah.</p><p data-commission-error class="ops-inline-error" role="alert" hidden></p></form>`;
 }
 export function mountCommissions(host, api) {
   const ctrl = new AbortController(); let catalog, modalCtrl, loading = false;
@@ -58,25 +69,76 @@ export function mountCommissions(host, api) {
     const panel=api.modal({title:existing?'Ubah grup komisi':'Tambah grup komisi',description:api.outlet.businessName||api.outlet.name,content:commissionForm(rule,api.data),footer:'<button class="btn btn-secondary" data-close-modal>Batal</button><button class="btn btn-primary" type="submit" form="commission-form">Simpan grup</button>'});
     const form=panel.querySelector('form'), errorBox=panel.querySelector('[data-commission-error]');
     const feedback=message=>{errorBox.hidden=false;errorBox.textContent=message;};
+    const selectedStaff=()=>[...form.querySelectorAll('input[name="staff_ids"]:checked')].map(input=>input.value);
+    const readFlexible=()=>form.elements.flexible_enabled.value!=='true'?undefined:{version:1,enabled:true,allow_manual:form.elements.flexible_allow_manual.checked,max_total:{kind:form.elements.flexible_cap_kind.value,value:form.elements.flexible_cap_value.value},scenarios:[...form.querySelectorAll('[data-commission-scenario]')].map(scenario=>({id:scenario.dataset.commissionScenario,name:scenario.querySelector('[data-commission-scenario-name]').value,rates:[...scenario.querySelectorAll('[data-commission-rate]')].map(rate=>({staff_id:rate.querySelector('[data-commission-rate-staff]').value,kind:form.elements.flexible_cap_kind.value,value:rate.querySelector('[data-commission-rate-value]').value}))}))};
+    function refreshFlexible() {
+      const product=form.elements.scope.value==='product';
+      if(!product)form.elements.flexible_enabled.value='false';
+      const enabled=product&&form.elements.flexible_enabled.value==='true',kind=form.elements.flexible_cap_kind.value,maximum=kind==='percent'?100:1000000000000;
+      form.querySelector('[data-commission-products]').hidden=!product;
+      form.querySelector('[data-commission-flexible]').hidden=!product;
+      form.querySelector('[data-commission-flexible-fields]').hidden=!enabled;
+      form.querySelector('[data-commission-standard]').hidden=enabled;
+      form.elements.flexible_cap_value.max=String(maximum);
+      const manual=form.elements.flexible_allow_manual.checked;
+      form.querySelector('[data-commission-choice-note]').textContent=manual?'Kasir wajib memilih skenario atau mengisi komisi setiap staf.':'Kasir wajib memilih salah satu skenario yang disiapkan pemilik.';
+      form.querySelector('[data-commission-manual-note]').textContent=manual?'Skenario bersifat opsional (maksimal 25). Kasir tetap dapat mengisi komisi manual, termasuk saat belum ada skenario.':'Sediakan minimal satu skenario (maksimal 25). Kasir hanya dapat memakai staf dan nilai yang disimpan dalam skenario.';
+      form.querySelector('[data-commission-cap-note]').textContent=kind==='percent'?`Maksimal 100% dari harga produk ${form.elements.discount_basis.value==='before'?'sebelum':'setelah'} diskon; dijumlahkan untuk seluruh staf.`:'Rupiah bulat per unit produk; dijumlahkan untuk seluruh staf.';
+      const staff=selectedStaff(),capText=form.elements.flexible_cap_value.value,cap=Number(capText),validCap=/^\d+$/.test(capText)&&Number.isSafeInteger(cap)&&cap<=maximum,scenarios=[...form.querySelectorAll('[data-commission-scenario]')];
+      for(const scenario of scenarios){
+        const rates=[...scenario.querySelectorAll('[data-commission-rate]')];let total=0,valid=true;
+        for(const rate of rates){
+          const input=rate.querySelector('[data-commission-rate-value]'),staffInput=rate.querySelector('[data-commission-rate-staff]');
+          input.max=String(maximum);rate.querySelector('[data-commission-rate-label]').textContent=kind==='percent'?'Komisi staf (%)':'Komisi staf (Rp / unit)';
+          staffInput.innerHTML=scenarioStaffOptions(api.data.staff,staff,staffInput.value);
+          if(!/^\d+$/.test(input.value)||!Number.isSafeInteger(Number(input.value))||Number(input.value)>maximum)valid=false;
+          else total+=Number(input.value);
+        }
+        const summary=scenario.querySelector('[data-commission-scenario-total]'),over=valid&&validCap&&total>cap;
+        summary.textContent=!valid?'Isi nilai komisi bulat sesuai satuan.':!validCap?'Isi batas total bulat sesuai satuan.':`Total: ${flexibleLabel({kind,value:total})}${kind==='fixed'?' / unit':''}${over?' — melebihi batas total':` dari batas ${flexibleLabel({kind,value:cap})}`}`;
+        summary.classList.toggle('commission-total-invalid',!valid||!validCap||over);
+        scenario.querySelector('[data-commission-rate-add]').disabled=rates.length>=500||form.elements.selection_mode.value==='single'&&rates.length>=1;
+      }
+      form.querySelector('[data-commission-scenario-add]').disabled=scenarios.length>=25;
+    }
+    refreshFlexible();
     form.addEventListener('input',event=>{
       const search=event.target.dataset.commissionSearch;
       if(search)for(const item of form.querySelectorAll(`[data-commission-list="${search}"] [data-label]`))item.hidden=!item.dataset.label.includes(event.target.value.toLowerCase());
+      if(event.target.hasAttribute('data-commission-rate-value')||event.target.name==='flexible_cap_value')refreshFlexible();
     },{signal:editCtrl.signal});
-    form.addEventListener('focusin',event=>{if(event.target.name==='value'&&event.target.value==='0')event.target.select();},{signal:editCtrl.signal});
+    form.addEventListener('focusin',event=>{if(event.target.type==='number'&&event.target.value==='0')event.target.select();},{signal:editCtrl.signal});
     form.addEventListener('change',()=>{
-      form.querySelector('[data-commission-products]').hidden=form.elements.scope.value==='transaction';
+      refreshFlexible();
       form.elements.value.max=form.elements.kind.value==='percent'?'100':'1000000000000';
       form.querySelector('[data-commission-value-note]').textContent=form.elements.kind.value==='percent'?'Persentase 0–100 dari harga produk yang berlaku.':form.elements.scope.value==='product'?'Nominal Rupiah untuk setiap unit produk.':'Nominal Rupiah untuk setiap transaksi lunas.';
+    },{signal:editCtrl.signal});
+    form.addEventListener('click',event=>{
+      const button=event.target.closest('button');if(!button||busy||attempt||conflict)return;
+      const scenario=button.closest('[data-commission-scenario]'),kind=form.elements.flexible_cap_kind.value;
+      if(button.hasAttribute('data-commission-scenario-add')){
+        if(form.querySelectorAll('[data-commission-scenario]').length>=25)return;
+        form.querySelector('[data-commission-scenarios]').insertAdjacentHTML('beforeend',scenarioForm({id:crypto.randomUUID(),name:'',rates:[{staff_id:'',kind,value:0}]},api.data.staff,selectedStaff(),kind));
+        form.querySelector('[data-commission-scenarios]').lastElementChild.querySelector('[data-commission-scenario-name]').focus();
+      }
+      if(button.hasAttribute('data-commission-scenario-remove'))scenario.remove();
+      if(button.hasAttribute('data-commission-rate-add')){
+        if(scenario.querySelectorAll('[data-commission-rate]').length>=500||form.elements.selection_mode.value==='single'&&scenario.querySelector('[data-commission-rate]'))return;
+        scenario.querySelector('[data-commission-rates]').insertAdjacentHTML('beforeend',scenarioRate({staff_id:'',value:0},api.data.staff,selectedStaff(),kind));
+        scenario.querySelector('[data-commission-rates]').lastElementChild.querySelector('select').focus();
+      }
+      if(button.hasAttribute('data-commission-rate-remove'))button.closest('[data-commission-rate]').remove();
+      refreshFlexible();
     },{signal:editCtrl.signal});
     form.addEventListener('submit',async event=>{
       event.preventDefault(); if(busy||conflict||!live())return;
       try {
-        if(!attempt){const values=new FormData(form);attempt=commissionDraft({...Object.fromEntries(values),id:rule.id,is_active:values.get('is_active')==='true',required:values.get('required')==='true',staff_ids:values.getAll('staff_ids'),product_ids:values.getAll('product_ids')},api.outlet.id,{...api.data,existing});}
+        if(!attempt){const values=new FormData(form);attempt=commissionDraft({...Object.fromEntries(values),id:rule.id,is_active:values.get('is_active')==='true',required:values.get('required')==='true',staff_ids:values.getAll('staff_ids'),product_ids:values.getAll('product_ids'),flexible:readFlexible()},api.outlet.id,{...api.data,existing,rules:catalog.rules});}
       }catch(error){feedback(commissionError(error));return;}
       busy=true;errorBox.hidden=true;
       const controls=[...panel.querySelectorAll('button,input,select,textarea')];controls.forEach(control=>control.disabled=true);panel.setAttribute('aria-busy','true');
       try {
-        await saveCommissionGroup(api.client,api.user,api.outlet,attempt,existing,operationId,api.data,ctrl.signal);
+        await saveCommissionGroup(api.client,api.user,api.outlet,attempt,existing,operationId,{...api.data,rules:catalog.rules},ctrl.signal);
         if(!live())return;api.closeModal();api.toast('Grup komisi tersimpan.');await reload();
       } catch(error) {
         if(!live())return;
@@ -86,7 +148,7 @@ export function mountCommissions(host, api) {
         // Unknown outcome: preserve operation id and exact payload for a safe retry.
       } finally {
         busy=false;
-        if(live()){panel.removeAttribute('aria-busy');panel.querySelectorAll('button').forEach(control=>control.disabled=conflict&&control.type==='submit');if(!attempt)controls.forEach(control=>control.disabled=false);}
+        if(live()){panel.removeAttribute('aria-busy');panel.querySelectorAll('button').forEach(control=>control.disabled=conflict&&control.type==='submit');if(!attempt){controls.forEach(control=>control.disabled=false);refreshFlexible();}}
       }
     },{signal:editCtrl.signal});
   }

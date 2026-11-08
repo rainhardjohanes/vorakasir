@@ -136,7 +136,8 @@ function hub(report,commissionPilotEnabled=false) {
     ['product-report', 'product', 'Performa produk', 'Kenali produk terlaris dan nilai item yang masih terjual.', `${number(report.products.length)} produk tercatat`],
     ['payments', 'payment', 'Metode pembayaran', 'Lihat komposisi penerimaan, refund, dan biaya pembayaran.', `${number(report.methods.length)} metode pembayaran`],
     ['commission-report', 'staff', 'Komisi staf', 'Komisi penerima pada transaksi lunas, termasuk pengurang refund.', 'Laporan terpisah dari kinerja kasir'],
-    ['staff-report', 'staff', 'Performa staf', 'Tinjau transaksi dan penerimaan berdasarkan nama kasir.', `${number(report.cashiers.length)} nama kasir`],
+    ['staff-performance', 'staff', 'Kinerja staf', 'Lihat layanan yang dikerjakan, penjualan item, dan komisi per staf.', 'Berdasarkan staf pelaksana layanan'],
+    ['staff-report', 'staff', 'Kinerja kasir', 'Tinjau transaksi dan penerimaan berdasarkan nama kasir.', `${number(report.cashiers.length)} nama kasir`],
     ['refunds', 'refund', 'Pengembalian dana', 'Periksa pengembalian dana untuk struk pada periode pilihan.', `${number(report.refunds.length)} struk dengan refund`],
     ['expenses', 'expense', 'Biaya usaha', 'Pantau biaya operasional dan catatan pembatalannya.', `${number(report.expense.expenses.length)} catatan biaya`],
   ];

@@ -1,6 +1,6 @@
 import { normalizeReceiptDetails } from '/dashboard-receipt-details.js';
 import { receiptIdentity } from '/dashboard-lib-importedHistory.js';
-import { reportExportRows } from '/dashboard-reports.js';
+import { reportExportRows, reportAvailabilityNotes } from '/dashboard-reports.js';
 import { outletDisplayName, validateRange } from '/dashboard-data.js';
 
 let enginePromise;
@@ -70,7 +70,7 @@ function receiptItemDetails(view, report) {
     'Setiap baris mengikuti urutan item pada struk tersimpan. Produk yang sama dengan harga, staf atau catatan berbeda tetap terpisah.',
     'Harga item sudah termasuk ekstra. Nilai item bukan penerimaan bersih; diskon nota, pajak, layanan dan refund tetap mengikuti laporan utama.',
     'Penyesuaian pembayaran bukan produk atau layanan. Pokok pembayaran dan nilai order adalah referensi, bukan tambahan penerimaan.',
-    'Staf dan catatan berasal dari snapshot struk; data yang tidak tersimpan ditampilkan sebagai — dan tidak diisi dari katalog atau daftar staf saat ini.',
+    'Staf dan catatan mengikuti rincian pada struk. Data yang tidak tercatat ditampilkan sebagai —.',
   ] };
 }
 const numberText = value => Number(value).toLocaleString('id-ID', { maximumFractionDigits: 20 });
@@ -94,7 +94,7 @@ export function reportWorkbookModel({ view, report, outlet, range = report?.rang
     'Data hanya mencakup catatan tersinkron. Tanggal usaha mengikuti tanggal pada struk.',
     '— berarti data belum tersedia atau tidak berlaku; bukan angka nol.',
   ];
-  if (!report.finance?.complete) notes.push(`Laporan sementara: ${(report.finance?.issues || []).join(' ') || 'Sebagian komponen belum lengkap. Periksa rekonsiliasi.'}`);
+  notes.push(...reportAvailabilityNotes(view, report));
   if (report.manualCashOut?.rows?.length) notes.push(`Kas keluar manual belum dikategorikan dan tidak termasuk total biaya usaha maupun perhitungan laba. Sebagian kas keluar dapat berupa penarikan uang owner. Tanggal kas keluar mengikuti zona waktu outlet ${report.manualCashOut.timeZone || zone}. Rincian lengkap ada pada laporan Biaya usaha.`);
   const itemDetails = receiptItemDetails(view, report);
   return { view, title: titles[view], outletId: outlet.id, outletName: text(outletDisplayName(outlet)), range: { ...range }, generatedAt: generated.toISOString(), generatedLabel, timeZone: zone, headers, rows, notes, itemDetails, moneyColumns: headers.map(header => moneyColumns.has(header)) };
@@ -122,7 +122,7 @@ function addItemDetailSheet(workbook, model) {
   merged(sheet, 4, lastColumn, `Periode usaha: ${model.range.start} s.d. ${model.range.end}`);
   merged(sheet, 5, lastColumn, `Dibuat: ${model.generatedLabel} (${model.timeZone})`);
   merged(sheet, 6, lastColumn, `Cakupan: seluruh periode · ${detail.rows.length.toLocaleString('id-ID')} baris item dan penyesuaian`, { color: colors.muted });
-  merged(sheet, 7, lastColumn, 'Rincian snapshot; nilai item dan penyesuaian tidak dijumlahkan ulang sebagai penerimaan.', { color: colors.muted });
+  merged(sheet, 7, lastColumn, 'Rincian transaksi; nilai item dan penyesuaian bukan tambahan penerimaan.', { color: colors.muted });
   const header = sheet.getRow(9); header.values = detail.headers; header.height = 38;
   header.eachCell(cell => {
     cell.font = { name: 'Aptos', size: 11, bold: true, color: { argb: colors.white } };

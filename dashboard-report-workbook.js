@@ -1,3 +1,5 @@
+import { normalizeReceiptDetails } from '/dashboard-receipt-details.js';
+import { receiptIdentity } from '/dashboard-lib-importedHistory.js';
 import { reportExportRows } from '/dashboard-reports.js';
 import { outletDisplayName, validateRange } from '/dashboard-data.js';
 
@@ -9,6 +11,9 @@ const titles = Object.freeze({ overview: 'Ringkasan dan transaksi', reports: 'Se
 const colors = { ink: 'FF18372B', green: 'FF17664C', pale: 'FFF0F7F2', line: 'FFD6E4DC', white: 'FFFFFFFF', muted: 'FF52645B' };
 const amountFormat = '"Rp "#,##0.00;[Red]("Rp "#,##0.00);"Rp "0.00';
 const moneyColumns = new Set(['Nominal IDR', 'Nilai item sebelum diskon dan pajak struk', 'Nilai struk sebelum refund', 'Refund', 'Penerimaan bersih', 'Rata-rata penerimaan per struk', 'MDR', 'Total struk', 'Penerimaan tersisa', 'Subtotal', 'Diskon', 'Pajak', 'Layanan', 'Surcharge']);
+const transactionViews = new Set(['overview', 'reports', 'sales', 'refunds']);
+const itemHeaders = ['No. struk', 'ID transaksi', 'Tanggal usaha', 'Waktu struk', 'Kasir', 'Pelanggan', 'Telepon pelanggan', 'Alamat pelanggan', 'No. order', 'Pemesan', 'Catatan pesanan', 'Baris struk', 'Jenis baris', 'Produk / layanan', 'Kategori', 'SKU', 'Satuan', 'Qty pada struk', 'Qty refund', 'Qty tersisa', 'Harga / item', 'Nilai item', 'Staf pelaksana', 'Catatan item', 'Ekstra tercatat', 'Kelompok harga', 'Harga normal tercatat', 'Harga referensi nego', 'Harga minimum nego', 'Batas nego (%)', 'Harga nego tercatat', 'Jenis pembayaran', 'ID order pembayaran', 'Pokok pembayaran tercatat', 'Nilai order tercatat', 'Struk pembayaran sebelumnya'];
+const itemMoneyHeaders = new Set(['Harga / item', 'Nilai item', 'Harga normal tercatat', 'Harga referensi nego', 'Harga minimum nego', 'Harga nego tercatat', 'Pokok pembayaran tercatat', 'Nilai order tercatat']);
 
 function text(value) {
   const result = String(value ?? '').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, ' ');
@@ -38,6 +43,38 @@ function validateScope(report, outlet, range) {
   if (!Array.isArray(manualRows) || manualRows.some(row => !row?.record || row.record.outlet_id !== outlet.id)) throw new TypeError('Kas keluar manual tidak sesuai outlet terpilih. Muat ulang laporan.');
 }
 
+function receiptItemDetails(view, report) {
+  if (!transactionViews.has(view)) return null;
+  const refundIds = new Set(report.refunds.map(sale => sale.id));
+  const sales = view === 'refunds' ? report.sales.filter(sale => refundIds.has(sale.id)) : report.sales;
+  const rows = [];
+  for (const sale of sales) {
+    const details = normalizeReceiptDetails(sale);
+    const lines = [...details.items.map(line => ({ line, kind: 'Produk / layanan' })),
+      ...details.adjustments.map(line => ({ line, kind: 'Penyesuaian pembayaran' }))]
+      .sort((a, b) => a.line.index - b.line.index);
+    for (const { line, kind } of lines) {
+      if (rows.length >= REPORT_EXPORT_LIMIT) throw new TypeError('Rincian item melebihi 50.000 baris. Pilih periode lebih pendek; ekspor tidak dipotong.');
+      const extras = line.extras.map(extra => `${extra.group ? `${extra.group}: ` : ''}${extra.name}${extra.price === null ? '' : ` (Rp ${numberText(extra.price)} / item)`}`).join('\n');
+      rows.push([receiptIdentity(sale), sale.id, sale.date, sale.time, sale.cashier, details.customer.name || null,
+        details.customer.phone || null, details.customer.address || null, details.orderReference || null, details.requester || null,
+        details.orderNote || null, line.index + 1, kind, line.name, line.category || null, line.sku || null, line.unit || null,
+        line.qty, line.refundedQty, line.remainingQty, line.price, line.total, line.servedBy || null, line.note || null,
+        extras || null, line.pricing.groupName || null, line.pricing.normalPrice, line.pricing.referencePrice,
+        line.pricing.minimumPrice, line.pricing.maxPercent, line.pricing.negotiatedPrice ?? line.pricing.negotiated,
+        details.payment?.mode ?? null, details.payment?.orderId ?? null, details.payment?.principal ?? null,
+        details.payment?.orderTotal ?? null, details.payment?.previousSaleIds?.join('\n') || null].map(scalar));
+    }
+  }
+  return { headers: [...itemHeaders], rows, moneyColumns: itemHeaders.map(header => itemMoneyHeaders.has(header)), notes: [
+    'Setiap baris mengikuti urutan item pada struk tersimpan. Produk yang sama dengan harga, staf atau catatan berbeda tetap terpisah.',
+    'Harga item sudah termasuk ekstra. Nilai item bukan penerimaan bersih; diskon nota, pajak, layanan dan refund tetap mengikuti laporan utama.',
+    'Penyesuaian pembayaran bukan produk atau layanan. Pokok pembayaran dan nilai order adalah referensi, bukan tambahan penerimaan.',
+    'Staf dan catatan berasal dari snapshot struk; data yang tidak tersimpan ditampilkan sebagai — dan tidak diisi dari katalog atau daftar staf saat ini.',
+  ] };
+}
+const numberText = value => Number(value).toLocaleString('id-ID', { maximumFractionDigits: 20 });
+
 /** Pure full-period export model; screen search and pagination do not truncate it. */
 export function reportWorkbookModel({ view, report, outlet, range = report?.range, generatedAt = new Date().toISOString(), timeZone } = {}) {
   if (!Object.hasOwn(titles, view)) throw new TypeError('Jenis laporan tidak didukung untuk ekspor ini.');
@@ -59,7 +96,8 @@ export function reportWorkbookModel({ view, report, outlet, range = report?.rang
   ];
   if (!report.finance?.complete) notes.push(`Laporan sementara: ${(report.finance?.issues || []).join(' ') || 'Sebagian komponen belum lengkap. Periksa rekonsiliasi.'}`);
   if (report.manualCashOut?.rows?.length) notes.push(`Kas keluar manual belum dikategorikan dan tidak termasuk total biaya usaha maupun perhitungan laba. Sebagian kas keluar dapat berupa penarikan uang owner. Tanggal kas keluar mengikuti zona waktu outlet ${report.manualCashOut.timeZone || zone}. Rincian lengkap ada pada laporan Biaya usaha.`);
-  return { view, title: titles[view], outletId: outlet.id, outletName: text(outletDisplayName(outlet)), range: { ...range }, generatedAt: generated.toISOString(), generatedLabel, timeZone: zone, headers, rows, notes, moneyColumns: headers.map(header => moneyColumns.has(header)) };
+  const itemDetails = receiptItemDetails(view, report);
+  return { view, title: titles[view], outletId: outlet.id, outletName: text(outletDisplayName(outlet)), range: { ...range }, generatedAt: generated.toISOString(), generatedLabel, timeZone: zone, headers, rows, notes, itemDetails, moneyColumns: headers.map(header => moneyColumns.has(header)) };
 }
 
 function merged(sheet, rowIndex, endColumn, value, { size = 11, bold = false, color = colors.ink, height = 24, fill } = {}) {
@@ -70,6 +108,47 @@ function merged(sheet, rowIndex, endColumn, value, { size = 11, bold = false, co
   cell.alignment = { vertical: 'middle', wrapText: true };
   if (fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
   sheet.getRow(rowIndex).height = height;
+}
+
+function addItemDetailSheet(workbook, model) {
+  const detail = model.itemDetails;
+  if (!detail) return;
+  const sheet = workbook.addWorksheet('Rincian item', { properties: { tabColor: { argb: colors.green } } });
+  sheet.columns = detail.headers.map((header, index) => ({ width: detail.moneyColumns[index] ? 22 : /Catatan|Ekstra|Alamat|sebelumnya/.test(header) ? 48 : /Qty|Baris/.test(header) ? 16 : 29 }));
+  const lastColumn = detail.headers.length;
+  merged(sheet, 1, lastColumn, 'VORA POS', { size: 14, bold: true, color: colors.green });
+  merged(sheet, 2, lastColumn, 'RINCIAN ITEM PADA STRUK', { size: 20, bold: true, height: 38 });
+  merged(sheet, 3, lastColumn, `Outlet: ${model.outletName}`);
+  merged(sheet, 4, lastColumn, `Periode usaha: ${model.range.start} s.d. ${model.range.end}`);
+  merged(sheet, 5, lastColumn, `Dibuat: ${model.generatedLabel} (${model.timeZone})`);
+  merged(sheet, 6, lastColumn, `Cakupan: seluruh periode · ${detail.rows.length.toLocaleString('id-ID')} baris item dan penyesuaian`, { color: colors.muted });
+  merged(sheet, 7, lastColumn, 'Rincian snapshot; nilai item dan penyesuaian tidak dijumlahkan ulang sebagai penerimaan.', { color: colors.muted });
+  const header = sheet.getRow(9); header.values = detail.headers; header.height = 38;
+  header.eachCell(cell => {
+    cell.font = { name: 'Aptos', size: 11, bold: true, color: { argb: colors.white } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.green } };
+    cell.alignment = { vertical: 'middle', wrapText: true };
+  });
+  for (const [index, values] of detail.rows.entries()) {
+    const row = sheet.getRow(index + 10); row.values = values;
+    row.height = Math.max(...values.map(value => typeof value === 'string' ? value.length : 0)) > 80 ? 72 : 36;
+    row.eachCell((cell, column) => {
+      const numeric = typeof cell.value === 'number';
+      cell.font = { name: 'Aptos', size: 11, color: { argb: colors.ink } };
+      cell.numFmt = numeric ? detail.moneyColumns[column - 1] ? amountFormat : '#,##0.########' : '@';
+      cell.alignment = { vertical: 'middle', wrapText: true, horizontal: numeric ? 'right' : 'left' };
+      cell.border = { bottom: { style: 'hair', color: { argb: colors.line } } };
+      if (index % 2 === 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.pale } };
+    });
+  }
+  let next = detail.rows.length + 11;
+  if (!detail.rows.length) merged(sheet, next++, lastColumn, 'Tidak ada rincian item tersimpan pada periode ini.', { color: colors.muted });
+  for (const note of detail.notes) merged(sheet, next++, lastColumn, note, { size: 10, color: colors.muted, height: 32 });
+  sheet.views = [{ state: 'frozen', ySplit: 9, activeCell: 'A10', showGridLines: false }];
+  sheet.autoFilter = { from: { row: 9, column: 1 }, to: { row: Math.max(9, 9 + detail.rows.length), column: lastColumn } };
+  sheet.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 0, fitToHeight: 0, printTitlesRow: '9:9' };
+  sheet.pageSetup.printArea = `A1:${sheet.getColumn(lastColumn).letter}${next - 1}`;
+  sheet.headerFooter = { oddFooter: '&LVORA Kasir · Rincian item&RHalaman &P dari &N' };
 }
 
 /** Local-only XLSX bytes. Caller must recheck auth/outlet/range before exposing a link. */
@@ -124,5 +203,6 @@ export async function createReportWorkbook(options) {
   sheet.pageSetup = { paperSize: 9, orientation: lastColumn > 5 ? 'landscape' : 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '9:9', margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 } };
   sheet.pageSetup.printArea = `A1:${sheet.getColumn(lastColumn).letter}${next - 1}`;
   sheet.headerFooter = { oddFooter: '&LVORA Kasir&RHalaman &P dari &N' };
+  addItemDetailSheet(workbook, model);
   return new Uint8Array(await workbook.xlsx.writeBuffer({ useStyles: true, useSharedStrings: true }));
 }

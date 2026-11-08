@@ -34,6 +34,9 @@ const styles = `<style>
  #vora-full-report-print th{background:#edf5ef!important;color:#17664c;font-size:8pt;font-weight:700}
  #vora-full-report-print .vx-number{text-align:right;font-variant-numeric:tabular-nums}
  #vora-full-report-print .vx-record{border:1px solid #cbd8ce;padding:4mm;margin:0 0 4mm;break-inside:avoid;page-break-inside:avoid}
+ #vora-full-report-print .vx-item-record{border:1px solid #cbd8ce;padding:4mm;margin:0 0 4mm;break-inside:auto;page-break-inside:auto}
+ #vora-full-report-print .vx-item-record dl{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #vora-full-report-print .vx-item-record .vx-item-wide{grid-column:1/-1}
  #vora-full-report-print dl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3mm 5mm;margin:0}
  #vora-full-report-print dl>div{min-width:0;overflow-wrap:anywhere}
  #vora-full-report-print dt{font-size:7.5pt;color:#52695b;font-weight:600;margin:0 0 1mm}
@@ -52,6 +55,13 @@ function fullRows(headers, rows, currency = []) {
   return rows.length ? rows.map((row, index) => `<article class="vx-record"><h3>Catatan ${index + 1}</h3><dl>${headers.map((header, column) => `<div><dt>${escape(header)}</dt><dd>${escape(display(row[column], currency[column]))}</dd></div>`).join('')}</dl></article>`).join('') : '<p>Tidak ada catatan pada periode ini.</p>';
 }
 
+function itemDetailRecords(model) {
+  const detail = model.itemDetails;
+  if (!detail) return '';
+  const records = detail.rows.map(row => `<article class="vx-item-record"><h3>Struk ${escape(row[0])} · Baris ${escape(row[11])} · ${escape(row[13])}</h3><dl>${detail.headers.map((header, column) => `<div${/Catatan|Ekstra|Alamat|sebelumnya/.test(header) ? ' class="vx-item-wide"' : ''}><dt>${escape(header)}</dt><dd>${escape(display(row[column], detail.moneyColumns[column]))}</dd></div>`).join('')}</dl></article>`).join('');
+  return `<section class="vx-item-details"><h2>Seluruh rincian item · ${detail.rows.length} baris</h2>${detail.notes.map(note => `<p class="vx-note">${escape(note)}</p>`).join('')}${records || '<p>Tidak ada rincian item tersimpan pada periode ini.</p>'}</section>`;
+}
+
 /** Complete, escaped print markup. No screen pagination, network or side effects. */
 export function createReportPrintMarkup(options = {}) {
   if (options.view === 'commission-report') {
@@ -63,5 +73,5 @@ export function createReportPrintMarkup(options = {}) {
     return `${styles}<header class="vx-meta"><span class="vx-brand">VORA POS</span><h1>Laporan komisi karyawan</h1><p>Outlet: ${escape(model.outletName)}</p><p>Periode transaksi: ${escape(model.dateFrom)} s.d. ${escape(model.dateUntil)}</p><p>Dibuat: ${escape(model.generatedLabel)} (${escape(model.timeZone)})</p><p>Filter: ${escape(model.filters.search || 'Semua karyawan dan cabang')}</p><p>${escape(model.totalLabel)}: <strong>${escape(display(model.totals.net, true))}</strong></p></header><h2>Ringkasan komisi</h2>${table(summaryHeaders, summaryRows, [false, false, false, false, true])}<p class="vx-note">${escape(model.countNote)}</p>${model.warnings.map(warning => `<p class="vx-note">${escape(warning)}</p>`).join('')}<h2>Seluruh rincian komisi · ${detailRows.length} catatan</h2>${fullRows(detailHeaders, detailRows, detailHeaders.map((_, index) => [20, 21, 22, 23].includes(index)))}<p class="vx-note">— berarti data belum tersedia atau tidak berlaku. Catatan komisi bukan bukti pembayaran gaji.</p>`;
   }
   const model = reportWorkbookModel(options);
-  return `${styles}<header class="vx-meta"><span class="vx-brand">VORA POS</span><h1>${escape(model.title)}</h1><p>Outlet: ${escape(model.outletName)}</p><p>Periode usaha: ${escape(model.range.start)} s.d. ${escape(model.range.end)}</p><p>Dibuat: ${escape(model.generatedLabel)} (${escape(model.timeZone)})</p></header>${model.notes.map(note => `<p class="vx-note">${escape(note)}</p>`).join('')}${fullRows(model.headers, model.rows, model.moneyColumns)}`;
+  return `${styles}<header class="vx-meta"><span class="vx-brand">VORA POS</span><h1>${escape(model.title)}</h1><p>Outlet: ${escape(model.outletName)}</p><p>Periode usaha: ${escape(model.range.start)} s.d. ${escape(model.range.end)}</p><p>Dibuat: ${escape(model.generatedLabel)} (${escape(model.timeZone)})</p></header>${model.notes.map(note => `<p class="vx-note">${escape(note)}</p>`).join('')}${fullRows(model.headers, model.rows, model.moneyColumns)}${itemDetailRecords(model)}`;
 }

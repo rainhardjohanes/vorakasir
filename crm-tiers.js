@@ -1,4 +1,4 @@
-import { esc, date } from '/crm-model.js';
+import { esc, date, renewalPayload } from '/crm-model.js';
 
 export const canManageTier = session => session?.member?.active === true && ['owner','admin'].includes(session.member.role);
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -13,6 +13,36 @@ export function tierPayload(values,entitlement,operationId) {
   const note=String(values.note||'').trim();
   if(!note || note.length>2000 || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(note)) throw new TypeError('Isi alasan perubahan, maksimal 2.000 karakter.');
   return {p_outlet_id:values.outlet,p_operation_id:operationId,p_tier:values.tier,p_expected_version:entitlement.version,p_note:note};
+}
+// Paid renewal has its own atomic contract. A non-pilot outlet can select a
+// package here; the separate feature-only editor retains its pilot restriction.
+export function renewalTierPayload(values, entitlement, operationId, session, outlet) {
+  if (!canManageTier(session)) throw new TypeError('Hanya pemilik atau admin CRM yang dapat memilih paket fitur.');
+  validateEntitlement(entitlement, outlet?.id);
+  if (!uuid(operationId) || !uuid(outlet?.id) || values.outlet !== outlet.id || !['starter', 'premium'].includes(values.tier)) throw new TypeError('Pilih paket Starter atau Premium untuk outlet ini.');
+  return {...renewalPayload(values, operationId),
+    p_expected_end_date: outlet.subscription_end_date || null,
+    p_expected_plan: outlet.subscription_plan || null,
+    p_tier: values.tier, p_expected_tier: entitlement.tier, p_expected_version: entitlement.version,
+    p_activate_paid_outlet: values.tier === 'premium'};
+}
+export function validateTierRenewalResult(result, payload) {
+  const r = result?.renewal, e = validateEntitlement(result?.entitlement, payload.p_outlet_id);
+  const deadline = new Date(r?.new_subscription_end_date).getTime();
+  const oldDeadline = payload.p_expected_end_date == null ? null : new Date(payload.p_expected_end_date).getTime();
+  const sameOldDate = payload.p_expected_end_date == null ? r?.old_subscription_end_date == null : new Date(r?.old_subscription_end_date).getTime() === oldDeadline;
+  if (!r || typeof result.replayed !== 'boolean' || typeof result.server_now !== 'string' || !Number.isFinite(new Date(result.server_now).getTime()) ||
+    r.operation_id !== payload.p_operation_id || r.outlet_id !== payload.p_outlet_id || r.months !== payload.p_months ||
+    r.amount_idr !== payload.p_amount_idr || r.payment_reference !== payload.p_payment_reference || r.note !== payload.p_note ||
+    r.old_subscription_plan !== payload.p_expected_plan || !sameOldDate || typeof r.new_subscription_end_date !== 'string' || !Number.isFinite(deadline) ||
+    (oldDeadline !== null && (!Number.isFinite(oldDeadline) || deadline <= oldDeadline)) ||
+    r.new_subscription_plan !== ({1:'Monthly',12:'Annual',24:'Biennial'}[payload.p_months]) ||
+    result.tier !== payload.p_tier || result.previous_tier !== payload.p_expected_tier || result.previous_version !== payload.p_expected_version ||
+    e.tier !== payload.p_tier || e.version !== payload.p_expected_version + 1 ||
+    (payload.p_tier === 'premium' && (!e.pilot_enabled || !e.subscription_active || !e.features.special_pricing || !e.features.staff_commissions))) {
+    throw new TypeError('Konfirmasi langganan dan paket belum cocok. Periksa kembali permintaan yang sama.');
+  }
+  return result;
 }
 export function tierError(error) {
   if(error?.code==='PT409')return 'Paket sudah diubah oleh admin lain. Muat ulang status sebelum mencoba kembali.';

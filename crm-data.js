@@ -52,6 +52,7 @@ export function createApi(client) {
     }),
     followup: args => call('vora_crm_followup', args),
     renew: args => call('vora_crm_renew', args),
+    renewWithTier: args => call('vora_crm_renew_with_tier', args),
     entitlement: id => call('vora_outlet_entitlements', {p_outlet_id:id}),
     setTier: args => call('vora_crm_set_outlet_tier', args),
     leads: (args = {}) => call('vora_crm_leads', args),

@@ -1,5 +1,5 @@
 import {LEAD_STAGES,LEAD_LISTS,CALL_OUTCOMES,leadPayload,callPayload,leadError,leadBadge,callOptions,leadOptions,leadContactHint,leadHistory} from '/crm-telesales.js';
-import {canManageTier,validateEntitlement,tierPayload,tierError,tierBody} from '/crm-tiers.js';
+import {canManageTier,validateEntitlement,tierPayload,tierError,tierBody,renewalTierPayload,validateTierRenewalResult} from '/crm-tiers.js';
 import { createAuth } from '/crm-auth.js';
 import { createApi } from '/crm-data.js';
 import { STATUS, USAGE_STAGES, USAGE_HELP, USAGE_SORTS, usageCount, saleDate, OUTCOME, ROLES, ROLE_HELP, PLANS, esc, money, date, remaining, customerExpiry, whatsapp, renewalPreview, renewalPayload, isRenewalConflict, allowedPages, humanError, DEMO_CATEGORIES, DEMO_STATUS, demoAccountPayload, demoRecovery, demoError, telesalesPayload, referralError } from '/crm-model.js';
@@ -218,7 +218,7 @@ function render() {
   if (!state.session) return;
   const member = state.session.member;
   const pages = allowedPages(state.session.permissions);
-  app.innerHTML = `<div class="app-shell ${state.menu ? 'menu-open' : ''}"><button class="mobile-overlay" aria-label="Tutup navigasi" data-action="menu-close"></button><aside class="sidebar"><div class="brand"><img src="/crm-assets-vora-logo-transparent.png" alt="VORA"><span>CRM</span></div><div class="nav-label">WORKSPACE</div><nav class="nav-list" aria-label="Navigasi CRM">${pages.filter(p => !['referrals', 'team', 'audit'].includes(p)).map(p => navButton(p)).join('')}</nav>${pages.some(p => ['referrals', 'team', 'audit'].includes(p)) ? `<div class="nav-label">PENGELOLAAN</div><nav class="nav-list" aria-label="Pengelolaan CRM">${pages.filter(p => ['referrals', 'team', 'audit'].includes(p)).map(p => navButton(p)).join('')}</nav>` : ''}<div class="sidebar-bottom"><div class="row"><div class="member-avatar">${esc(initials(member.email))}</div><div class="member-copy"><strong>${esc(member.email?.split('@')[0] || 'Tim VORA')}</strong><small>${esc(ROLES[member.role] || member.role)}</small></div><button class="logout-button" data-action="logout" aria-label="Keluar" title="Keluar">${icon('logout')}</button></div><p class="sidebar-note">Ruang kerja internal VORA.<br>Akses sesuai peran Anda.</p></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>${nav[state.page][0]}</strong></div><div class="mobile-brand"><button class="icon-button mobile-menu" data-action="menu" aria-label="Buka navigasi" aria-expanded="${state.menu}">${icon('menu')}</button><img src="/crm-assets-vora-logo-transparent.png" alt="VORA"><small>CRM</small></div><div class="topbar-right"><span class="today">${esc(date(new Date()))}</span><span class="private-label">${icon('lock')} INTERNAL ONLY</span></div></header><main id="main" class="main-content" tabindex="-1">${pageHeading()}${state.error ? `<div class="error page-error" role="alert">${esc(state.error)} <button class="link-button" data-action="refresh">Coba lagi</button></div>` : ''}<div id="page-content" ${state.loading ? 'aria-busy="true"' : ''}>${state.loading && !state.data ? loading() : pageContent()}</div></main></div></div>`;
+  app.innerHTML = `<div class="app-shell ${state.menu ? 'menu-open' : ''}"><button class="mobile-overlay" aria-label="Tutup navigasi" data-action="menu-close"></button><aside class="sidebar"><div class="brand"><img src="/crm-assets-vora-logo-transparent.png" alt="VORA"><span>CRM</span></div><div class="nav-label">WORKSPACE</div><nav class="nav-list" aria-label="Navigasi CRM">${pages.filter(p => !['referrals', 'team', 'audit'].includes(p)).map(p => navButton(p)).join('')}</nav>${pages.some(p => ['referrals', 'team', 'audit'].includes(p)) ? `<div class="nav-label">PENGELOLAAN</div><nav class="nav-list" aria-label="Pengelolaan CRM">${pages.filter(p => ['referrals', 'team', 'audit'].includes(p)).map(p => navButton(p)).join('')}</nav>` : ''}<div class="sidebar-bottom"><div class="row"><div class="member-avatar">${esc(initials(member.email))}</div><div class="member-copy"><strong>${esc(member.email?.split('@')[0] || 'Tim VORA')}</strong><small>${esc(ROLES[member.role] || member.role)}</small></div><button class="logout-button" data-action="logout" aria-label="Keluar" title="Keluar">${icon('logout')}</button></div><p class="sidebar-note">Ruang kerja internal VORA.<br>Akses sesuai peran Anda. · Versi 09.11.26.1</p></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>${nav[state.page][0]}</strong></div><div class="mobile-brand"><button class="icon-button mobile-menu" data-action="menu" aria-label="Buka navigasi" aria-expanded="${state.menu}">${icon('menu')}</button><img src="/crm-assets-vora-logo-transparent.png" alt="VORA"><small>CRM</small></div><div class="topbar-right"><span class="today">${esc(date(new Date()))}</span><span class="private-label">${icon('lock')} INTERNAL ONLY</span></div></header><main id="main" class="main-content" tabindex="-1">${pageHeading()}${state.error ? `<div class="error page-error" role="alert">${esc(state.error)} <button class="link-button" data-action="refresh">Coba lagi</button></div>` : ''}<div id="page-content" ${state.loading ? 'aria-busy="true"' : ''}>${state.loading && !state.data ? loading() : pageContent()}</div></main></div></div>`;
 }
 function navButton(page) {
   return `<button class="nav-item ${state.page === page ? 'active' : ''}" data-action="nav" data-page="${page}" ${state.page === page ? 'aria-current="page"' : ''}>${icon(nav[page][1])}${nav[page][0]}</button>`;
@@ -821,11 +821,11 @@ async function saveTier(form){
   catch(error){if(state.modal!==m||epoch!==state.epoch)return;if(denyAccess(error))return;m.conflict=error?.code==='PT409';m.uncertain=!m.conflict;m.error=tierError(error);}
   finally{if(state.modal===m&&epoch===state.epoch){m.busy=false;renderModal();}}
 }
-function openRenew(id) {
+async function openRenew(id) {
   if (!can('renew')) return;
-  const outlet = findOutlet(id);
+  const outlet = findOutlet(id) || (state.modal?.type === 'renew' && state.modal.outlet.id === id ? state.modal.outlet : null);
   if (!outlet) return toast('Muat ulang daftar outlet terlebih dahulu.');
-  setModal({
+  const m = {
     type: 'renew',
     outlet: {
       ...outlet
@@ -835,35 +835,77 @@ function openRenew(id) {
       months: 1,
       amount: PLANS[1],
       reference: '',
-      note: ''
+      note: '',
+      tier: ''
     },
+    withTier: canManageTier(state.session),
+    entitlement: null,
     operationId: uuid(),
     busy: false,
     error: '',
     uncertain: false,
     serverNow: state.modal?.detail?.server_now || state.data?.server_now || state.session.server_now
-  });
+  };
+  m.busy = m.withTier;
+  setModal(m);
+  if (!m.withTier) return;
+  const epoch = state.epoch;
+  try {
+    const value = validateEntitlement(await api.entitlement(id), id);
+    if (state.modal !== m || state.epoch !== epoch) return;
+    if (!can('renew') || !canManageTier(state.session)) { closeModal(); return; }
+    m.entitlement = value;
+    m.values.tier = value.tier;
+  } catch (error) {
+    if (state.modal !== m || state.epoch !== epoch) return;
+    if (denyAccess(error)) return;
+    m.error = tierError(error);
+  } finally {
+    if (state.modal === m && state.epoch === epoch) { m.busy = false; renderModal(); }
+  }
 }
 function renewModal(m) {
   const o = m.outlet;
-  if (m.phase === 'confirm') return modalFrame('Konfirmasi perpanjangan', o.name, `<div class="stack"><div class="preview-card"><strong>${esc(o.name)}</strong><p class="helper">${esc(m.payload.p_months)} bulan · ${esc(money(m.payload.p_amount_idr))}</p><div class="dates"><div><small>Aktif sebelumnya</small><strong>${esc(date(o.subscription_end_date))}</strong></div>${icon('arrow')}<div><small>Perkiraan aktif hingga</small><strong>${esc(date(renewalPreview(o, m.payload.p_months, m.serverNow)))}</strong></div></div></div><div class="notice">Tanggal akhir dihitung ulang oleh server dari masa aktif saat ini atau waktu perpanjangan, mana yang lebih akhir. Tanggal pasti akan tampil pada bukti perpanjangan.</div><dl class="detail-grid">${datum('Referensi pembayaran', m.payload.p_payment_reference)}${datum('Catatan', m.payload.p_note)}</dl><div class="notice warning">Pastikan pembayaran ${esc(money(m.payload.p_amount_idr))} sudah Anda terima. Tindakan ini menambah masa aktif outlet.</div>${m.error ? `<div class="error" role="alert">${esc(m.error)}</div>` : ''}${m.uncertain ? '<div class="notice warning">Hasil transaksi belum dapat dipastikan. Klik Periksa & lanjutkan untuk mengirim ulang transaksi yang sama tanpa menambah perpanjangan kedua. Jangan membuat perpanjangan baru.</div>' : ''}</div>`, `${!m.uncertain && !m.conflict ? `<button class="button" data-action="renew-back" ${m.busy ? 'disabled' : ''}>Kembali</button>` : ''}${m.conflict ? '<button class="button primary" data-action="renew-reload">Muat ulang outlet</button>' : `<button class="button primary" data-action="save-renewal" ${m.busy ? 'disabled' : ''}>${m.busy ? 'Memproses…' : m.uncertain ? 'Periksa & lanjutkan' : 'Konfirmasi perpanjangan'}</button>`}`);
-  return modalFrame('Perpanjang langganan', o.name, `<form id="renew-form" class="stack"><div class="preview-card"><strong>${esc(o.name)}</strong><p class="helper">${esc(planName(o.subscription_plan))} · Aktif hingga ${esc(date(o.subscription_end_date))}</p></div><div class="form-row"><label class="field">Durasi<select name="months" id="renew-months">${[1, 12, 24].map(month => `<option value="${month}" ${Number(m.values.months) === month ? 'selected' : ''}>${month === 1 ? '1 bulan' : month === 12 ? '1 tahun' : '2 tahun'}</option>`).join('')}</select></label><label class="field">Pembayaran diterima (Rp)<input name="amount" id="renew-amount" type="number" min="1" max="999999999999" step="1" value="${esc(m.values.amount)}" required></label></div><label class="field">Referensi pembayaran<input name="reference" maxlength="160" value="${esc(m.values.reference)}" required placeholder="Contoh: TRF-081026-001"><small>Nomor transaksi atau referensi internal untuk penelusuran.</small></label><label class="field">Catatan (opsional)<textarea name="note" maxlength="2000" placeholder="Detail pembayaran atau informasi tambahan">${esc(m.values.note)}</textarea></label><label class="check-line"><input type="checkbox" name="verified" required><span>Saya sudah memeriksa dan menerima pembayaran untuk outlet ini.</span></label><div class="error" role="alert">${esc(m.error)}</div></form>`, `<button class="button" data-action="close-modal">Batal</button><button class="button primary" type="submit" form="renew-form">Tinjau perpanjangan ${icon('arrow')}</button>`);
+  const packageLabel = tier => tier === 'premium' ? 'Premium' : 'Starter';
+  if (m.withTier && !m.entitlement) return modalFrame('Tambah / perpanjang langganan', o.name,
+    m.busy ? '<p role="status">Memuat paket fitur outlet…</p>' : `<div class="error" role="alert">${esc(m.error || 'Status paket belum tersedia. Muat ulang sebelum melanjutkan.')}</div>`,
+    `<button class="button" data-action="close-modal">Batal</button>${m.busy ? '' : '<button class="button primary" data-action="renew-status-retry">Muat ulang status</button>'}`);
+  const packageSummary = m.withTier ? datum('Paket fitur', packageLabel(m.payload?.p_tier || m.values.tier)) : datum('Paket fitur', 'Tetap seperti saat ini');
+  if (m.phase === 'confirm') return modalFrame('Konfirmasi langganan', o.name, `<div class="stack"><div class="preview-card"><strong>${esc(o.name)}</strong><p class="helper">${m.withTier ? `${esc(packageLabel(m.payload.p_tier))} · ` : ''}${esc(m.payload.p_months)} bulan · ${esc(money(m.payload.p_amount_idr))}</p><div class="dates"><div><small>Aktif sebelumnya</small><strong>${esc(date(o.subscription_end_date))}</strong></div>${icon('arrow')}<div><small>Perkiraan aktif hingga</small><strong>${esc(date(renewalPreview(o, m.payload.p_months, m.serverNow)))}</strong></div></div></div><div class="notice">Tanggal akhir dihitung ulang oleh server dari masa aktif saat ini atau waktu perpanjangan, mana yang lebih akhir. Tanggal pasti akan tampil pada bukti langganan.</div><dl class="detail-grid">${packageSummary}${datum('Durasi', `${m.payload.p_months} bulan`)}${datum('Referensi pembayaran', m.payload.p_payment_reference)}${datum('Catatan', m.payload.p_note)}</dl><div class="notice warning">Pastikan pembayaran ${esc(money(m.payload.p_amount_idr))} sudah Anda terima. ${m.withTier ? `Paket ${esc(packageLabel(m.payload.p_tier))} dan masa aktif akan disimpan bersama untuk outlet ini.` : 'Tindakan ini menambah masa aktif outlet; paket fitur tetap.'}</div>${m.error ? `<div class="error" role="alert">${esc(m.error)}</div>` : ''}${m.uncertain ? '<div class="notice warning">Hasil transaksi belum dapat dipastikan. Klik Periksa & lanjutkan untuk mengirim ulang transaksi yang sama tanpa menambah langganan kedua. Jangan membuat transaksi baru.</div>' : ''}</div>`, `${!m.uncertain && !m.conflict ? `<button class="button" data-action="renew-back" ${m.busy ? 'disabled' : ''}>Kembali</button>` : ''}${m.conflict ? '<button class="button primary" data-action="renew-reload">Muat ulang outlet</button>' : `<button class="button primary" data-action="save-renewal" ${m.busy ? 'disabled' : ''}>${m.busy ? 'Memproses…' : m.uncertain ? 'Periksa & lanjutkan' : 'Konfirmasi langganan'}</button>`}`);
+  return modalFrame('Tambah / perpanjang langganan', o.name, `<form id="renew-form" class="stack"><div class="preview-card"><strong>${esc(o.name)}</strong><p class="helper">${esc(planName(o.subscription_plan))} · Aktif hingga ${esc(date(o.subscription_end_date))}</p></div>${m.withTier ? `<label class="field">Paket fitur<select name="tier" id="renew-tier" required><option value="starter" ${m.values.tier === 'starter' ? 'selected' : ''}>Starter — fitur dasar</option><option value="premium" ${m.values.tier === 'premium' ? 'selected' : ''}>Premium — harga spesial & komisi staf</option></select><small>Pilih paket terpisah dari durasi. Pembayaran dicatat sesuai nominal yang Anda terima.</small></label>` : '<div class="notice">Paket fitur tetap seperti saat ini. Perubahan Starter / Premium memerlukan pemilik atau admin CRM.</div>'}<div class="form-row"><label class="field">Durasi<select name="months" id="renew-months">${[1, 12, 24].map(month => `<option value="${month}" ${Number(m.values.months) === month ? 'selected' : ''}>${month === 1 ? '1 bulan' : month === 12 ? '1 tahun' : '2 tahun'}</option>`).join('')}</select></label><label class="field">Pembayaran diterima (Rp)<input name="amount" id="renew-amount" type="number" min="1" max="999999999999" step="1" value="${esc(m.values.amount)}" required></label></div><label class="field">Referensi pembayaran<input name="reference" maxlength="160" value="${esc(m.values.reference)}" required placeholder="Contoh: TRF-081026-001"><small>Nomor transaksi atau referensi internal untuk penelusuran.</small></label><label class="field">Catatan (opsional)<textarea name="note" maxlength="2000" placeholder="Detail pembayaran atau informasi tambahan">${esc(m.values.note)}</textarea></label><label class="check-line"><input type="checkbox" name="verified" required><span>Saya sudah memeriksa paket, durasi, dan menerima pembayaran untuk outlet ini.</span></label><div class="error" role="alert">${esc(m.error)}</div></form>`, `<button class="button" data-action="close-modal">Batal</button><button class="button primary" type="submit" form="renew-form">Tinjau langganan ${icon('arrow')}</button>`);
+}
+function prepareRenewal(form) {
+  const m = state.modal;
+  if (!m || m.type !== 'renew' || m.phase !== 'form' || m.busy || m.uncertain || m.conflict || !can('renew')) return;
+  try {
+    m.values = Object.fromEntries(new FormData(form));
+    if (m.values.verified !== 'on') throw new Error('Periksa paket dan pembayaran, lalu centang konfirmasi.');
+    const values = {...m.values, outlet: m.outlet.id};
+    m.payload = Object.freeze(m.withTier ? renewalTierPayload(values, m.entitlement, m.operationId, state.session, m.outlet) : {
+      ...renewalPayload(values, m.operationId), p_expected_end_date: m.outlet.subscription_end_date || null, p_expected_plan: m.outlet.subscription_plan || null
+    });
+    m.phase = 'confirm'; m.error = '';
+  } catch (error) { m.error = error.message || 'Periksa data langganan.'; }
+  renderModal();
 }
 async function saveRenewal() {
   const m = state.modal;
-  if (!m || m.type !== 'renew' || m.busy || !m.payload || m.conflict) return;
+  if (!m || m.type !== 'renew' || m.busy || !m.payload || m.conflict || !can('renew') || (m.withTier && !canManageTier(state.session))) return;
   const epoch = state.epoch;
   m.busy = true;
   m.error = '';
   renderModal();
   try {
-    const result = await api.renew(m.payload);
+    const result = m.withTier ? await api.renewWithTier(m.payload) : await api.renew(m.payload);
     if (epoch !== state.epoch || state.modal !== m) return;
+    if (!can('renew') || (m.withTier && !canManageTier(state.session))) { closeModal(); return; }
     if (!result?.renewal) throw new TypeError('Respons server belum dapat dipastikan.');
+    if (m.withTier) validateTierRenewalResult(result, m.payload);
     setModal({
       type: 'receipt',
       renewal: result.renewal,
-      replayed: result.replayed
+      replayed: result.replayed,
+      tier: m.withTier ? result.tier : null
     });
     void loadPage();
   } catch (error) {
@@ -886,7 +928,7 @@ function definiteError(error) {
 }
 function receiptModal(m) {
   const r = m.renewal;
-  return modalFrame('Perpanjangan berhasil', '', `<div class="receipt"><div class="receipt-icon">${icon('check')}</div><h2>Bisnis siap berlanjut.</h2><p>${m.replayed ? 'Transaksi ini sudah tercatat sebelumnya. Tidak ada perpanjangan tambahan.' : 'Langganan outlet berhasil diperpanjang dan tersimpan.'}</p><div class="receipt-details"><div class="row"><span class="muted">Outlet</span><strong>${esc(r.outlet_name || 'Outlet')}</strong></div><div class="row"><span class="muted">Durasi</span><strong>${esc(r.months)} bulan</strong></div><div class="row"><span class="muted">Pembayaran</span><strong>${esc(money(r.amount_idr))}</strong></div><div class="row"><span class="muted">Aktif hingga</span><strong>${esc(date(r.new_subscription_end_date, true))}</strong></div><div class="row"><span class="muted">Referensi</span><strong class="word-break">${esc(r.payment_reference)}</strong></div><div class="row"><span class="muted">Dicatat oleh</span><strong class="word-break">${esc(r.actor_email || 'Tim CRM')}</strong></div></div></div>`, `${can('read_customers') ? `<button class="button" data-action="receipt-detail" data-id="${esc(r.merchant_id)}">Lihat riwayat</button>` : ''}<button class="button primary" data-action="close-modal">Selesai</button>`);
+  return modalFrame('Perpanjangan berhasil', '', `<div class="receipt"><div class="receipt-icon">${icon('check')}</div><h2>Bisnis siap berlanjut.</h2><p>${m.replayed ? 'Transaksi ini sudah tercatat sebelumnya. Tidak ada perpanjangan tambahan.' : 'Langganan outlet berhasil diperpanjang dan tersimpan.'}</p><div class="receipt-details"><div class="row"><span class="muted">Outlet</span><strong>${esc(r.outlet_name || 'Outlet')}</strong></div>${m.tier ? `<div class="row"><span class="muted">Paket fitur</span><strong>${m.tier === 'premium' ? 'Premium' : 'Starter'}</strong></div>` : ''}<div class="row"><span class="muted">Durasi</span><strong>${esc(r.months)} bulan</strong></div><div class="row"><span class="muted">Pembayaran</span><strong>${esc(money(r.amount_idr))}</strong></div><div class="row"><span class="muted">Aktif hingga</span><strong>${esc(date(r.new_subscription_end_date, true))}</strong></div><div class="row"><span class="muted">Referensi</span><strong class="word-break">${esc(r.payment_reference)}</strong></div><div class="row"><span class="muted">Dicatat oleh</span><strong class="word-break">${esc(r.actor_email || 'Tim CRM')}</strong></div></div></div>`, `${can('read_customers') ? `<button class="button" data-action="receipt-detail" data-id="${esc(r.merchant_id)}">Lihat riwayat</button>` : ''}<button class="button primary" data-action="close-modal">Selesai</button>`);
 }
 function openFollowup() {
   const c = state.modal?.detail?.customer;
@@ -1135,9 +1177,11 @@ async function action(button) {
   if (a === 'tier-reload') return openTier(state.modal.outlet.id);
   if (a === 'tier-retry') return saveTier();
   if (a === 'renew') return openRenew(button.dataset.id);
+  if (a === 'renew-status-retry' && state.modal?.type === 'renew' && !state.modal.busy && !state.modal.uncertain) return openRenew(state.modal.outlet.id);
   if (a === 'followup') return openFollowup();
   if (a === 'save-renewal') return saveRenewal();
   if (a === 'renew-back') {
+    if (state.modal?.type !== 'renew' || state.modal.busy || state.modal.uncertain || state.modal.conflict) return;
     state.modal.phase = 'form';
     state.modal.error = '';
     state.modal.operationId = uuid();
@@ -1218,23 +1262,7 @@ document.addEventListener('submit', event => {
     return void loadPage();
   }
   if (form.id === 'renew-form') {
-    const m = state.modal;
-    try {
-      m.values = Object.fromEntries(new FormData(form));
-      m.payload = renewalPayload({
-        ...m.values,
-        outlet: m.outlet.id
-      }, m.operationId);
-      m.payload.p_expected_end_date = m.outlet.subscription_end_date || null;
-      m.payload.p_expected_plan = m.outlet.subscription_plan || null;
-      m.phase = 'confirm';
-      m.error = '';
-    } catch (error) {
-      if (denyAccess(error)) return;
-      m.error = humanError(error);
-    }
-    renderModal();
-    return;
+    return prepareRenewal(form);
   }
   if (form.id === 'tier-form') return void saveTier(form);
   if (form.id === 'followup-form') return void saveFollowup(form);

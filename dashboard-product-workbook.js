@@ -218,7 +218,9 @@ function checkZip(bytes, Inflate) {
     const packedSize = view.getUint32(offset + 20, true), size = view.getUint32(offset + 24, true), nameLength = view.getUint16(offset + 28, true);
     const next = offset + 46 + nameLength + view.getUint16(offset + 30, true) + view.getUint16(offset + 32, true);
     const local = view.getUint32(offset + 42, true);
-    if (next > end || !nameLength || view.getUint16(offset + 34, true) || flags & ~0x808 || ![0, 8].includes(method)) throw zipError();
+    // ZIP bits 1 and 2 are compression hints for Deflate, used by Microsoft Excel.
+    const allowedFlags = 0x808 | (method === 8 ? 0x006 : 0);
+    if (next > end || !nameLength || view.getUint16(offset + 34, true) || flags & ~allowedFlags || ![0, 8].includes(method)) throw zipError();
     let name;
     try { name = textDecoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLength)); } catch { throw zipError(); }
     if (name.startsWith('/') || name.includes('\\') || name.split('/').includes('..') || name.includes('\0') || files.has(name.toLowerCase())) throw zipError();

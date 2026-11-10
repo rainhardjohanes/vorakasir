@@ -4,12 +4,27 @@ let enginePromise;
 const loadEngine = () => (enginePromise ||= import('/dashboard-vendor-excel-workbook.js'));
 
 export const PRODUCT_XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-export const PRODUCT_ADD_COLUMNS = Object.freeze(['Nama produk', 'SKU', 'Kategori', 'Satuan', 'Harga jual', 'Harga pokok', 'Monitor stok', 'Stok awal']);
-export const PRODUCT_UPDATE_COLUMNS = Object.freeze(['ID produk', ...PRODUCT_ADD_COLUMNS.slice(0, -1), 'Versi produk']);
-export const PRODUCT_WORKBOOK_LIMITS = Object.freeze({ fileBytes: 5 * 1024 * 1024, expandedBytes: 12 * 1024 * 1024, importRows: 500, exportRows: 20000 });
+const LEGACY_ADD_COLUMNS = ['Nama produk', 'SKU', 'Kategori', 'Satuan', 'Harga jual', 'Harga pokok', 'Monitor stok', 'Stok awal'];
+const LEGACY_UPDATE_COLUMNS = ['ID produk', ...LEGACY_ADD_COLUMNS.slice(0, -1), 'Versi produk'];
+const layout = {
+  'Nama produk': ['Nama Produk*', 34], Kategori: ['Kategori*', 25],
+  Favorit: ['Produk Favorit (Y / T)', 22], 'Monitor stok': ['Monitor Persediaan (Y / T)', 24],
+  Satuan: ['Satuan #1', 15], 'Harga pokok': ['Harga Beli Satuan #1', 22],
+  'Harga jual': ['Harga Jual Satuan #1*', 22], SKU: ['SKU Satuan #1*', 26],
+  'Harga nego': ['Izinkan Kasir Ubah Harga Jual (Y / T)', 29],
+  'Batas nego': ['Maksimal % di bawah harga jual', 24], 'Stok awal': ['QTY Stok Awal', 18],
+  'ID produk': ['ID Produk VORA', 40], 'Versi produk': ['Versi Produk VORA', 34],
+};
+const baseColumns = ['Nama produk', 'Kategori', 'Favorit', 'Monitor stok', 'Satuan', 'Harga pokok', 'Harga jual', 'SKU', 'Harga nego', 'Batas nego'];
+export const PRODUCT_ADD_COLUMNS = Object.freeze([...baseColumns, 'Stok awal']);
+export const PRODUCT_UPDATE_COLUMNS = Object.freeze([...baseColumns, 'ID produk', 'Versi produk']);
+export const PRODUCT_WORKBOOK_LIMITS = Object.freeze({ fileBytes: 5 * 1024 * 1024, expandedBytes: 24 * 1024 * 1024, importRows: 500, exportRows: 20000 });
+const PRODUCT_SHEET = 'Template Impor Produk';
+const HEADER_ROW = 4;
+const YES_NO = ['Favorit', 'Monitor stok', 'Harga nego'];
 const META_NAME = '_VORA';
 const FORMAT = 'VORA_PRODUCT_XLSX';
-const SCHEMA = '1';
+const SCHEMA = '2';
 const EXAMPLE_NAME = '[CONTOH] Kopi Susu';
 const EXAMPLE_SKU = 'CONTOH-001';
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
@@ -31,17 +46,17 @@ function finiteNumber(value, field) {
   if (!Number.isFinite(number) || number < 0) throw message(`${field} pada katalog tidak valid. Periksa produk sebelum mengunduh template.`);
   return number;
 }
-function headerStyle(sheet) {
-  sheet.views = [{ state: 'frozen', ySplit: 1, activeCell: 'A2', showGridLines: false }];
-  sheet.getRow(1).height = 34;
-  sheet.getRow(1).eachCell(cell => {
+function headerStyle(sheet, header = 1, lastRow = sheet.rowCount) {
+  sheet.views = [{ state: 'frozen', ySplit: header, activeCell: `A${header + 1}`, showGridLines: false }];
+  sheet.getRow(header).height = 34;
+  sheet.getRow(header).eachCell(cell => {
     cell.font = { name: 'Aptos', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: theme.dark } };
     cell.alignment = { vertical: 'middle', wrapText: true };
   });
-  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(2, sheet.rowCount), column: sheet.columnCount } };
+  sheet.autoFilter = { from: { row: header, column: 1 }, to: { row: Math.max(header + 1, lastRow), column: sheet.columnCount } };
   sheet.eachRow((row, index) => {
-    if (index === 1) return;
+    if (index <= header) return;
     row.height = 24;
     row.eachCell(cell => {
       cell.font = { name: 'Aptos', size: 11, color: { argb: theme.ink } };
@@ -50,12 +65,14 @@ function headerStyle(sheet) {
     });
   });
 }
+const yesNo = value => value === true ? 'Y' : 'T';
 
-export async function createProductWorkbook({ mode, outlet, products = [], categories = [] }) {
+export async function createProductWorkbook({ mode, outlet, products = [], categories = [], units = [] }) {
   const templateMode = normalizedMode(mode);
   if (!outlet?.id || typeof outlet.id !== 'string') throw message('Pilih outlet sebelum mengunduh template.');
   const catalog = ownRows(products, outlet.id, 'Produk');
   const groups = ownRows(categories, outlet.id, 'Kategori');
+  if(!Array.isArray(units)||units.length>1000||units.some(row=>!row||row.outlet_id!==undefined&&row.outlet_id!==outlet.id||typeof row.code!=='string'||row.code.length>20||typeof row.name!=='string'||row.name.length>80||!Number.isInteger(row.precision)||row.precision<0||row.precision>6))throw message('Daftar satuan tidak sesuai outlet. Muat ulang katalog.');
   if (catalog.length > PRODUCT_WORKBOOK_LIMITS.exportRows || groups.length > PRODUCT_WORKBOOK_LIMITS.exportRows) throw message('Katalog terlalu besar untuk ekspor ini. Hubungi dukungan; data tidak dipotong.');
   if (templateMode === 'update' && catalog.some(product => typeof product.id !== 'string' || !product.id)) throw message('ID produk pada katalog tidak valid. Muat ulang sebelum mengunduh.');
   const { Workbook } = await loadEngine();
@@ -64,46 +81,55 @@ export async function createProductWorkbook({ mode, outlet, products = [], categ
   workbook.title = templateMode === 'add' ? 'VORA Kasir — Tambah Produk' : 'VORA Kasir — Ubah Produk';
   workbook.subject = 'Template produk untuk outlet yang dipilih';
   workbook.created = new Date();
-  const sheet = workbook.addWorksheet('Produk', { properties: { defaultRowHeight: 24, tabColor: { argb: theme.green } } });
+  const sheet = workbook.addWorksheet(PRODUCT_SHEET, { properties: { defaultRowHeight: 24, tabColor: { argb: theme.green } } });
   const columns = templateMode === 'add' ? PRODUCT_ADD_COLUMNS : PRODUCT_UPDATE_COLUMNS;
-  const widths = { 'ID produk': 39, 'Nama produk': 34, SKU: 24, Kategori: 25, Satuan: 15, 'Harga jual': 18, 'Harga pokok': 18, 'Monitor stok': 18, 'Stok awal': 16, 'Versi produk': 34 };
-  const numerical = new Set(['Harga jual', 'Harga pokok', 'Stok awal']);
-  sheet.columns = columns.map(header => ({ header, key: header, width: widths[header], hidden: header === 'Versi produk', style: { numFmt: numerical.has(header) ? (header === 'Stok awal' ? '0' : '#,##0.00') : '@' } }));
+  const numerical = new Set(['Harga jual', 'Harga pokok', 'Stok awal', 'Batas nego']);
+  sheet.columns = columns.map(key => ({ key, width: layout[key][1], hidden: ['ID produk', 'Versi produk'].includes(key), style: { numFmt: numerical.has(key) ? '0.######' : '@' } }));
+  const exportedAt = new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(workbook.created) + ' WITA';
+  sheet.addRows([['Template Impor Produk'], ['Outlet', literal(outlet.name || outlet.id)], ['Tanggal Ekspor', exportedAt], columns.map(key => layout[key][0])]);
+  sheet.getCell('A1').font = { name: 'Aptos', size: 16, bold: true, color: { argb: theme.dark } };
+  sheet.getRow(1).height = 29;
   if (templateMode === 'update') {
     for (const product of catalog) sheet.addRow({
       'ID produk': product.id, 'Nama produk': literal(product.name), SKU: literal(product.sku), Kategori: literal(product.category), Satuan: literal(product.unit || 'Pcs'),
       'Harga jual': finiteNumber(product.price, 'Harga jual'), 'Harga pokok': finiteNumber(product.buy_price, 'Harga pokok'),
-      'Monitor stok': product.track_stock ? 'Ya' : 'Tidak', 'Versi produk': literal(product.updated_at),
+      Favorit: yesNo(product.is_favorite), 'Monitor stok': yesNo(product.track_stock),
+      'Harga nego': yesNo(product.negotiation_enabled), 'Batas nego': finiteNumber(product.max_negotiation_percent, 'Batas nego'),
+      'Versi produk': literal(product.updated_at),
     });
   } else {
-    sheet.addRow({ 'Nama produk': EXAMPLE_NAME, SKU: EXAMPLE_SKU, Kategori: 'Minuman', Satuan: 'Cup', 'Harga jual': 18000, 'Harga pokok': 8000, 'Monitor stok': 'Ya', 'Stok awal': 20 });
+    sheet.addRow({ 'Nama produk': EXAMPLE_NAME, SKU: EXAMPLE_SKU, Kategori: 'Minuman', Satuan: 'Cup', 'Harga jual': 18000, 'Harga pokok': 8000, Favorit: 'T', 'Monitor stok': 'Y', 'Harga nego': 'T', 'Batas nego': 0, 'Stok awal': 0 });
   }
-  const editableRows = templateMode === 'add' ? 501 : Math.max(2, Math.min(501, sheet.rowCount));
-  for (let index = 2; index <= editableRows; index++) {
-    const row = sheet.getRow(index);
-    // Persist a text cell even in blank add rows so Excel preserves barcode zeros.
-    if (templateMode === 'add') { if (index > 2) row.getCell('SKU').value = ''; row.getCell('SKU').numFmt = '@'; }
-    row.getCell('Monitor stok').dataValidation = { type: 'list', allowBlank: templateMode === 'add', formulae: ['"Ya,Tidak"'], showErrorMessage: true, errorTitle: 'Pilihan belum sesuai', error: 'Pilih Ya atau Tidak.' };
-    for (const field of ['Harga jual', 'Harga pokok', ...(templateMode === 'add' ? ['Stok awal'] : [])]) row.getCell(field).dataValidation = { type: field === 'Stok awal' ? 'whole' : 'decimal', operator: 'between', formulae: [0, field === 'Stok awal' ? 2147483647 : 1000000000000], allowBlank: field !== 'Harga jual', showErrorMessage: true, errorTitle: 'Angka belum sesuai', error: 'Isi angka nol atau lebih, tanpa Rp atau rumus.' };
+  const lastRow = templateMode === 'add' ? HEADER_ROW + PRODUCT_WORKBOOK_LIMITS.importRows : Math.max(HEADER_ROW + 1, sheet.rowCount);
+  for (const key of YES_NO) {
+    const letter = sheet.getColumn(key).letter;
+    sheet.dataValidations.add(`${letter}${HEADER_ROW + 1}:${letter}${lastRow}`, { type: 'list', allowBlank: true, formulae: ['"Y,T"'], showErrorMessage: true, errorStyle: 'stop', errorTitle: 'Pilihan belum sesuai', error: 'Isi Y atau T.' });
   }
-  headerStyle(sheet);
-  if (templateMode === 'add') sheet.getRow(2).eachCell(cell => {
+  for (const key of [...numerical].filter(key => columns.includes(key))) {
+    const letter = sheet.getColumn(key).letter;
+    sheet.dataValidations.add(`${letter}${HEADER_ROW + 1}:${letter}${lastRow}`, { type: key === 'Stok awal' ? 'whole' : 'decimal', operator: 'between', formulae: [0, key === 'Batas nego' ? 100 : key === 'Stok awal' ? 2147483647 : 1000000000000], allowBlank: true, showErrorMessage: true, errorStyle: 'stop', errorTitle: 'Angka belum sesuai', error: key === 'Batas nego' ? 'Isi persentase 0–100. Contoh: isi 30 untuk 30%.' : 'Isi angka nol atau lebih, tanpa Rp atau rumus.' });
+  }
+  headerStyle(sheet, HEADER_ROW, lastRow);
+  if (templateMode === 'add') sheet.getRow(HEADER_ROW + 1).eachCell(cell => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4D6' } };
   });
   const guidance = workbook.addWorksheet('Petunjuk', { properties: { tabColor: { argb: theme.green } } });
   guidance.columns = [{ header: 'VORA KASIR', width: 29 }, { header: templateMode === 'add' ? 'PANDUAN TAMBAH PRODUK' : 'PANDUAN UBAH PRODUK', width: 100 }];
   const directions = [
     ['Outlet', literal(outlet.name || outlet.id)],
-    ['Diunduh pada', new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(workbook.created) + ' WITA'],
-    ['Mulai di sheet Produk', templateMode === 'add' ? 'Baris 2 berisi satu produk CONTOH. Ganti datanya dengan produk Anda atau hapus baris tersebut. Nama bertanda [CONTOH] dan SKU CONTOH-001 harus diganti agar contoh tidak ikut tersimpan.' : 'Produk aktif outlet ini sudah terisi. Sisakan baris yang akan diubah; menghapus baris dari file tidak menghapus produk di aplikasi.'],
+    ['Diunduh pada', exportedAt],
+    ['Mulai di baris 5', templateMode === 'add' ? 'Ganti produk CONTOH pada baris 5 atau hapus baris tersebut. Pertahankan judul kolom pada baris 4.' : 'Produk aktif outlet ini sudah terisi. Sisakan baris yang akan diubah. Menghapus baris dari file tidak menghapus produk di aplikasi.'],
     ['Batas impor', 'Maksimal 500 produk dan 5 MB per unggahan. Katalog lebih besar tetap diekspor utuh; bagi menjadi beberapa file dengan sheet Petunjuk, Kategori, dan _VORA tetap disertakan.'],
     ['Kolom wajib', templateMode === 'add' ? 'Nama produk, SKU, Kategori, dan Harga jual wajib diisi. Satuan kosong menggunakan Pcs; Harga pokok dan Stok awal kosong menggunakan 0.' : 'ID produk dan Versi produk adalah identitas serta versi saat diunduh. Jangan mengubahnya. Kolom Versi produk disembunyikan agar tidak teredit.'],
     ['SKU', 'Gunakan format sel Teks, terutama barcode dengan nol di depan atau lebih dari 15 digit. Jangan gunakan rumus.'],
+    ['Satuan', 'Satuan produk baru dapat memakai kode satuan outlet di bawah. Produk yang sudah tersimpan mempertahankan satuan dasarnya. Konversi kemasan diatur per barang melalui Persediaan; mengganti tulisan satuan tidak mengonversi saldo.'],
+    ...units.filter(row=>row.is_active!==false).map(row=>['Satuan outlet',`${row.code} — ${row.name} · ketelitian ${row.precision} desimal`]),
     ['Kategori', 'Gunakan nama pada sheet Kategori atau tulis kategori baru. Kategori baru ditampilkan pada pratinjau dan dibuat hanya untuk outlet terpilih setelah Anda menyetujui simpan impor.'],
-    ['Angka', 'Harga ditulis sebagai angka tanpa Rp. Nilai 0 adalah nilai sah. Stok awal harus berupa bilangan bulat.'],
-    ['Monitor stok', 'Isi Ya atau Tidak. Mengubah Monitor stok tidak mengubah saldo stok produk yang sudah ada.'],
-    ['Saldo stok', templateMode === 'add' ? 'Stok awal hanya berlaku saat membuat produk baru dan Monitor stok = Ya.' : 'Saldo stok tidak disertakan sebagai kolom yang dapat diubah. Gunakan pembelian atau opname untuk menyesuaikan stok.'],
-    ['Data lain', 'Ekstra, foto, ikon, favorit, dan riwayat transaksi tidak diubah oleh template ini.'],
+    ['Angka', 'Harga ditulis sebagai angka tanpa Rp. Nilai 0 adalah nilai sah. Stok awal harus bilangan bulat. Gunakan 0 jika stok awal belum diketahui.'],
+    ['Pilihan Y / T', 'Isi Y untuk ya atau T untuk tidak pada Favorit, Monitor Persediaan, dan izin mengubah harga. Untuk produk baru, pilihan kosong berarti T. Saat ubah produk, pilihan kosong mempertahankan nilai sekarang.'],
+    ['Batas nego', 'Isi 30 untuk potongan maksimal 30% dari harga jual. Gunakan angka 0–100. Jika harga nego aktif, harga jual harus berupa Rupiah bulat.'],
+    ['Saldo stok', templateMode === 'add' ? 'Stok awal hanya berlaku saat membuat produk baru dan Monitor Persediaan = Y.' : 'Gunakan Persediaan untuk menyesuaikan stok atau satuan. Impor ubah produk mempertahankan saldo stok dan satuan dasar.'],
+    ['Data lain', 'Ekstra, foto, ikon, dan riwayat transaksi dipertahankan.'],
     ['Format aman', 'Gunakan .xlsx. Jangan mengubah judul kolom atau menambahkan makro, rumus, tautan eksternal, gambar, atau sheet lain. Jangan menyalin file ke outlet lain.'],
     ['Produk berubah di perangkat lain', 'Unduh ulang template jika produk berubah sejak file ini dibuat, lalu terapkan perubahan pada file terbaru.'],
     ['Setelah mengunggah', 'Periksa pratinjau perubahan di dashboard sebelum menyimpan. File yang diunduh tidak mengubah data aplikasi.'],
@@ -134,7 +160,11 @@ function safeXml(bytes, name) {
   let xml;
   try { xml = textDecoder.decode(bytes); } catch { throw zipError(); }
   if (/\0|<!\s*(?:DOCTYPE|ENTITY)/i.test(xml)) throw message('File berisi struktur XML yang tidak diizinkan. Gunakan template .xlsx VORA Kasir.');
-  if (/<(?:[A-Za-z_][\w.-]*:)?f(?:\s|\/?>)/i.test(xml)) throw message('File berisi rumus Excel. Ganti rumus dengan nilainya (Tempel nilai), lalu unggah kembali.');
+  const formula = /<(?:[A-Za-z_][\w.-]*:)?f(?:\s|\/?>)/i.exec(xml);
+  if (formula) {
+    const address = [...xml.slice(0, formula.index).matchAll(/<(?:[A-Za-z_][\w.-]*:)?c\b[^>]*\br\s*=\s*["']([A-Z]+\d+)["']/gi)].at(-1)?.[1];
+    throw message(`${address ? `Sel ${address} berisi` : 'File berisi'} rumus Excel. Ganti rumus dengan nilainya (Tempel nilai), lalu unggah kembali.`);
+  }
   if (/TargetMode\s*=/i.test(xml) || /externalLink|oleObject|vbaProject|activeX/i.test(name)) throw message('File berisi tautan eksternal atau makro. Gunakan template .xlsx tanpa tautan dan makro.');
   if (name === 'xl/workbook.xml') {
     for (const match of xml.matchAll(/\bsheetId\s*=\s*["'](\d+)["']/g)) if (Number(match[1]) > 1024) throw message('Identitas sheet Excel tidak valid. Gunakan template baru.');
@@ -164,7 +194,7 @@ function safeXml(bytes, name) {
     for (const match of xml.matchAll(/<(?:[A-Za-z_][\w.-]*:)?c\b[^>]*\br\s*=\s*["']([A-Z]+)(\d+)["']/g)) {
       let column = 0;
       for (const char of match[1]) column = column * 26 + char.charCodeAt(0) - 64;
-      if (column > 128 || Number(match[2]) > 25001 || ++count > 200000) throw message('Ukuran sheet Excel terlalu besar. Gunakan template dan maksimal 500 baris produk.');
+      if (column > 128 || Number(match[2]) > 25001 || ++count > 250000) throw message('Ukuran sheet Excel terlalu besar. Gunakan template dan maksimal 500 baris produk.');
     }
   }
 }
@@ -238,6 +268,12 @@ function simpleCell(cell) {
   if (value?.formula || value?.sharedFormula) throw message(`Sel ${cell.address} berisi rumus. Gunakan Tempel nilai sebelum mengunggah.`);
   throw message(`Sel ${cell.address} bukan teks atau angka biasa. Hapus tanggal, tautan, atau kesalahan Excel pada sel tersebut.`);
 }
+export function importValidationError(issues) {
+  const error = message(issues[0]?.message || 'Periksa kembali isi template Excel.');
+  error.issues = issues;
+  return error;
+}
+
 export async function readProductWorkbook(input, mode, outletId) {
   const templateMode = normalizedMode(mode);
   if (!outletId || typeof outletId !== 'string') throw message('Pilih outlet sebelum mengimpor produk.');
@@ -248,10 +284,14 @@ export async function readProductWorkbook(input, mode, outletId) {
   checkZip(bytes, Inflate);
   const workbook = new Workbook();
   try { await workbook.xlsx.load(bytes); } catch { throw zipError(); }
-  if (workbook.worksheets.some(sheet => !['Produk', 'Petunjuk', 'Kategori', META_NAME].includes(sheet.name))) throw message('Ada sheet yang tidak dikenal. Gunakan template .xlsx VORA Kasir tanpa menambahkan sheet.');
   const metadata = workbook.getWorksheet(META_NAME);
   if (!metadata || metadata.actualRowCount !== 4) throw message('Identitas template tidak ditemukan. Unduh template .xlsx langsung dari dashboard outlet ini.');
-  const expected = [['format', FORMAT], ['schema', SCHEMA], ['mode', templateMode], ['outlet_id', outletId]];
+  const schema = simpleCell(metadata.getCell('B2'));
+  if (![SCHEMA, '1'].includes(schema)) throw message('Versi template tidak sesuai. Unduh template terbaru dari dashboard.');
+  const legacy = schema === '1';
+  const sheetName = legacy ? 'Produk' : PRODUCT_SHEET;
+  if (workbook.worksheets.some(sheet => ![sheetName, 'Petunjuk', 'Kategori', META_NAME].includes(sheet.name))) throw message('Ada sheet yang tidak dikenal. Gunakan template .xlsx VORA Kasir tanpa menambahkan sheet.');
+  const expected = [['format', FORMAT], ['schema', schema], ['mode', templateMode], ['outlet_id', outletId]];
   for (let index = 0; index < expected.length; index++) {
     const [key, value] = expected[index];
     if (simpleCell(metadata.getCell(index + 1, 1)) !== key || simpleCell(metadata.getCell(index + 1, 2)) !== value) {
@@ -260,22 +300,45 @@ export async function readProductWorkbook(input, mode, outletId) {
       throw message('Versi template tidak sesuai. Unduh template terbaru dari dashboard.');
     }
   }
-  const sheet = workbook.getWorksheet('Produk');
-  if (!sheet) throw message('Sheet Produk tidak ditemukan. Gunakan template .xlsx VORA Kasir.');
-  const columns = templateMode === 'add' ? PRODUCT_ADD_COLUMNS : PRODUCT_UPDATE_COLUMNS;
-  if (sheet.columnCount !== columns.length || columns.some((name, index) => simpleCell(sheet.getCell(1, index + 1)) !== name)) throw message('Judul atau urutan kolom berubah. Gunakan template terbaru dan pertahankan semua judul kolom.');
+  const sheet = workbook.getWorksheet(sheetName);
+  if (!sheet) throw message(`Sheet ${sheetName} tidak ditemukan. Gunakan template .xlsx VORA Kasir.`);
+  const headerRow = legacy ? 1 : HEADER_ROW;
+  const columns = templateMode === 'add' ? (legacy ? LEGACY_ADD_COLUMNS : PRODUCT_ADD_COLUMNS) : (legacy ? LEGACY_UPDATE_COLUMNS : PRODUCT_UPDATE_COLUMNS);
+  const labels = Object.fromEntries(columns.map(key => [key, legacy ? key : layout[key][0]]));
+  const columnLetters = Object.fromEntries(columns.map((key, index) => [key, sheet.getColumn(index + 1).letter]));
+  for (const key of columns) {
+    const cell = sheet.getCell(`${columnLetters[key]}${headerRow}`);
+    if (simpleCell(cell) !== labels[key]) throw message(`Judul atau urutan kolom berubah pada sel ${cell.address}. Judul yang diharapkan: ${labels[key]}.`);
+  }
   const rows = [[...columns]];
+  const sourceRows = [], issues = [];
+  const record = (line, key, detail) => issues.push({ line, field: labels[key], cell: `${columnLetters[key]}${line}`, message: detail });
   sheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
-    const values = columns.map((_, column) => simpleCell(row.getCell(column + 1)));
+    if (rowNumber < headerRow) return;
+    // Formatting pasted to the right of the template is harmless; extra data is not.
+    row.eachCell(cell => {
+      if (cell.col > columns.length && literal(cell.value).trim()) issues.push({ line: rowNumber, cell: cell.address, message: `Sel ${cell.address} berada di luar kolom template. Hapus isi sel tersebut.` });
+    });
+    if (rowNumber === headerRow) return;
+    const values = columns.map((key, index) => {
+      try { return simpleCell(row.getCell(index + 1)); }
+      catch (error) { record(rowNumber, key, error.message); return ''; }
+    });
     if (values.every(value => value === '' || typeof value === 'string' && !value.trim())) return;
-    if (templateMode === 'add' && (literal(values[0]).trim().toUpperCase().startsWith('[CONTOH]') || literal(values[1]).trim().toUpperCase() === EXAMPLE_SKU)) throw message(`Baris ${rowNumber} masih berisi produk contoh. Ganti nama [CONTOH] dan SKU CONTOH-001 dengan produk Anda, atau hapus baris contoh sebelum mengimpor.`);
     if (rows.length > PRODUCT_WORKBOOK_LIMITS.importRows) throw message('Impor maksimal 500 produk per file. Sisakan baris yang akan diproses, lalu unggah sisanya terpisah.');
+    if (templateMode === 'add') {
+      for (const [key, isExample] of [['Nama produk', value => value.startsWith('[CONTOH]')], ['SKU', value => value === EXAMPLE_SKU]]) {
+        if (isExample(literal(values[columns.indexOf(key)]).trim().toUpperCase())) record(rowNumber, key, 'Masih berisi produk contoh. Ganti nama dan SKU contoh atau hapus baris ini.');
+      }
+    }
     for (const key of ['SKU', ...(templateMode === 'update' ? ['ID produk', 'Versi produk'] : [])]) {
-      if (typeof values[columns.indexOf(key)] !== 'string') throw message(`Baris ${rowNumber}: ${key} harus berformat Teks. Nol di depan dan nomor panjang tidak boleh diubah menjadi angka Excel. Unduh ulang template bila angkanya sudah berubah.`);
+      if (typeof values[columns.indexOf(key)] !== 'string') record(rowNumber, key, `${key} harus berformat Teks. Masukkan kembali kode asli, termasuk nol di depan.`);
     }
     rows.push(values);
+    sourceRows.push(rowNumber);
   });
-  if (rows.length < 2) throw message('Sheet Produk belum berisi produk. Isi mulai baris 2 sebelum mengunggah.');
+  if (issues.length) throw importValidationError(issues);
+  if (rows.length < 2) throw message(`Sheet ${sheetName} belum berisi produk. Isi mulai baris ${headerRow + 1} sebelum mengunggah.`);
+  Object.defineProperties(rows, { sourceRows: { value: sourceRows }, columnLetters: { value: columnLetters }, columnLabels: { value: labels }, strictBooleans: { value: !legacy } });
   return rows;
 }

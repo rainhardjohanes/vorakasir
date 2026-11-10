@@ -1,3 +1,4 @@
+import { importValidationError } from '/dashboard-product-workbook.js';
 import { negotiationConfig } from '/dashboard-lib-productNegotiation.js';
 import { validateRegisterCloseSchedule } from '/dashboard-lib-registerCloseSchedule.js';
 // Owner backoffice operations. RLS remains the authority; every request also carries outlet scope.
@@ -83,6 +84,10 @@ export async function loadOperations(client,user,outlet,signal){
 }
 function text(value,label,max=200){const str=String(value??'').trim();if(!str||str.length>max||/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(str))throw new Error(`${label} wajib diisi (maksimal ${max} karakter).`);return str;}
 function number(value,label,max=1000000000000){if(value===''||value==null||!Number.isFinite(Number(value))||Number(value)<0||Number(value)>max)throw new Error(`${label} harus berupa angka 0–${max}.`);return Number(value);}
+function workbookNumber(value,label,max){
+  if(typeof value==='string'&&!/^\d+(?:[.,]\d+)?$/.test(value))throw new Error(`${label} harus berupa angka, tanpa Rp atau pemisah ribuan.`);
+  return number(typeof value==='string'?value.replace(',','.'):value,label,max);
+}
 export const newId=prefix=>`${prefix}-${crypto.randomUUID()}`;
 export function productPayload(draft,outletId,existing){
   const out={name:text(draft.name,'Nama produk'),sku:text(draft.sku,'SKU',100),category:text(draft.category,'Kategori'),unit:text(draft.unit||'Pcs','Satuan',40),price:number(draft.price,'Harga jual')};
@@ -98,6 +103,10 @@ export function productPayload(draft,outletId,existing){
   if((out.negotiation_enabled??existing?.negotiation_enabled)===true&&!Number.isSafeInteger(out.price))throw new Error('Harga jual untuk harga nego harus berupa Rupiah bulat.');
   if(!existing || Object.hasOwn(draft,'buy_price')&&Number(draft.buy_price)!==Number(existing.buy_price||0))out.buy_price=number(draft.buy_price??0,'Harga pokok');
   if(!existing || Object.hasOwn(draft,'track_stock')&&!!draft.track_stock!==!!existing.track_stock)out.track_stock=!!draft.track_stock;
+  if(Object.hasOwn(draft,'is_favorite')&&draft.is_favorite!==existing?.is_favorite){
+    if(typeof draft.is_favorite!=='boolean')throw new Error('Pilihan produk favorit belum valid.');
+    out.is_favorite=draft.is_favorite;
+  }
   if(!existing){out.id=text(draft.id,'ID produk');out.outlet_id=outletId;out.stock=draft.track_stock?number(draft.stock??0,'Stok awal',2147483647):0;if(!Number.isInteger(out.stock))throw new Error('Stok awal harus bilangan bulat.');out.extras=Array.isArray(draft.extras)?draft.extras:[];out.icon='📦';}
   else if(Object.hasOwn(draft,'extras') && JSON.stringify(draft.extras)!==JSON.stringify(existing.extras||[]))out.extras=draft.extras;
   return out;
@@ -121,7 +130,7 @@ export async function saveProduct(client,user,outlet,draft,existing,signal){
   if(response.error.code==='23505'){
     const saved=await result(client.from('products').select(PRODUCT_FIELDS).eq('id',payload.id).eq('outlet_id',outlet.id).is('deleted_at',null).maybeSingle(),signal);
     // A retry after a lost response returns the committed product, without rewriting live stock.
-    const matches=saved&&['name','sku','category','unit','price','buy_price','track_stock','negotiation_enabled','max_negotiation_percent'].every(key=>String(saved[key]??'')===String(payload[key]??''))&&JSON.stringify(saved.extras||[])===JSON.stringify(payload.extras||[]);
+    const matches=saved&&['name','sku','category','unit','price','buy_price','track_stock','negotiation_enabled','max_negotiation_percent','is_favorite'].every(key=>!Object.hasOwn(payload,key)||String(saved[key]??'')===String(payload[key]??''))&&JSON.stringify(saved.extras||[])===JSON.stringify(payload.extras||[]);
     if(matches){await openingMovement(client,outlet,payload,signal);pendingCreations.delete(creationKey);return ownRow(saved,outlet);}
   }
   if(response.error.code && response.error.code!=='23505')pendingCreations.delete(creationKey);
@@ -250,7 +259,8 @@ export function prepareImportRows(table,mode,data,outletId,{xlsx=false}={}){
   const names=header.map(v=>v.trim().toLowerCase());
   if(new Set(names).size!==names.length)throw new Error('Judul kolom tidak boleh duplikat.');
   const idMode=xlsx&&mode==='update';
-  const allowed=idMode?[...CSV_COLUMNS.filter(c=>c!=='Stok awal'),'ID produk','Versi produk']:CSV_COLUMNS;
+  const fields=table.strictBooleans?[...CSV_COLUMNS,'Favorit','Harga nego','Batas nego']:CSV_COLUMNS;
+  const allowed=idMode?[...fields.filter(c=>c!=='Stok awal'),'ID produk','Versi produk']:fields;
   const indexes=new Map(allowed.map(name=>[name,names.indexOf(name.toLowerCase())]));
   if(names.some(name=>!allowed.some(column=>column.toLowerCase()===name)))throw new Error('Ada kolom yang tidak dikenal. Gunakan template yang sesuai dengan jenis impor.');
   if(indexes.get('SKU')<0)throw new Error('Kolom SKU wajib ada.');
@@ -265,19 +275,29 @@ export function prepareImportRows(table,mode,data,outletId,{xlsx=false}={}){
     const sku=String(p.sku||'').trim().toLowerCase();
     if(catalog.has(sku))catalog.set(sku,null);else catalog.set(sku,p);
   }
-  return rows.map((cells,index)=>{
-    const line=index+2;
+  const issues=[];
+  function issue(line,key,detail){
+    const cell=table.columnLetters?.[key] ? `${table.columnLetters[key]}${line}` : '';
+    const field=table.columnLabels?.[key] || key;
+    issues.push({line,cell,field,message:detail});
+  }
+  const prepared=rows.flatMap((cells,index)=>{
+    const line=table.sourceRows?.[index]??index+2;
+    let field='';
+    try{
     if(!Array.isArray(cells)||cells.length!==header.length)throw new Error(`Baris ${line}: jumlah kolom berbeda dari judul.`);
     if(cells.some(v=>v!=null&&!['string','number','boolean'].includes(typeof v)))throw new Error(`Baris ${line}: isi sel tidak valid.`);
     const get=key=>!indexes.has(key)||indexes.get(key)<0?'':String(cells[indexes.get(key)]??'').trim();
     let existing;
     if(idMode){
+      field='ID produk';
       const id=text(get('ID produk'),`ID produk baris ${line}`);
       if(seenIds.has(id))throw new Error(`Baris ${line}: ID produk duplikat dalam file.`);seenIds.add(id);
       existing=byId.get(id);
       if(!existing)throw new Error(`Baris ${line}: ID produk tidak ditemukan di outlet ini. Unduh ulang template ubah.`);
-      if(get('Versi produk')!==String(existing.updated_at??''))throw new Error(`Baris ${line}: produk berubah setelah template diunduh. Unduh ulang template ubah sebelum menyimpan.`);
+      if(get('Versi produk')!==String(existing.updated_at??'')){field='Versi produk';throw new Error(`Baris ${line}: produk berubah setelah template diunduh. Unduh ulang template ubah sebelum menyimpan.`);}
     }
+    field='SKU';
     const sku=text(get('SKU')||(idMode?existing.sku:''),`SKU baris ${line}`,100),key=sku.toLowerCase();
     if(seen.has(key))throw new Error(`Baris ${line}: SKU duplikat dalam file.`);seen.add(key);
     if(!idMode)existing=catalog.get(key);
@@ -286,17 +306,68 @@ export function prepareImportRows(table,mode,data,outletId,{xlsx=false}={}){
     if(idMode&&catalog.has(key)&&catalog.get(key)?.id!==existing.id)throw new Error(`Baris ${line}: SKU sudah dipakai produk lain di outlet ini.`);
     if(mode==='update'&&get('Stok awal'))throw new Error(`Baris ${line}: kosongkan Stok awal saat mengubah produk. Saldo stok tidak ditimpa.`);
     const draft={...(existing||{}),id:existing?.id||newId('P'),sku};
-    const map={'Nama produk':'name','Kategori':'category','Satuan':'unit','Harga jual':'price','Harga pokok':'buy_price','Stok awal':'stock'};
+    const map={'Nama produk':'name','Kategori':'category','Satuan':'unit','Harga jual':'price','Harga pokok':'buy_price','Stok awal':'stock',...(table.strictBooleans?{'Batas nego':'max_negotiation_percent'}:{})};
     for(const [col,field]of Object.entries(map)){const v=get(col);if(v!==''||mode==='add')draft[field]=v===''?(['buy_price','stock'].includes(field)?0:field==='unit'?'Pcs':''):v;}
-    const track=get('Monitor stok').toLowerCase();if(track&&!['ya','tidak','true','false','1','0'].includes(track))throw new Error(`Baris ${line}: Monitor stok harus Ya atau Tidak.`);if(track||mode==='add')draft.track_stock=['ya','true','1'].includes(track);
+    if(table.strictBooleans){
+      const before=issues.length;
+      for(const [key,property] of [['Monitor stok','track_stock'],['Favorit','is_favorite'],['Harga nego','negotiation_enabled']]){
+        const value=get(key);
+        if(value&&value!=='Y'&&value!=='T')issue(line,key,'Isi Y atau T.');
+        else if(value||mode==='add')draft[property]=value==='Y';
+      }
+      const check=(key,validate)=>{try{validate();}catch(error){issue(line,key,error.message);}};
+      check('Nama produk',()=>text(draft.name,'Nama produk',data.inventoryCapabilities?.product_save?150:200));
+      check('Kategori',()=>text(draft.category,'Kategori',100));
+      check('Satuan',()=>{
+        text(draft.unit,'Satuan',40);
+        if(existing&&draft.unit!==String(existing.unit||'Pcs'))throw new Error('Satuan produk tersimpan tidak bisa diubah lewat impor. Gunakan Persediaan.');
+      });
+      check('Harga jual',()=>{
+        const price=workbookNumber(draft.price,'Harga jual');
+        draft.price=price;
+        if(draft.negotiation_enabled&&!Number.isSafeInteger(price))throw new Error('Gunakan harga Rupiah bulat saat harga nego aktif.');
+      });
+      check('Harga pokok',()=>{draft.buy_price=workbookNumber(draft.buy_price??0,'Harga beli');});
+      if(mode==='add'){
+        check('Stok awal',()=>{
+          const stock=workbookNumber(draft.stock??0,'Stok awal',2147483647);
+          if(!Number.isInteger(stock))throw new Error('Stok awal harus bilangan bulat.');
+          draft.stock=stock;
+          if(stock&&!draft.track_stock)throw new Error('Isi Monitor Persediaan dengan Y agar stok awal dapat disimpan.');
+          if(stock&&data.inventoryCapabilities?.product_save===false)throw new Error('Stok awal harus nol sampai penyimpanan stok awal tersedia di outlet ini.');
+        });
+      }
+      const monitorChanged=existing&&!!draft.track_stock!==!!existing.track_stock;
+      if(monitorChanged&&(data.inventory_items||[]).some(item=>(item.product_id||item.id)===existing.id))issue(line,'Monitor stok','Ubah mode stok produk ini melalui Persediaan.');
+      const rawPercent=get('Batas nego');
+      if(!rawPercent&&mode==='add')draft.max_negotiation_percent=0;
+      check('Batas nego',()=>{
+        const percent=workbookNumber(draft.max_negotiation_percent??0,'Batas nego (%)',100);
+        draft.max_negotiation_percent=percent;
+        if(!negotiationConfig({negotiation_enabled:true,max_negotiation_percent:percent}).valid)throw new Error('Batas nego maksimal dua angka di belakang koma.');
+      });
+      if(issues.length>before)return [];
+    }else{
+      field='Monitor stok';
+      const track=get('Monitor stok').toLowerCase();if(track&&!['y','t','ya','tidak','true','false','1','0'].includes(track))throw new Error(`Baris ${line}: Monitor stok harus Y atau T.`);if(track||mode==='add')draft.track_stock=['y','ya','true','1'].includes(track);
+    }
+    field='Kategori';
     const categoryName=text(draft.category,`Kategori baris ${line}`,100),categoryId=categoryKey(categoryName),category=categories.get(categoryId);
     if(categories.has(categoryId)&&!category)throw new Error(`Baris ${line}: nama kategori tidak unik setelah huruf besar/kecil disamakan. Rapikan kategori tersebut sebelum impor.`);
     if(category?.deleted_at)throw new Error(`Baris ${line}: kategori sudah dihapus. Gunakan kategori lain atau pulihkan kategori terlebih dahulu.`);
     let newCategory=null;
     if(category)draft.category=category.name;
     else{if(!newCategories.has(categoryId))newCategories.set(categoryId,categoryName);newCategory=newCategories.get(categoryId);draft.category=newCategory;}
-    productPayload(draft,outletId,existing);return {line,outletId,draft,existing,newCategory,completed:false};
+    field='';
+    productPayload(draft,outletId,existing);return [{line,outletId,draft,existing,newCategory,completed:false}];
+    }catch(error){
+      if(!table.columnLetters)throw error;
+      issue(line,field,error.message);
+      return [];
+    }
   });
+  if(issues.length)throw importValidationError(issues);
+  return prepared;
 }
 async function importCategory(client,user,outlet,name,signal,categories){
   const key=categoryKey(name),existing=categories.get(key);

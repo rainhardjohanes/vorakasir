@@ -79,6 +79,15 @@ export async function savePriceGroup(client, user, outlet, draft, existing, sign
     throw error;
   }
 }
+export async function deletePriceGroup(client, user, outlet, group, signal) {
+  await verifyOwner(client, user, outlet, signal);
+  own(group, outlet);
+  const id = identifier(group.id);
+  const query = version(client.from('price_groups').delete().eq('outlet_id', outlet.id).eq('id', id), group);
+  const removed = await result(query.select('id,outlet_id').maybeSingle(), signal);
+  if (!removed || removed.id !== id) throw conflict();
+  own(removed, outlet);
+}
 export async function saveProductGroupPrice(client, user, outlet, product, group, value, existing, signal) {
   await verifyOwner(client, user, outlet, signal); own(product, outlet); own(group, outlet);
   const price = priceValue(value), keys = { outlet_id: outlet.id, product_id: identifier(product.id), price_group_id: identifier(group.id) };

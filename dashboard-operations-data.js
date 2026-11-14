@@ -1,4 +1,5 @@
 import { importValidationError } from '/dashboard-product-workbook.js';
+import { prepareBrowserOutletLogo } from '/dashboard-logo-image.js';
 import { negotiationConfig } from '/dashboard-lib-productNegotiation.js';
 import { validateRegisterCloseSchedule } from '/dashboard-lib-registerCloseSchedule.js';
 // Owner backoffice operations. RLS remains the authority; every request also carries outlet scope.
@@ -220,9 +221,11 @@ export async function savePayment(client,user,outlet,draft,existingId,signal,rem
   return writeSettingField(client,outlet,'payment_methods',next,before,signal);
 }
 export async function uploadLogo(client,user,outlet,file,signal){
-  await verifyOwner(client,user,outlet,signal);if(!file||!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>2*1024*1024)throw new Error('Gunakan PNG, JPG, atau WebP maksimal 2 MB.');
-  const path=`${outlet.id}/${crypto.randomUUID()}.${file.type==='image/jpeg'?'jpg':file.type.split('/')[1]}`;
-  const {error}=await client.storage.from('logos').upload(path,file,{contentType:file.type,upsert:false});abort(signal);if(error)throw error;
+  await verifyOwner(client,user,outlet,signal);
+  const prepared=await prepareBrowserOutletLogo(file,{signal});
+  await verifyOwner(client,user,outlet,signal);abort(signal);
+  const path=`${outlet.id}/${crypto.randomUUID()}.${prepared.extension}`;
+  const {error}=await client.storage.from('logos').upload(path,prepared.bytes,{contentType:prepared.contentType,upsert:false});abort(signal);if(error)throw error;
   const {data}=client.storage.from('logos').getPublicUrl(path);if(!data?.publicUrl)throw new Error('URL logo belum tersedia.');return data.publicUrl;
 }
 export const CSV_COLUMNS=['Nama produk','SKU','Kategori','Satuan','Harga jual','Harga pokok','Monitor stok','Stok awal'];

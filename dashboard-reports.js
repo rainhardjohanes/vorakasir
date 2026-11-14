@@ -65,7 +65,7 @@ export function reportAvailabilityNotes(view, report) {
   if (!['product-report', 'expenses'].includes(view) && report.finance.refunds === null) notes.push('Data pengembalian belum lengkap; penerimaan bersih yang belum tersedia ditampilkan sebagai —.');
   return notes;
 }
-const tabs = view => `<nav class="r-tabs" aria-label="Jenis laporan">${[['reports', 'Semua laporan'], ['sales', 'Penjualan'], ['profit', 'Laba rugi'], ['expenses', 'Biaya usaha']].map(([key, title]) => `<a href="#${key}" data-report-route="${key}" class="${key === view ? 'active' : ''}"${key === view ? ' aria-current="page"' : ''}>${title}</a>`).join('')}</nav>`;
+const tabs = view => `<nav class="r-tabs" aria-label="Jenis laporan">${[['reports', 'Semua laporan'], ['sales', 'Penjualan'], ['profit', 'Laba rugi'], ['expenses', 'Biaya usaha'], ['tax-report', 'Pajak']].map(([key, title]) => `<a href="#${key}" data-report-route="${key}" class="${key === view ? 'active' : ''}"${key === view ? ' aria-current="page"' : ''}>${title}</a>`).join('')}</nav>`;
 
 function metrics(report) {
   const f = report.finance;
@@ -141,6 +141,7 @@ function hub(report,commissionPilotEnabled=false) {
     ['sales', 'receipt', 'Penjualan', 'Telusuri transaksi, rincian struk, dan penerimaan outlet.', `${number(report.sales.length)} transaksi`],
     ['product-report', 'product', 'Performa produk', 'Kenali produk terlaris dan nilai item yang masih terjual.', `${number(report.products.length)} produk tercatat`],
     ['payments', 'payment', 'Metode pembayaran', 'Lihat komposisi penerimaan, refund, dan biaya pembayaran.', `${number(report.methods.length)} metode pembayaran`],
+    ['tax-report', 'receipt', 'Laporan pajak', 'Lihat pajak yang tercatat saat pembayaran dan koreksi refund.', 'Sesuai snapshot pada struk'],
     ['commission-report', 'staff', 'Komisi staf', 'Komisi penerima pada transaksi lunas, termasuk pengurang refund.', 'Laporan terpisah dari kinerja kasir'],
     ['staff-performance', 'staff', 'Kinerja staf', 'Lihat layanan yang dikerjakan, penjualan item, dan komisi per staf.', 'Berdasarkan staf pelaksana layanan'],
     ['staff-report', 'staff', 'Kinerja kasir', 'Tinjau transaksi dan penerimaan berdasarkan nama kasir.', `${number(report.cashiers.length)} nama kasir`],

@@ -1,9 +1,14 @@
 {
   "app": "VORA POS",
-  "version": "1.0.30",
-  "generatedAt": "2026-11-07T00:41:23.250Z",
+  "version": "1.0.42",
+  "alignedNativeVersionCode": 43,
+  "generatedAt": "2026-11-14T14:06:49.947Z",
   "basePath": "/kasir",
   "backend": "https://pjycdyrwdcjhxmdjzxto.supabase.co",
+  "webFeatureRevision": "apk-v42-ui-sync-2026-11-14",
+  "sourceManifestSHA256": "226f39a5ca375e68393700a9d8b8e31f4e7326180c8969127e3ecd22e089d5c1",
+  "inventoryMode": "legacy",
+  "enterpriseRecipesPublished": false,
   "routes": [
     "+not-found.html",
     "_sitemap.html",
@@ -24,16 +29,12 @@
   ],
   "javascript": [
     {
-      "path": "_expo/static/js/web/entry-d62e1aeaae94e3d1b451d2da44225058.js",
-      "sha256": "1408e66c756ec3391898ff0a0f24129d8f1927f037958aa2fb2e318cd5276930"
+      "path": "_expo/static/js/web/entry-52e4e20cf00b8113b9f60e7e6373ab88.js",
+      "sha256": "24d95dbd7a74d8a8d71dde7058558b3fd9ea4d0f77e98911db2b1768ced4a248"
     },
     {
-      "path": "_expo/static/js/web/index-5191daed04d1180f78d1a514fdf1d76a.js",
-      "sha256": "4871b0bd4cbc06938d2b385ace75dfc86692b3813a675b5638165451ee1a092b"
+      "path": "_expo/static/js/web/index-e4b32ea2d94513c7d8a319a987827016.js",
+      "sha256": "9b7b903b6fcac89488f9cef88168bf76a6f0efff409dffb3c2b0720caa065811"
     }
-  ],
-  "webFeatureRevision": "flexible-commissions-v1-2026-11-07",
-  "capabilities": {
-    "flexibleProductCommissions": 1
-  }
+  ]
 }

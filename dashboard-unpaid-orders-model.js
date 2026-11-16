@@ -27,7 +27,14 @@ function reference(row, cart) {
     const expected = `ORD/${day}${month}${year.slice(-2)}/${marker.terminal_code}/${String(marker.sequence).padStart(5,'0')}`;
     if (marker.order_number === expected) return {reference:expected,referenceKind:'number'};
   }
-  return {reference:row.id,referenceKind:'legacy'};
+  const display=row._voraDisplayReference;
+  if(object(display)&&display.version===1&&display.outlet_id===row.outlet_id&&display.order_id===row.id&&date(display.business_date)
+    &&Number.isSafeInteger(display.sequence)&&display.sequence>0&&display.sequence<=999999999){
+    const [year,month,day]=display.business_date.split('-');
+    const expected=`ORD/${day}${month}${year.slice(-2)}/${String(display.sequence).padStart(5,'0')}`;
+    if(display.order_number===expected)return {reference:expected,referenceKind:'number'};
+  }
+  return {reference:'Nomor pesanan belum tersedia',referenceKind:'legacy'};
 }
 function capturedProgress(cart, outletId) {
   const core = cart[0]?._voraCommission, progress = core?.progress;

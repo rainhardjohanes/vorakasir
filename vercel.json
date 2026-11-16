@@ -2967,6 +2967,159 @@
           "value": "camera=(self), microphone=(), geolocation=()"
         }
       ]
+    },
+    {
+      "source": "/dashboard-customer-history-data.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard-customer-history-model.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard-customer-history-print.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard-customer-history-workbook.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard-customer-history.css",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard-customer-history.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard-customers.css",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard-customers.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard-order-references-data.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pjycdyrwdcjhxmdjzxto.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
     }
   ],
   "rewrites": [

@@ -144,6 +144,7 @@ function hub(report,commissionPilotEnabled=false) {
     ['tax-report', 'receipt', 'Laporan pajak', 'Lihat pajak yang tercatat saat pembayaran dan koreksi refund.', 'Sesuai snapshot pada struk'],
     ['commission-report', 'staff', 'Komisi staf', 'Komisi penerima pada transaksi lunas, termasuk pengurang refund.', 'Laporan terpisah dari kinerja kasir'],
     ['staff-performance', 'staff', 'Kinerja staf', 'Lihat layanan yang dikerjakan, penjualan item, dan komisi per staf.', 'Berdasarkan staf pelaksana layanan'],
+    ['shift-report', 'receipt', 'Tutup kasir', 'Rincian tunai, non-tunai, arus kas, dan selisih setiap shift.', 'Setiap shift ditampilkan terpisah'],
     ['staff-report', 'staff', 'Kinerja kasir', 'Tinjau transaksi dan penerimaan berdasarkan nama kasir.', `${number(report.cashiers.length)} nama kasir`],
     ['refunds', 'refund', 'Pengembalian dana', 'Periksa pengembalian dana untuk struk pada periode pilihan.', `${number(report.refunds.length)} struk dengan refund`],
     ['expenses', 'expense', 'Biaya usaha', 'Pantau biaya operasional dan catatan pembatalannya.', `${number(report.expense.expenses.length)} catatan biaya`],

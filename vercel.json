@@ -3222,9 +3222,80 @@
           "value": "no-referrer"
         }
       ]
+    },
+    {
+      "source": "/pitchdeck500southeastasia",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/pdf"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename=\"Vora-Kasir-Investor-Pitch.pdf\""
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, must-revalidate"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, noarchive"
+        }
+      ]
+    },
+    {
+      "source": "/pitchdeck500southeastasia/",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/pdf"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename=\"Vora-Kasir-Investor-Pitch.pdf\""
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, must-revalidate"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, noarchive"
+        }
+      ]
+    },
+    {
+      "source": "/pitchdeck500southeastasia.pdf",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/pdf"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename=\"Vora-Kasir-Investor-Pitch.pdf\""
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, must-revalidate"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, noarchive"
+        }
+      ]
     }
   ],
   "rewrites": [
+    {
+      "source": "/pitchdeck500southeastasia",
+      "destination": "/pitchdeck500southeastasia.pdf"
+    },
+    {
+      "source": "/pitchdeck500southeastasia/",
+      "destination": "/pitchdeck500southeastasia.pdf"
+    },
     {
       "source": "/dashboard",
       "destination": "/dashboard.html"

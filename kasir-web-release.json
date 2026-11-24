@@ -2,11 +2,11 @@
   "app": "VORA POS",
   "version": "1.0.42",
   "alignedNativeVersionCode": 43,
-  "generatedAt": "2026-11-24T05:17:48.670Z",
+  "generatedAt": "2026-11-24T06:21:12.022Z",
   "basePath": "/kasir",
   "backend": "https://pjycdyrwdcjhxmdjzxto.supabase.co",
-  "webFeatureRevision": "web-sync-commission-recovery-2026-11-24",
-  "sourceManifestSHA256": "b62be1490fc3a9eebe0dcc11ed62e0cd8de1151596a8c06de560a76c5781d538",
+  "webFeatureRevision": "web-late-expense-review-2026-11-24",
+  "sourceManifestSHA256": "787ab2676ce6fb0bd5e0513cb09502589c5f698f24db8ae5d0e4fb2641cf2fcd",
   "inventoryMode": "legacy",
   "enterpriseRecipesPublished": false,
   "routes": [
@@ -29,12 +29,12 @@
   ],
   "javascript": [
     {
-      "path": "_expo/static/js/web/entry-ea40339a21bcd47a466a9e3bad731ec8.js",
-      "sha256": "81df85b106a7e4f6f82c27a982d7a9851b8f165834138ebd20c25f4a1b5252e4"
+      "path": "_expo/static/js/web/entry-cccc1b18a3d09ddbfb90d29340df68e3.js",
+      "sha256": "2e410c6f6b29b6ee41a376b9080f59241a3d07d80ae21702acb1c1e8225fcef1"
     },
     {
-      "path": "_expo/static/js/web/index-c142988eb2efae85921c710e45da8c89.js",
-      "sha256": "a86c92528bc253668b6d988daab4338ca30bf6a021f22e8f0642eddb2ca749bf"
+      "path": "_expo/static/js/web/index-d6833572d3cfcb7db21d7c5f285b0538.js",
+      "sha256": "f1b105b739d1caa83628e6bbd2eb11d07bcca38810a98636df7298294b6e26a6"
     }
   ]
 }

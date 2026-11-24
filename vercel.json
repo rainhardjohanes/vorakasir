@@ -3810,6 +3810,531 @@
           "value": "camera=(self), microphone=(), geolocation=()"
         }
       ]
+    },
+    {
+      "source": "/kasir-_expo-static-js-web-entry-cccc1b18a3d09ddbfb90d29340df68e3.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-_expo-static-js-web-index-d6833572d3cfcb7db21d7c5f285b0538.js",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-@expo-google-fonts-material-symbols-400Regular-MaterialSymbols_400Regular.2b81756ebf253c05d4eb3235002630b9.ttf",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-arrow_down.017bc6ba3fc25503e5eb5e53826d48a8.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-error.d1ea1496f9057eb392d5bbf3732a61b7.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-file.19eeb73b9593a38f8e9f418337fc7d10.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-forward.d8b800c443b8972542883e0b9de2bdc6.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-pkg.ab19f4cbc543357183a20571f68380a3.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-back-icon-mask.0a328cd9c1afd0afe8e3b1ec5165b1b4.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-back-icon.35ba0eaec5a4f5ed12ca16fabeae451d.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@2x.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@3x.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@4x.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-close-icon.808e1b1b9b53114ec2838071a7e6daa7.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-close-icon.808e1b1b9b53114ec2838071a7e6daa7@2x.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-close-icon.808e1b1b9b53114ec2838071a7e6daa7@3x.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-close-icon.808e1b1b9b53114ec2838071a7e6daa7@4x.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-search-icon.286d67d3f74808a60a78d3ebf1a5fb57.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-sitemap.412dd9275b6b48ad28f5e3d81bb1f626.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-unmatched.20e71bdf79e3a97bf55fd9e164041578.png",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://pjycdyrwdcjhxmdjzxto.supabase.co wss://pjycdyrwdcjhxmdjzxto.supabase.co blob: data:; img-src 'self' data: blob: https://pjycdyrwdcjhxmdjzxto.supabase.co; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=()"
+        }
+      ]
     }
   ],
   "rewrites": [
@@ -4556,6 +5081,90 @@
     {
       "source": "/kasir/assets/_________Desktop/vora-pos/node_modules/expo-router/assets/unmatched.20e71bdf79e3a97bf55fd9e164041578.png",
       "destination": "/kasir-assets-_________Desktop-vora-pos-node_modules-expo-router-assets-unmatched.20e71bdf79e3a97bf55fd9e164041578.png"
+    },
+    {
+      "source": "/kasir/_expo/static/js/web/entry-cccc1b18a3d09ddbfb90d29340df68e3.js",
+      "destination": "/kasir-_expo-static-js-web-entry-cccc1b18a3d09ddbfb90d29340df68e3.js"
+    },
+    {
+      "source": "/kasir/_expo/static/js/web/index-d6833572d3cfcb7db21d7c5f285b0538.js",
+      "destination": "/kasir-_expo-static-js-web-index-d6833572d3cfcb7db21d7c5f285b0538.js"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/@expo-google-fonts/material-symbols/400Regular/MaterialSymbols_400Regular.2b81756ebf253c05d4eb3235002630b9.ttf",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-@expo-google-fonts-material-symbols-400Regular-MaterialSymbols_400Regular.2b81756ebf253c05d4eb3235002630b9.ttf"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/arrow_down.017bc6ba3fc25503e5eb5e53826d48a8.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-arrow_down.017bc6ba3fc25503e5eb5e53826d48a8.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/error.d1ea1496f9057eb392d5bbf3732a61b7.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-error.d1ea1496f9057eb392d5bbf3732a61b7.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/file.19eeb73b9593a38f8e9f418337fc7d10.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-file.19eeb73b9593a38f8e9f418337fc7d10.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/forward.d8b800c443b8972542883e0b9de2bdc6.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-forward.d8b800c443b8972542883e0b9de2bdc6.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/pkg.ab19f4cbc543357183a20571f68380a3.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-pkg.ab19f4cbc543357183a20571f68380a3.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/back-icon-mask.0a328cd9c1afd0afe8e3b1ec5165b1b4.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-back-icon-mask.0a328cd9c1afd0afe8e3b1ec5165b1b4.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/back-icon.35ba0eaec5a4f5ed12ca16fabeae451d.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-back-icon.35ba0eaec5a4f5ed12ca16fabeae451d.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@2x.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@2x.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@3x.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@3x.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@4x.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@4x.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/close-icon.808e1b1b9b53114ec2838071a7e6daa7.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-close-icon.808e1b1b9b53114ec2838071a7e6daa7.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/close-icon.808e1b1b9b53114ec2838071a7e6daa7@2x.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-close-icon.808e1b1b9b53114ec2838071a7e6daa7@2x.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/close-icon.808e1b1b9b53114ec2838071a7e6daa7@3x.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-close-icon.808e1b1b9b53114ec2838071a7e6daa7@3x.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/close-icon.808e1b1b9b53114ec2838071a7e6daa7@4x.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-close-icon.808e1b1b9b53114ec2838071a7e6daa7@4x.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/react-navigation/elements/search-icon.286d67d3f74808a60a78d3ebf1a5fb57.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-react-navigation-elements-search-icon.286d67d3f74808a60a78d3ebf1a5fb57.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/sitemap.412dd9275b6b48ad28f5e3d81bb1f626.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-sitemap.412dd9275b6b48ad28f5e3d81bb1f626.png"
+    },
+    {
+      "source": "/kasir/assets/__________Desktop/vora-pos/node_modules/expo-router/assets/unmatched.20e71bdf79e3a97bf55fd9e164041578.png",
+      "destination": "/kasir-assets-__________Desktop-vora-pos-node_modules-expo-router-assets-unmatched.20e71bdf79e3a97bf55fd9e164041578.png"
     }
   ],
   "redirects": [
